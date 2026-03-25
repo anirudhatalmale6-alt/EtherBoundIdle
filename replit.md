@@ -2,7 +2,7 @@
 
 ## Overview
 
-pnpm workspace monorepo using TypeScript. Each package manages its own dependencies.
+pnpm workspace monorepo using TypeScript. This project is **Ether Bound Idle** — a full-featured idle MMORPG migrated from Base44 to Replit. It uses Replit Auth for authentication, PostgreSQL + Drizzle for persistence, and Express API routes replacing Base44 serverless functions.
 
 ## Stack
 
@@ -12,85 +12,68 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **TypeScript version**: 5.9
 - **API framework**: Express 5
 - **Database**: PostgreSQL + Drizzle ORM
-- **Validation**: Zod (`zod/v4`), `drizzle-zod`
-- **API codegen**: Orval (from OpenAPI spec)
-- **Build**: esbuild (CJS bundle)
+- **Frontend**: React + Vite + Tailwind CSS v3 (dark sci-fi theme)
+- **Auth**: Replit Auth (OIDC with PKCE)
+- **Build**: esbuild (API server), Vite (frontend)
 
 ## Structure
 
 ```text
 artifacts-monorepo/
-├── artifacts/              # Deployable applications
-│   └── api-server/         # Express API server
-├── lib/                    # Shared libraries
-│   ├── api-spec/           # OpenAPI spec + Orval codegen config
-│   ├── api-client-react/   # Generated React Query hooks
-│   ├── api-zod/            # Generated Zod schemas from OpenAPI
+├── artifacts/
+│   ├── api-server/         # Express API server (auth, entities, game functions)
+│   └── game/               # React + Vite frontend (idle MMORPG)
+├── lib/
 │   └── db/                 # Drizzle ORM schema + DB connection
-├── scripts/                # Utility scripts (single workspace package)
-│   └── src/                # Individual .ts scripts, run via `pnpm --filter @workspace/scripts run <script>`
-├── pnpm-workspace.yaml     # pnpm workspace (artifacts/*, lib/*, lib/integrations/*, scripts)
-├── tsconfig.base.json      # Shared TS options (composite, bundler resolution, es2022)
-├── tsconfig.json           # Root TS project references
-└── package.json            # Root package with hoisted devDeps
+├── scripts/
+├── pnpm-workspace.yaml
+├── tsconfig.base.json
+├── tsconfig.json
+└── package.json
 ```
+
+## Key Architecture
+
+### Frontend (artifacts/game)
+
+- **Tailwind v3** with dark sci-fi theme using CSS custom properties (NOT v4)
+- Uses `@tailwind base/components/utilities` directives, postcss.config.js, tailwind.config.js
+- **Base44 Compatibility Layer**: `src/api/base44Client.js` is a drop-in replacement for the Base44 SDK that calls our Express API instead. The 45+ game files that imported base44 work without modification.
+- **Auth**: `src/lib/AuthContext.jsx` uses Replit Auth (cookie-based sessions via `/api/auth/user`)
+- **API URL pattern**: `import.meta.env.BASE_URL.replace(/\/$/, '') + '/../api'` resolves to `/api`
+- **Game pages**: Battle, Inventory, Shop, Quests, Dungeons, LifeSkills, GearUpgrading, SkillTree, GuildPage, Social, Dashboard, Leaderboard, Profile, AdminPanel, GameConfig
+- **Key libs**: react-router-dom, @tanstack/react-query, framer-motion, recharts, lucide-react, shadcn/ui components
+
+### API Server (artifacts/api-server)
+
+- **Auth routes** (`routes/auth.ts`): Replit OIDC login/callback/logout with PKCE, session cookies
+- **Entity CRUD** (`routes/entities.ts`): Generic CRUD for 13 game entities (Character, Item, Guild, Quest, Trade, Party, etc.) with snake_case↔camelCase field mapping and ownership verification
+- **Game functions** (`routes/functions.ts`): 20+ game functions (sellItem, dungeonAction, lifeSkills, gemLab, dailyLogin, shopRotation, questManagement, etc.) with admin authorization on privileged endpoints
+- **Auth middleware** (`middlewares/authMiddleware.ts`): Session hydration with OIDC token refresh
+
+### Database (lib/db)
+
+- **Schema** (`schema/game.ts`): 15 tables — characters, items, guilds, quests, trades, parties, party_activities, party_invites, presences, player_sessions, chat_messages, mail, resources, game_config, user_roles
+- **JSONB columns** for flexible game data: equipment, skills, achievements, life_skills, gem_lab, dungeon_data, skill_tree_data
+- Uses `drizzle-kit push` for dev schema sync
+
+## Security
+
+- Entity mutations (PATCH/DELETE) verify ownership via `verifyOwnership()` which checks the `createdBy` or related character's owner
+- Admin endpoints (getAllUsers, getAllCharacters, updateUserRole, managePlayer, gameConfigManager update) require admin/moderator role via `requireAdmin()`
+- All data endpoints require authentication
 
 ## TypeScript & Composite Projects
 
-Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references. This means:
-
-- **Always typecheck from the root** — run `pnpm run typecheck` (which runs `tsc --build --emitDeclarationOnly`). This builds the full dependency graph so that cross-package imports resolve correctly. Running `tsc` inside a single package will fail if its dependencies haven't been built yet.
-- **`emitDeclarationOnly`** — we only emit `.d.ts` files during typecheck; actual JS bundling is handled by esbuild/tsx/vite...etc, not `tsc`.
-- **Project references** — when package A depends on package B, A's `tsconfig.json` must list B in its `references` array. `tsc --build` uses this to determine build order and skip up-to-date packages.
+Every package extends `tsconfig.base.json` which sets `composite: true`. The root `tsconfig.json` lists all packages as project references.
 
 ## Root Scripts
 
-- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages that define it
-- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly` using project references
+- `pnpm run build` — runs `typecheck` first, then recursively runs `build` in all packages
+- `pnpm run typecheck` — runs `tsc --build --emitDeclarationOnly`
 
-## Packages
+## Dev Commands
 
-### `artifacts/api-server` (`@workspace/api-server`)
-
-Express 5 API server. Routes live in `src/routes/` and use `@workspace/api-zod` for request and response validation and `@workspace/db` for persistence.
-
-- Entry: `src/index.ts` — reads `PORT`, starts Express
-- App setup: `src/app.ts` — mounts CORS, JSON/urlencoded parsing, routes at `/api`
-- Routes: `src/routes/index.ts` mounts sub-routers; `src/routes/health.ts` exposes `GET /health` (full path: `/api/health`)
-- Depends on: `@workspace/db`, `@workspace/api-zod`
-- `pnpm --filter @workspace/api-server run dev` — run the dev server
-- `pnpm --filter @workspace/api-server run build` — production esbuild bundle (`dist/index.cjs`)
-- Build bundles an allowlist of deps (express, cors, pg, drizzle-orm, zod, etc.) and externalizes the rest
-
-### `lib/db` (`@workspace/db`)
-
-Database layer using Drizzle ORM with PostgreSQL. Exports a Drizzle client instance and schema models.
-
-- `src/index.ts` — creates a `Pool` + Drizzle instance, exports schema
-- `src/schema/index.ts` — barrel re-export of all models
-- `src/schema/<modelname>.ts` — table definitions with `drizzle-zod` insert schemas (no models definitions exist right now)
-- `drizzle.config.ts` — Drizzle Kit config (requires `DATABASE_URL`, automatically provided by Replit)
-- Exports: `.` (pool, db, schema), `./schema` (schema only)
-
-Production migrations are handled by Replit when publishing. In development, we just use `pnpm --filter @workspace/db run push`, and we fallback to `pnpm --filter @workspace/db run push-force`.
-
-### `lib/api-spec` (`@workspace/api-spec`)
-
-Owns the OpenAPI 3.1 spec (`openapi.yaml`) and the Orval config (`orval.config.ts`). Running codegen produces output into two sibling packages:
-
-1. `lib/api-client-react/src/generated/` — React Query hooks + fetch client
-2. `lib/api-zod/src/generated/` — Zod schemas
-
-Run codegen: `pnpm --filter @workspace/api-spec run codegen`
-
-### `lib/api-zod` (`@workspace/api-zod`)
-
-Generated Zod schemas from the OpenAPI spec (e.g. `HealthCheckResponse`). Used by `api-server` for response validation.
-
-### `lib/api-client-react` (`@workspace/api-client-react`)
-
-Generated React Query hooks and fetch client from the OpenAPI spec (e.g. `useHealthCheck`, `healthCheck`).
-
-### `scripts` (`@workspace/scripts`)
-
-Utility scripts package. Each script is a `.ts` file in `src/` with a corresponding npm script in `package.json`. Run scripts via `pnpm --filter @workspace/scripts run <script>`. Scripts can import any workspace package (e.g., `@workspace/db`) by adding it as a dependency in `scripts/package.json`.
+- `pnpm --filter @workspace/api-server run dev` — run API server
+- `pnpm --filter @workspace/game run dev` — run game frontend
+- `pnpm --filter @workspace/db run push` — push schema to PostgreSQL

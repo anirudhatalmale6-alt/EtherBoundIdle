@@ -1,0 +1,348 @@
+import React, { useState, useEffect } from "react";
+import { base44 } from "@/api/base44Client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Users, Shield, Plus, LogIn, Search } from "lucide-react";
+
+import GuildHeader from "@/components/guild/GuildHeader";
+import GuildMembers from "@/components/guild/GuildMembers";
+import GuildPerks from "@/components/guild/GuildPerks";
+import GuildBoss from "@/components/guild/GuildBoss";
+import GuildShop from "@/components/guild/GuildShop";
+import GuildBase from "@/components/guild/GuildBase";
+import InlineChat from "@/components/game/InlineChat";
+
+const GUILD_BOSSES = [
+  { name: "Ancient Golem", baseHp: 50000 },
+  { name: "Shadow Hydra", baseHp: 100000 },
+  { name: "Cosmic Titan", baseHp: 250000 },
+];
+
+export default function GuildPage({ character, onCharacterUpdate }) {
+  const [guildName, setGuildName] = useState("");
+  const [guildTag, setGuildTag] = useState("");
+  const [guildDesc, setGuildDesc] = useState("");
+  const [search, setSearch] = useState("");
+  const queryClient = useQueryClient();
+
+  const { data: guilds = [] } = useQuery({
+    queryKey: ["guilds"],
+    queryFn: () => base44.entities.Guild.list("-member_count", 30),
+    refetchInterval: 20000,
+  });
+
+  const myGuild = guilds.find(g => g.id === character?.guild_id);
+  const myMemberEntry = myGuild?.members?.find(m => m.character_id === character?.id);
+  const myRole = myMemberEntry?.role || (myGuild?.leader_id === character?.id ? "leader" : "member");
+
+  const refetch = () => queryClient.invalidateQueries({ queryKey: ["guilds"] });
+
+  // Real-time subscription so all members see guild changes instantly
+  useEffect(() => {
+    const unsub = base44.entities.Guild.subscribe(() => {
+      queryClient.invalidateQueries({ queryKey: ["guilds"] });
+    });
+    return unsub;
+  }, [queryClient]);
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      if ((character.gold || 0) < 500) throw new Error("Not enough gold (500 required)");
+      const newGuild = await base44.entities.Guild.create({
+        name: guildName.trim(),
+        tag: guildTag.trim().toUpperCase().slice(0, 5),
+        description: guildDesc.trim(),
+        leader_id: character.id,
+        leader_name: character.name,
+        member_count: 1,
+        max_members: 20,
+        level: 1,
+        exp: 0,
+        exp_to_next: 1000,
+        emblem: "shield",
+        is_recruiting: true,
+        is_public: true,
+        guild_tokens: 0,
+        buffs: { exp_bonus: 5, gold_bonus: 5, damage_bonus: 2, idle_bonus: 0 },
+        perks: { exp_boost: 0, gold_boost: 0, damage_boost: 0, idle_boost: 0 },
+        buildings: { forge: 0, academy: 0, treasury: 0 },
+        boss_active: false,
+        members: [{ character_id: character.id, name: character.name, role: "leader", joined_at: new Date().toISOString(), boss_damage_today: 0 }],
+      });
+      await base44.entities.Character.update(character.id, { gold: (character.gold || 0) - 500, guild_id: newGuild.id });
+      onCharacterUpdate({ ...character, gold: (character.gold || 0) - 500, guild_id: newGuild.id });
+      refetch();
+    },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: async (guild) => {
+      const currentMembers = guild.members || [];
+      if (currentMembers.length >= (guild.max_members || 20)) throw new Error("Guild is full");
+      const alreadyMember = currentMembers.some(m => m.character_id === character.id);
+      if (alreadyMember) throw new Error("Already a member");
+      const newMembers = [...currentMembers, { character_id: character.id, name: character.name, role: "member", joined_at: new Date().toISOString(), boss_damage_today: 0 }];
+      await base44.entities.Guild.update(guild.id, { member_count: newMembers.length, members: newMembers });
+      await base44.entities.Character.update(character.id, { guild_id: guild.id });
+      onCharacterUpdate({ ...character, guild_id: guild.id });
+      refetch();
+    },
+  });
+
+  const leaveMutation = useMutation({
+    mutationFn: async () => {
+      const newMembers = (myGuild.members || []).filter(m => m.character_id !== character.id);
+      await base44.entities.Guild.update(myGuild.id, { member_count: newMembers.length, members: newMembers });
+      await base44.entities.Character.update(character.id, { guild_id: null });
+      onCharacterUpdate({ ...character, guild_id: null });
+      refetch();
+    },
+  });
+
+  const kickMutation = useMutation({
+    mutationFn: async (member) => {
+      const newMembers = (myGuild.members || []).filter(m => m.character_id !== member.character_id);
+      await base44.entities.Guild.update(myGuild.id, { member_count: newMembers.length, members: newMembers });
+      refetch();
+    },
+  });
+
+  const changeRoleMutation = useMutation({
+    mutationFn: async ({ member, direction }) => {
+      const order = ["member", "officer", "co-leader"];
+      const idx = order.indexOf(member.role);
+      const newRole = direction === "up" ? order[Math.min(idx + 1, order.length - 1)] : order[Math.max(idx - 1, 0)];
+      const newMembers = (myGuild.members || []).map(m => m.character_id === member.character_id ? { ...m, role: newRole } : m);
+      await base44.entities.Guild.update(myGuild.id, { members: newMembers });
+      refetch();
+    },
+  });
+
+  const perkMutation = useMutation({
+    mutationFn: async ({ perk, currentLevel }) => {
+      const cost = perk.costPerLevel * (currentLevel + 1);
+      if ((myGuild.guild_tokens || 0) < cost) throw new Error("Not enough tokens");
+      const newPerks = { ...(myGuild.perks || {}), [perk.key]: currentLevel + 1 };
+      const buffDelta = { exp_boost: 5, gold_boost: 5, damage_boost: 3, idle_boost: 5 }[perk.key] || 0;
+      const newBuffs = { ...(myGuild.buffs || {}) };
+      newBuffs[perk.buffKey] = (newBuffs[perk.buffKey] || 0) + buffDelta;
+      await base44.entities.Guild.update(myGuild.id, { perks: newPerks, buffs: newBuffs, guild_tokens: (myGuild.guild_tokens || 0) - cost });
+      refetch();
+    },
+  });
+
+  const buildingMutation = useMutation({
+    mutationFn: async ({ building, currentLevel }) => {
+      const cost = building.costPerLevel * (currentLevel + 1);
+      if ((myGuild.guild_tokens || 0) < cost) throw new Error("Not enough tokens");
+      const newBuildings = { ...(myGuild.buildings || {}), [building.key]: currentLevel + 1 };
+      await base44.entities.Guild.update(myGuild.id, { buildings: newBuildings, guild_tokens: (myGuild.guild_tokens || 0) - cost });
+      refetch();
+    },
+  });
+
+  const activateBossMutation = useMutation({
+    mutationFn: async () => {
+      const bossTemplate = GUILD_BOSSES[Math.min((myGuild.level || 1) - 1, GUILD_BOSSES.length - 1)];
+      const hp = Math.floor(bossTemplate.baseHp * (1 + (myGuild.level - 1) * 0.5));
+      const expires = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+      await base44.entities.Guild.update(myGuild.id, { boss_active: true, boss_name: bossTemplate.name, boss_hp: hp, boss_max_hp: hp, boss_expires_at: expires });
+      refetch();
+    },
+  });
+
+  const attackBossMutation = useMutation({
+    mutationFn: async () => {
+      const dmg = Math.floor((character.strength || 10) * 50 + Math.random() * 500);
+      const newHp = Math.max(0, (myGuild.boss_hp || 0) - dmg);
+      const newMembers = (myGuild.members || []).map(m =>
+        m.character_id === character.id ? { ...m, boss_damage_today: (m.boss_damage_today || 0) + dmg } : m
+      );
+      const tokenReward = Math.floor(dmg / 100);
+      const updates = { boss_hp: newHp, members: newMembers, guild_tokens: (myGuild.guild_tokens || 0) + tokenReward };
+      if (newHp <= 0) {
+        updates.boss_active = false;
+        const newExp = (myGuild.exp || 0) + 500;
+        updates.exp = newExp;
+        if (newExp >= (myGuild.exp_to_next || 1000)) {
+          updates.level = (myGuild.level || 1) + 1;
+          updates.exp = newExp - (myGuild.exp_to_next || 1000);
+          updates.exp_to_next = Math.floor((myGuild.exp_to_next || 1000) * 1.5);
+          updates.max_members = (myGuild.max_members || 20) + 5;
+        }
+      }
+      await base44.entities.Guild.update(myGuild.id, updates);
+      await base44.entities.Character.update(character.id, { gold: (character.gold || 0) + tokenReward });
+      onCharacterUpdate({ ...character, gold: (character.gold || 0) + tokenReward });
+      refetch();
+    },
+  });
+
+  const shopBuyMutation = useMutation({
+    mutationFn: async (item) => {
+      if ((myGuild.guild_tokens || 0) < item.cost) throw new Error("Not enough tokens");
+      await base44.entities.Guild.update(myGuild.id, { guild_tokens: (myGuild.guild_tokens || 0) - item.cost });
+      refetch();
+    },
+  });
+
+  const filteredGuilds = guilds.filter(g =>
+    g.is_recruiting && g.name?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (!character) return null;
+
+  return (
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      <h2 className="font-orbitron text-xl font-bold flex items-center gap-2">
+        <Users className="w-5 h-5 text-primary" /> Guilds
+      </h2>
+
+      {myGuild ? (
+        <div className="space-y-4">
+          <GuildHeader guild={myGuild} myRole={myRole} onLeave={() => leaveMutation.mutate()} isLeaving={leaveMutation.isPending} />
+
+          <Tabs defaultValue="members">
+            <TabsList className="flex flex-wrap h-auto gap-1 p-1 bg-muted">
+              <TabsTrigger value="members" className="text-xs">Members</TabsTrigger>
+              <TabsTrigger value="boss" className="text-xs">Guild Boss</TabsTrigger>
+              <TabsTrigger value="perks" className="text-xs">Perks</TabsTrigger>
+              <TabsTrigger value="base" className="text-xs">Guild Base</TabsTrigger>
+              <TabsTrigger value="shop" className="text-xs">Shop</TabsTrigger>
+              <TabsTrigger value="chat" className="text-xs">Chat</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="members" className="mt-3">
+              <GuildMembers
+                guild={myGuild}
+                myRole={myRole}
+                characterId={character.id}
+                onKick={(m) => kickMutation.mutate(m)}
+                onPromote={(m) => changeRoleMutation.mutate({ member: m, direction: "up" })}
+                onDemote={(m) => changeRoleMutation.mutate({ member: m, direction: "down" })}
+              />
+            </TabsContent>
+
+            <TabsContent value="boss" className="mt-3">
+              <GuildBoss
+                guild={myGuild}
+                myMemberEntry={myMemberEntry}
+                onAttack={() => attackBossMutation.mutate()}
+                onActivate={() => activateBossMutation.mutate()}
+                isAttacking={attackBossMutation.isPending}
+                canActivate={["leader", "co-leader", "officer"].includes(myRole)}
+              />
+            </TabsContent>
+
+            <TabsContent value="perks" className="mt-3">
+              <GuildPerks
+                guild={myGuild}
+                myRole={myRole}
+                onUpgrade={(perk, level) => perkMutation.mutate({ perk, currentLevel: level })}
+                isUpgrading={perkMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="base" className="mt-3">
+              <GuildBase
+                guild={myGuild}
+                myRole={myRole}
+                onUpgrade={(building, level) => buildingMutation.mutate({ building, currentLevel: level })}
+                isUpgrading={buildingMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="shop" className="mt-3">
+              <GuildShop
+                guild={myGuild}
+                onBuy={(item) => shopBuyMutation.mutate(item)}
+                isBuying={shopBuyMutation.isPending}
+              />
+            </TabsContent>
+
+            <TabsContent value="chat" className="mt-3">
+              <InlineChat character={character} channel="guild" guildId={myGuild.id} />
+            </TabsContent>
+          </Tabs>
+        </div>
+      ) : (
+        <Tabs defaultValue="browse">
+          <TabsList>
+            <TabsTrigger value="browse">Browse Guilds</TabsTrigger>
+            <TabsTrigger value="create">Create Guild</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="browse" className="mt-3 space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input className="pl-9" placeholder="Search guilds..." value={search} onChange={e => setSearch(e.target.value)} />
+            </div>
+            {filteredGuilds.map(guild => (
+              <motion.div key={guild.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="bg-card border border-border rounded-xl p-4 flex items-center gap-4">
+                <div className="w-10 h-10 rounded-lg bg-secondary/20 flex items-center justify-center">
+                  <Shield className="w-5 h-5 text-secondary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="font-semibold truncate">{guild.name}</p>
+                    {guild.tag && <span className="text-xs text-muted-foreground font-mono">[{guild.tag}]</span>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Lv.{guild.level} • {guild.member_count}/{guild.max_members || 20} Members</p>
+                  {guild.description && <p className="text-xs text-muted-foreground truncate mt-0.5">{guild.description}</p>}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => joinMutation.mutate(guild)}
+                  disabled={joinMutation.isPending || (guild.members?.length || 0) >= (guild.max_members || 20)}
+                  className="gap-1 flex-shrink-0"
+                  title={(guild.members?.length || 0) >= (guild.max_members || 20) ? "Guild is full" : "Join guild"}
+                >
+                  <LogIn className="w-3.5 h-3.5" />
+                  {(guild.members?.length || 0) >= (guild.max_members || 20) ? "Full" : "Join"}
+                </Button>
+              </motion.div>
+            ))}
+            {filteredGuilds.length === 0 && (
+              <p className="text-center py-8 text-muted-foreground">No guilds found. Create one!</p>
+            )}
+          </TabsContent>
+
+          <TabsContent value="create" className="mt-3">
+            <div className="bg-card border border-border rounded-xl p-5 space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div className="col-span-2">
+                  <label className="text-xs text-muted-foreground mb-1 block">Guild Name *</label>
+                  <Input placeholder="e.g. Shadow Legion" value={guildName} onChange={e => setGuildName(e.target.value)} maxLength={30} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Tag (3–5 chars)</label>
+                  <Input placeholder="SL" value={guildTag} onChange={e => setGuildTag(e.target.value.slice(0, 5))} maxLength={5} />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Description</label>
+                <Textarea placeholder="Describe your guild..." value={guildDesc} onChange={e => setGuildDesc(e.target.value)} className="h-20" />
+              </div>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Creation Cost: <span className="text-accent font-semibold">500 Gold</span></span>
+                <span>Your Gold: <span className="text-accent font-semibold">{character.gold || 0}</span></span>
+              </div>
+              {createMutation.isError && <p className="text-destructive text-sm">{createMutation.error?.message}</p>}
+              <Button
+                onClick={() => createMutation.mutate()}
+                disabled={!guildName.trim() || !guildTag.trim() || (character.gold || 0) < 500 || createMutation.isPending}
+                className="w-full gap-2"
+              >
+                <Plus className="w-4 h-4" /> Create Guild (500 Gold)
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      )}
+    </div>
+  );
+}

@@ -1,0 +1,436 @@
+import React, { useState } from "react";
+import { base44 } from "@/api/base44Client";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Zap, Hammer, Sparkles, AlertTriangle, Skull,
+  TrendingUp, Gem, Coins, AlertCircle, CheckCircle2, Loader2
+} from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
+import { RARITY_CONFIG } from "@/lib/gameData";
+
+export default function EquipmentUpgradePanel({ item, character, onClose }) {
+  const [activeTab, setActiveTab] = useState("safe"); // safe, star, awaken
+  const [confirmStar, setConfirmStar] = useState(false);
+  const [confirmAwaken, setConfirmAwaken] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Success chances for star upgrades
+  const STAR_SUCCESS_CHANCES = {
+    0: 90, 1: 75, 2: 50, 3: 35, 4: 12, 5: 8, 6: 2
+  };
+
+  const rarityMultipliers = {
+    common: 1.0, uncommon: 1.3, rare: 1.7, epic: 2.2, legendary: 3.0, mythic: 4.0, set: 3.5, shiny: 5.0
+  };
+  const rarityMult = rarityMultipliers[item.rarity] || 1.0;
+
+  const currentStar = item.star_level || 0;
+  const successChance = STAR_SUCCESS_CHANCES[currentStar] || 0;
+  const gemCost = Math.ceil(5 * Math.pow(1.5, currentStar) * rarityMult);
+
+  // Safe upgrade costs — gold only
+  const currentUpgrade = item.upgrade_level || 0;
+  const goldCost = Math.floor(300 * (currentUpgrade + 1) * rarityMult);
+
+  // Mutations
+  const safeMutation = useMutation({
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('upgradeItemSafe', { itemId: item.id });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: `✅ Upgraded!`,
+          description: data.message,
+          duration: 2000
+        });
+        queryClient.invalidateQueries({ queryKey: ["items"] });
+        queryClient.invalidateQueries({ queryKey: ["characters"] });
+        setTimeout(onClose, 500);
+      }
+    },
+    onError: (error) => {
+      toast({
+        title: "Upgrade failed",
+        description: error.response?.data?.error || "Unknown error",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const starMutation = useMutation({
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('starUpgradeItem', { itemId: item.id });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: `⭐ SUCCESS!`,
+          description: data.message,
+          duration: 3000
+        });
+      } else {
+        toast({
+          title: `💀 DESTROYED!`,
+          description: data.message,
+          variant: "destructive",
+          duration: 3000
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
+      setConfirmStar(false);
+      setTimeout(onClose, 1000);
+    },
+    onError: (error) => {
+      toast({
+        title: "Star upgrade failed",
+        description: error.response?.data?.error || "Unknown error",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const awakenMutation = useMutation({
+    mutationFn: async () => {
+      const response = await base44.functions.invoke('awakenItem', { itemId: item.id });
+      return response.data;
+    },
+    onSuccess: (data) => {
+      if (data.success) {
+        toast({
+          title: `✨ AWAKENED!`,
+          description: data.message,
+          duration: 3000
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
+      setConfirmAwaken(false);
+      setTimeout(onClose, 500);
+    },
+    onError: (error) => {
+      toast({
+        title: "Awakening failed",
+        description: error.response?.data?.error || "Unknown error",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.9 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.9 }}
+      className={`bg-card border-2 rounded-xl p-5 w-full max-w-md space-y-4 ${rarity.border}`}
+    >
+      {/* Item Header */}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h3 className={`text-lg font-bold ${rarity.color}`}>{item.name}</h3>
+          <button onClick={onClose} className="text-muted-foreground hover:text-foreground">✕</button>
+        </div>
+
+        {/* Upgrade Status */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className="flex items-center gap-1">
+            <Hammer className="w-3 h-3" /> +{currentUpgrade}
+          </Badge>
+          {currentStar > 0 && (
+            <Badge variant="outline" className="flex items-center gap-1 text-yellow-400 border-yellow-500/30">
+              {[...Array(currentStar)].map((_, i) => <span key={i}>⭐</span>)}
+            </Badge>
+          )}
+          {item.is_awakened && (
+            <Badge variant="outline" className="flex items-center gap-1 text-cyan-400 border-cyan-500/30">
+              <Sparkles className="w-3 h-3" /> AWAKENED
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Tab Navigation */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setActiveTab("safe")}
+          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+            activeTab === "safe"
+              ? "bg-primary text-primary-foreground"
+              : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+        >
+          <Hammer className="w-4 h-4" /> Safe
+        </button>
+        <button
+          onClick={() => setActiveTab("star")}
+          disabled={currentStar >= 7}
+          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+            activeTab === "star"
+              ? "bg-yellow-600 text-yellow-100"
+              : "bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50"
+          }`}
+        >
+          <Zap className="w-4 h-4" /> Star
+        </button>
+        <button
+          onClick={() => setActiveTab("awaken")}
+          disabled={currentStar < 7 || item.is_awakened}
+          className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-1 ${
+            activeTab === "awaken"
+              ? "bg-cyan-600 text-cyan-100"
+              : "bg-muted text-muted-foreground hover:bg-muted/80 disabled:opacity-50"
+          }`}
+        >
+          <Sparkles className="w-4 h-4" /> Awaken
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <div className="space-y-3">
+        {/* SAFE UPGRADE TAB */}
+        {activeTab === "safe" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            {currentUpgrade >= 20 ? (
+              <div className="bg-muted/50 rounded-lg p-3 text-center text-sm text-muted-foreground">
+                Max upgrade level reached (20)
+              </div>
+            ) : (
+              <>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                   <div className="flex justify-between text-sm">
+                     <span className="text-muted-foreground">Gold Cost:</span>
+                     <span className={`font-semibold flex items-center gap-1 ${
+                       (character.gold || 0) >= goldCost ? "text-accent" : "text-destructive"
+                     }`}>
+                       <Coins className="w-4 h-4" /> {goldCost.toLocaleString()}
+                     </span>
+                   </div>
+                   <div className="flex justify-between text-sm">
+                     <span className="text-muted-foreground">Result:</span>
+                     <span className="text-green-400 font-semibold">+{currentUpgrade + 1} (was +{currentUpgrade})</span>
+                   </div>
+                   {item.stats && Object.entries(item.stats).filter(([, v]) => v && v !== 0).length > 0 && (
+                     <div className="border-t border-border pt-2 mt-2 space-y-1">
+                       <p className="text-xs text-muted-foreground font-semibold">Stat increase (+1% flat):</p>
+                       {Object.entries(item.stats)
+                         .filter(([, value]) => value && value !== 0)
+                         .map(([stat, value]) => {
+                           const nextVal = Math.round(value * (1 + (currentUpgrade + 1) * 0.01));
+                           const curVal = Math.round(value * (1 + currentUpgrade * 0.01));
+                           return (
+                             <div key={stat} className="flex justify-between text-xs">
+                               <span className="capitalize text-muted-foreground">{stat.replace(/_/g, ' ')}:</span>
+                               <span className="text-green-400 font-semibold">{curVal} → {nextVal}</span>
+                             </div>
+                           );
+                         })}
+                     </div>
+                   )}
+                 </div>
+
+                <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-2 text-xs text-green-200 text-center">
+                  ✓ Safe upgrade (no risk)
+                </div>
+
+                <Button
+                   onClick={() => safeMutation.mutate()}
+                   disabled={safeMutation.isPending || (character.gold || 0) < goldCost}
+                   className="w-full bg-green-600 hover:bg-green-700 gap-2"
+                 >
+                   {safeMutation.isPending && <Loader2 className="w-4 h-4 animate-spin" />}
+                   {safeMutation.isPending ? "Upgrading..." : `Upgrade Level ${currentUpgrade + 1}`}
+                 </Button>
+              </>
+            )}
+          </motion.div>
+        )}
+
+        {/* STAR UPGRADE TAB */}
+        {activeTab === "star" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            {currentStar >= 7 ? (
+              <div className="bg-muted/50 rounded-lg p-3 text-center text-sm text-muted-foreground">
+                Max star level reached (7)
+              </div>
+            ) : (
+              <>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                   <div className="flex justify-between text-sm">
+                     <span className="text-muted-foreground">Gem Cost:</span>
+                     <span className="font-semibold flex items-center gap-1">
+                       <Gem className="w-4 h-4 text-cyan-400" /> {gemCost}
+                     </span>
+                   </div>
+                   <div className="flex justify-between text-sm">
+                     <span className="text-muted-foreground">Success Chance:</span>
+                     <span className={`font-bold ${
+                       successChance >= 50 ? "text-green-400" : successChance >= 20 ? "text-orange-400" : "text-destructive"
+                     }`}>
+                       {successChance}%
+                     </span>
+                   </div>
+                   {item.stats && Object.entries(item.stats).filter(([, v]) => v && v !== 0).length > 0 && (
+                     <div className="border-t border-border pt-2 mt-2 space-y-1">
+                       <p className="text-xs text-muted-foreground font-semibold">Stat Boost (+5%):</p>
+                       {Object.entries(item.stats)
+                         .filter(([, value]) => value && value !== 0)
+                         .map(([stat, value]) => (
+                           <div key={stat} className="flex justify-between text-xs">
+                             <span className="capitalize text-muted-foreground">{stat.replace(/_/g, ' ')}:</span>
+                             <span className="text-yellow-400 font-semibold">{Math.round(value)} → {Math.round(value * 1.05)}</span>
+                           </div>
+                         ))}
+                     </div>
+                   )}
+                 </div>
+
+                <div className="bg-destructive/10 border border-destructive/30 rounded-lg p-3 space-y-1 text-xs text-destructive">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-semibold">HIGH RISK!</p>
+                      <p>Failure will PERMANENTLY DELETE your item!</p>
+                    </div>
+                  </div>
+                </div>
+
+                {!confirmStar ? (
+                  <Button
+                    onClick={() => setConfirmStar(true)}
+                    disabled={starMutation.isPending || (character.gems || 0) < gemCost}
+                    className="w-full bg-yellow-600 hover:bg-yellow-700 gap-2"
+                  >
+                    <Zap className="w-4 h-4" /> Upgrade to ⭐{currentStar + 1}
+                  </Button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-2"
+                  >
+                    <div className="bg-destructive/20 border border-destructive/50 rounded-lg p-3 text-sm text-destructive font-semibold text-center">
+                      💀 Are you ABSOLUTELY SURE?
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setConfirmStar(false)}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => starMutation.mutate()}
+                        disabled={starMutation.isPending}
+                        className="flex-1 bg-destructive hover:bg-destructive/90 gap-2"
+                      >
+                        {starMutation.isPending ? "Rolling..." : ""}
+                        <Skull className="w-4 h-4" /> COMMIT
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
+
+        {/* AWAKEN TAB */}
+        {activeTab === "awaken" && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="space-y-3"
+          >
+            {currentStar < 7 ? (
+              <div className="bg-muted/50 rounded-lg p-3 text-center text-sm text-muted-foreground">
+                Requires ⭐ Level 7 to awaken
+              </div>
+            ) : item.is_awakened ? (
+              <div className="bg-cyan-500/10 rounded-lg p-3 text-center text-sm text-cyan-300 font-semibold">
+                ✨ Item already awakened
+              </div>
+            ) : (
+              <>
+                <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Gem Cost:</span>
+                    <span className="font-semibold flex items-center gap-1">
+                      <Gem className="w-4 h-4 text-cyan-400" /> 50
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-muted-foreground">Stat Bonus:</span>
+                    <span className="font-semibold text-cyan-400">+50%</span>
+                  </div>
+                </div>
+
+                <div className="bg-cyan-500/10 border border-cyan-500/30 rounded-lg p-3 text-xs text-cyan-200 text-center space-y-1">
+                  <p className="font-semibold">✨ LEGENDARY TRANSFORMATION ✨</p>
+                  <p>Your item will transcend and gain immense power!</p>
+                </div>
+
+                {!confirmAwaken ? (
+                  <Button
+                    onClick={() => setConfirmAwaken(true)}
+                    disabled={awakenMutation.isPending || (character.gems || 0) < 50}
+                    className="w-full bg-cyan-600 hover:bg-cyan-700 gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" /> Awaken
+                  </Button>
+                ) : (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="space-y-2"
+                  >
+                    <div className="bg-cyan-600/20 border border-cyan-500/50 rounded-lg p-3 text-sm text-cyan-300 font-semibold text-center">
+                      ✨ Confirm awakening?
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setConfirmAwaken(false)}
+                        className="flex-1"
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => awakenMutation.mutate()}
+                        disabled={awakenMutation.isPending}
+                        className="flex-1 bg-cyan-600 hover:bg-cyan-700 gap-2"
+                      >
+                        <Sparkles className="w-4 h-4" /> {awakenMutation.isPending ? "Awakening..." : "AWAKEN"}
+                      </Button>
+                    </div>
+                  </motion.div>
+                )}
+              </>
+            )}
+          </motion.div>
+        )}
+      </div>
+
+      <Button variant="ghost" size="sm" className="w-full" onClick={onClose}>
+        Close
+      </Button>
+    </motion.div>
+  );
+}
