@@ -48,9 +48,12 @@ Entity CRUD and function calls automatically route to the correct driver. In ser
 
 - **Tailwind v3** with dark sci-fi theme using CSS custom properties (NOT v4)
 - Uses `@tailwind base/components/utilities` directives, postcss.config.js, tailwind.config.js
-- **Base44 Compatibility Layer**: `src/api/base44Client.js` — 19 entity types (Character, Item, Guild, Quest, Resource, etc.) with full CRUD + subscribe. 26+ game functions implemented for both local and remote modes.
+- **Base44 Compatibility Layer**: `src/api/base44Client.js` — 19 entity types (Character, Item, Guild, Quest, Resource, GemLab, etc.) with full CRUD + subscribe. 26+ game functions implemented for both local and remote modes.
 - **Auth**: `src/lib/AuthContext.jsx` — localStorage-based identity in local mode, server auth in server mode
 - **Life Skills**: Mining, Fishing, Herbalism with 7-tier rarity drop tables, tick-based gathering, speed/luck upgrades, and 4 processing skills (Smelting, Cooking, Alchemy, Forging)
+- **Gem Lab**: Uses separate `GemLab` entity store (not `Character.gem_lab`). Auto-creates on first access. Has production/speed/efficiency upgrades with exponential cost scaling (base 1000g, 1.15x multiplier). Legacy `Character.gem_lab` data is auto-migrated.
+- **Shop**: 4-hour seeded rotation generating 8 level-scaled equipment items + 2 potions. Uses `buy_price`, `sell_price`, `rarity`, `stats`, `item_level`, `description` fields.
+- **Quests**: Daily quests use `target_count`, `current_count`, `rewards` (object), `is_daily`, `objective_type` fields. 8 templates with objectives: combat_kills, gold_earned, level_up, mining, fishing, herbalism. Battle.jsx emits progress events for all objective types.
 - **Game data files**: `src/lib/gameData.js`, `src/lib/equipmentSystem.js`, `src/lib/setSystem.js`, `src/lib/skillData.js`, `src/lib/gameConfig.js`, `src/lib/statSystem.js`
 - **Game pages**: Battle, Inventory, Shop, Quests, Dungeons, LifeSkills, GearUpgrading, SkillTree, GuildPage, Social, Dashboard, Leaderboard, Profile, AdminPanel, GameConfig
 - **Key libs**: react-router-dom, @tanstack/react-query, framer-motion, recharts, lucide-react, shadcn/ui

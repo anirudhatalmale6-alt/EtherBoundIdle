@@ -113,36 +113,12 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
 
   const metrics = calculateMetrics();
 
-  // Resume from local cache + calculate offline gem generation
+  // Bootstrap GemLab on first load + process offline gems
   useEffect(() => {
-    if (!character?.id || !gemLab) return;
+    if (!character?.id) return;
 
-    // Check local cache for gem generation state
-    const localGemLab = hybridPersistence.loadGemLab(character.id);
-    if (localGemLab?.lastCollectionTime) {
-      // Calculate gems generated since last collection using time-based formula
-      const lastCollection = new Date(localGemLab.lastCollectionTime).getTime();
-      const now = Date.now();
-      const elapsedSeconds = (now - lastCollection) / 1000;
-
-      // Calculate based on current levels
-      const gemsGenerated = hybridPersistence.calculateGemGeneration(
-        elapsedSeconds,
-        1, // base rate
-        gemLab.speed_level || 0,
-        gemLab.efficiency_level || 0
-      );
-
-      if (gemsGenerated.gemsGenerated > 0) {
-        // Update pending gems locally before next sync
-        const pendingGems = (gemLab.pending_gems || 0) + gemsGenerated.gemsGenerated;
-        hybridPersistence.saveGemLab(character.id, now.toString(), pendingGems);
-      }
-    }
-
-    // Process gems from server
     processMutation.mutate();
-  }, [character?.id, gemLab?.id]);
+  }, [character?.id]);
 
   // Save gem state on unmount (for resume)
   useEffect(() => {

@@ -568,38 +568,137 @@ async function handleLocalFunction(functionName, params) {
 
     case 'getShopRotation': {
       const now = new Date();
-      const seed = Math.floor(now.getTime() / (6 * 60 * 60 * 1000));
-      const shopItems = [
-        { id: `shop_${seed}_1`, name: 'Health Potion', type: 'consumable', price: 50, currency: 'gold' },
-        { id: `shop_${seed}_2`, name: 'Mana Potion', type: 'consumable', price: 50, currency: 'gold' },
-        { id: `shop_${seed}_3`, name: 'Mystery Box', type: 'lootbox', price: 100, currency: 'gems' },
-        { id: `shop_${seed}_4`, name: 'EXP Boost', type: 'boost', price: 200, currency: 'gold' },
-        { id: `shop_${seed}_5`, name: 'Gold Boost', type: 'boost', price: 150, currency: 'gold' },
-      ];
-      return { data: { items: shopItems, refreshes_at: new Date((seed + 1) * 6 * 60 * 60 * 1000).toISOString() } };
+      const ROTATION_MS = 4 * 60 * 60 * 1000;
+      const seed = Math.floor(now.getTime() / ROTATION_MS);
+      const nextRefreshAt = new Date((seed + 1) * ROTATION_MS).toISOString();
+
+      const chars = getStore('Character');
+      const char = chars.find(c => c.id === characterId);
+      const charLevel = char?.level || 1;
+
+      function seededRandom(s) {
+        let x = Math.sin(s) * 10000;
+        return x - Math.floor(x);
+      }
+
+      const EQUIP_TYPES = ['weapon', 'armor', 'helmet', 'boots', 'ring', 'amulet'];
+      const EQUIP_NAMES = {
+        weapon: ['Sword', 'Axe', 'Staff', 'Dagger', 'Bow', 'Mace', 'Spear', 'Wand'],
+        armor: ['Plate', 'Chainmail', 'Leather Vest', 'Robe', 'Brigandine', 'Scale Mail'],
+        helmet: ['Helm', 'Crown', 'Hood', 'Circlet', 'Visor', 'Headband'],
+        boots: ['Greaves', 'Sandals', 'Treads', 'Sabatons', 'Moccasins'],
+        ring: ['Ring', 'Band', 'Signet', 'Loop', 'Seal'],
+        amulet: ['Amulet', 'Pendant', 'Necklace', 'Talisman', 'Charm'],
+      };
+      const PREFIXES = ['Sturdy', 'Enchanted', 'Reinforced', 'Ancient', 'Mystic', 'Shadow', 'Blazing', 'Frozen', 'Holy', 'Void'];
+      const RARITIES = ['common', 'common', 'uncommon', 'uncommon', 'rare', 'rare', 'epic', 'legendary'];
+      const RARITY_MULT = { common: 1, uncommon: 1.5, rare: 2.5, epic: 4, legendary: 7, mythic: 12 };
+      const STAT_KEYS = {
+        weapon: ['attack', 'strength', 'crit_chance'],
+        armor: ['defense', 'vitality', 'hp_bonus'],
+        helmet: ['defense', 'intelligence', 'mp_bonus'],
+        boots: ['dexterity', 'evasion', 'speed'],
+        ring: ['luck', 'crit_chance', 'attack'],
+        amulet: ['intelligence', 'mp_bonus', 'magic_attack'],
+      };
+
+      const items = [];
+      for (let i = 0; i < 8; i++) {
+        const s1 = seededRandom(seed * 100 + i * 7 + 1);
+        const s2 = seededRandom(seed * 100 + i * 7 + 2);
+        const s3 = seededRandom(seed * 100 + i * 7 + 3);
+        const s4 = seededRandom(seed * 100 + i * 7 + 4);
+
+        const type = EQUIP_TYPES[Math.floor(s1 * EQUIP_TYPES.length)];
+        const nameList = EQUIP_NAMES[type];
+        const baseName = nameList[Math.floor(s2 * nameList.length)];
+        const prefix = PREFIXES[Math.floor(s3 * PREFIXES.length)];
+        const rarity = RARITIES[Math.floor(s4 * RARITIES.length)];
+        const mult = RARITY_MULT[rarity] || 1;
+
+        const iLv = Math.max(1, charLevel + Math.floor((s1 - 0.5) * 6));
+        const statPool = STAT_KEYS[type] || ['attack', 'defense'];
+        const stats = {};
+        statPool.forEach((sk, si) => {
+          const val = Math.max(1, Math.floor((iLv * (1 + si * 0.3) * mult) * (0.7 + seededRandom(seed * 1000 + i * 30 + si) * 0.6)));
+          stats[sk] = val;
+        });
+
+        const basePrice = Math.floor(iLv * 25 * mult * (0.8 + s2 * 0.4));
+        items.push({
+          id: `shop_${seed}_${i}`,
+          name: `${prefix} ${baseName}`,
+          type,
+          rarity,
+          item_level: iLv,
+          stats,
+          buy_price: basePrice,
+          sell_price: Math.floor(basePrice * 0.3),
+          description: `A ${rarity} ${type} suited for level ${iLv} adventurers.`,
+        });
+      }
+
+      items.push({
+        id: `shop_${seed}_hp`,
+        name: 'Health Potion',
+        type: 'consumable',
+        rarity: 'common',
+        item_level: charLevel,
+        stats: { hp_bonus: 50 + charLevel * 10 },
+        buy_price: 50 + charLevel * 5,
+        sell_price: 15,
+        description: `Restores ${50 + charLevel * 10} HP.`,
+      });
+      items.push({
+        id: `shop_${seed}_mp`,
+        name: 'Mana Potion',
+        type: 'consumable',
+        rarity: 'common',
+        item_level: charLevel,
+        stats: { mp_bonus: 30 + charLevel * 5 },
+        buy_price: 50 + charLevel * 5,
+        sell_price: 15,
+        description: `Restores ${30 + charLevel * 5} MP.`,
+      });
+
+      return { data: { success: true, items, nextRefreshAt } };
     }
 
     case 'manageDailyQuests': {
       const existing = getStore('Quest').filter(q => q.character_id === characterId);
-      const activeQuests = existing.filter(q => q.status === 'active');
-      if (activeQuests.length >= 3) return { data: { quests: existing } };
+      const today = new Date().toDateString();
+      const todayActive = existing.filter(q => q.is_daily && q.status === 'active' && new Date(q.created_date).toDateString() === today);
+      if (todayActive.length >= 3) return { data: { quests: existing } };
+
+      const oldDailies = existing.filter(q => q.is_daily && new Date(q.created_date).toDateString() !== today);
+      let quests = getStore('Quest').filter(q => !oldDailies.find(od => od.id === q.id));
+
       const questTemplates = [
-        { title: 'Monster Slayer', description: 'Kill 10 enemies', type: 'daily', target: 10, reward: { gold: 200, exp: 100 } },
-        { title: 'Gold Hoarder', description: 'Earn 500 gold', type: 'daily', target: 500, reward: { gold: 300, gems: 1 } },
-        { title: 'Level Up', description: 'Gain a level', type: 'daily', target: 1, reward: { gold: 500, gems: 2 } },
+        { title: 'Monster Slayer', description: 'Kill 10 enemies', objective_type: 'combat_kills', target_count: 10, rewards: { gold: 200, exp: 100 } },
+        { title: 'Gold Hoarder', description: 'Earn 500 gold', objective_type: 'gold_earned', target_count: 500, rewards: { gold: 300, gems: 1 } },
+        { title: 'Level Up', description: 'Gain a level', objective_type: 'level_up', target_count: 1, rewards: { gold: 500, gems: 2 } },
+        { title: 'Mining Expert', description: 'Gather 5 ores', objective_type: 'mining', target_count: 5, rewards: { gold: 150, exp: 80 } },
+        { title: 'Fisher\'s Haul', description: 'Catch 5 fish', objective_type: 'fishing', target_count: 5, rewards: { gold: 150, exp: 80 } },
+        { title: 'Herb Collector', description: 'Gather 5 herbs', objective_type: 'herbalism', target_count: 5, rewards: { gold: 150, exp: 80 } },
+        { title: 'Elite Hunter', description: 'Defeat 3 elite enemies', objective_type: 'combat_kills', target_count: 3, rewards: { gold: 400, gems: 2 } },
+        { title: 'Battle Hardened', description: 'Win 20 battles', objective_type: 'combat_kills', target_count: 20, rewards: { gold: 500, exp: 300, gems: 1 } },
       ];
-      const quests = getStore('Quest');
+
+      const shuffled = [...questTemplates].sort(() => Math.random() - 0.5);
+      const needed = 3 - todayActive.length;
       const newQuests = [];
-      for (const template of questTemplates.slice(0, 3 - activeQuests.length)) {
+      for (const template of shuffled.slice(0, needed)) {
         const quest = {
           id: generateId(),
           character_id: characterId,
-          type: template.type,
+          type: 'daily',
+          is_daily: true,
           title: template.title,
           description: template.description,
-          target: template.target,
-          progress: 0,
-          reward: template.reward,
+          objective_type: template.objective_type,
+          target_count: template.target_count,
+          current_count: 0,
+          rewards: template.rewards,
           status: 'active',
           created_date: new Date().toISOString(),
         };
@@ -607,18 +706,21 @@ async function handleLocalFunction(functionName, params) {
         newQuests.push(quest);
       }
       setStore('Quest', quests);
-      return { data: { quests: [...existing, ...newQuests] } };
+      return { data: { quests: [...todayActive, ...newQuests] } };
     }
 
     case 'updateQuestProgress': {
-      const { questType, amount } = params;
+      const { objectiveType, questType, amount, targetResource } = params;
+      const matchType = objectiveType || questType;
       const quests = getStore('Quest');
       let changed = false;
       for (let i = 0; i < quests.length; i++) {
         if (quests[i].character_id === characterId && quests[i].status === 'active') {
-          quests[i].progress = Math.min((quests[i].progress || 0) + (amount || 1), quests[i].target);
-          if (quests[i].progress >= quests[i].target) quests[i].status = 'completed';
-          changed = true;
+          if (quests[i].objective_type === matchType) {
+            quests[i].current_count = Math.min((quests[i].current_count || 0) + (amount || 1), quests[i].target_count);
+            if (quests[i].current_count >= quests[i].target_count) quests[i].status = 'completed';
+            changed = true;
+          }
         }
       }
       if (changed) {
@@ -823,45 +925,103 @@ async function handleLocalFunction(functionName, params) {
     }
 
     case 'processGemLab': {
-      const chars = getStore('Character');
-      const charIdx = chars.findIndex(c => c.id === characterId);
-      if (charIdx === -1) return { data: { gem_lab: { level: 1, gems_stored: 0 }, gems_generated: 0 } };
-      const char = chars[charIdx];
-      const gemLab = char.gem_lab || { level: 1, gems_stored: 0 };
-      const gemsGenerated = gemLab.level || 1;
-      gemLab.gems_stored = (gemLab.gems_stored || 0) + gemsGenerated;
-      chars[charIdx].gem_lab = gemLab;
-      setStore('Character', chars);
-      return { data: { gem_lab: gemLab, gems_generated: gemsGenerated } };
+      let labs = getStore('GemLab');
+      let lab = labs.find(l => l.character_id === characterId);
+      if (!lab) {
+        const chars = getStore('Character');
+        const legacyChar = chars.find(c => c.id === characterId);
+        const legacy = legacyChar?.gem_lab;
+        lab = {
+          id: generateId(),
+          character_id: characterId,
+          production_level: legacy?.level ? Math.max(0, legacy.level - 1) : 0,
+          speed_level: 0,
+          efficiency_level: 0,
+          pending_gems: legacy?.gems_stored || 0,
+          total_gems_generated: legacy?.gems_stored || 0,
+          last_collection_time: new Date().toISOString(),
+          created_date: new Date().toISOString(),
+        };
+        labs.push(lab);
+        setStore('GemLab', labs);
+        if (legacyChar && legacy) {
+          delete legacyChar.gem_lab;
+          setStore('Character', chars);
+        }
+      }
+      const BASE_PRODUCTION = 0.001;
+      const prodMult = 1 + (lab.production_level || 0) * 0.05;
+      const speedMult = 1 + (lab.speed_level || 0) * 0.02;
+      const effMult = 1 + (lab.efficiency_level || 0) * 0.03;
+      const gemsPerMinute = BASE_PRODUCTION * prodMult * effMult * speedMult;
+
+      const now = Date.now();
+      const lastProcess = lab.last_collection_time ? new Date(lab.last_collection_time).getTime() : now;
+      const elapsedMin = Math.min((now - lastProcess) / 60000, 480);
+      const gemsGenerated = gemsPerMinute * elapsedMin;
+
+      const labIdx = labs.findIndex(l => l.id === lab.id);
+      labs[labIdx].pending_gems = (labs[labIdx].pending_gems || 0) + gemsGenerated;
+      labs[labIdx].total_gems_generated = (labs[labIdx].total_gems_generated || 0) + gemsGenerated;
+      labs[labIdx].last_collection_time = new Date().toISOString();
+      setStore('GemLab', labs);
+      return { data: { success: true, gemsGenerated, offlineHours: (elapsedMin / 60).toFixed(1) } };
     }
 
     case 'claimGemLabGems': {
+      let labs = getStore('GemLab');
+      let lab = labs.find(l => l.character_id === characterId);
+      if (!lab) return { data: { success: false, claimedGems: 0, newTotal: 0 } };
+      const gemsToAdd = Math.floor(lab.pending_gems || 0);
+      if (gemsToAdd <= 0) return { data: { success: false, claimedGems: 0, newTotal: 0 } };
+      const labIdx = labs.findIndex(l => l.id === lab.id);
+      labs[labIdx].pending_gems = 0;
+      labs[labIdx].last_collection_time = new Date().toISOString();
+      setStore('GemLab', labs);
+
       const chars = getStore('Character');
       const charIdx = chars.findIndex(c => c.id === characterId);
-      if (charIdx === -1) return { data: { gems_claimed: 0, gem_lab: { level: 1, gems_stored: 0 } } };
-      const char = chars[charIdx];
-      const gemLab = char.gem_lab || { level: 1, gems_stored: 0 };
-      const gemsToAdd = gemLab.gems_stored || 0;
-      gemLab.gems_stored = 0;
-      chars[charIdx].gem_lab = gemLab;
-      chars[charIdx].gems = (char.gems || 0) + gemsToAdd;
-      setStore('Character', chars);
-      return { data: { gems_claimed: gemsToAdd, gem_lab: gemLab } };
+      if (charIdx !== -1) {
+        chars[charIdx].gems = (chars[charIdx].gems || 0) + gemsToAdd;
+        setStore('Character', chars);
+      }
+      return { data: { success: true, claimedGems: gemsToAdd, newTotal: chars[charIdx]?.gems || gemsToAdd } };
     }
 
     case 'upgradeGemLab': {
+      const { upgradeType } = params;
+      let labs = getStore('GemLab');
+      let lab = labs.find(l => l.character_id === characterId);
+      if (!lab) {
+        lab = {
+          id: generateId(),
+          character_id: characterId,
+          production_level: 0, speed_level: 0, efficiency_level: 0,
+          pending_gems: 0, total_gems_generated: 0,
+          last_collection_time: new Date().toISOString(),
+          created_date: new Date().toISOString(),
+        };
+        labs.push(lab);
+      }
+      const BASE_COST = 1000;
+      const COST_MULT = 1.15;
+      const levelKey = upgradeType === 'production' ? 'production_level' : upgradeType === 'speed' ? 'speed_level' : 'efficiency_level';
+      const currentLevel = lab[levelKey] || 0;
+      const cost = Math.floor(BASE_COST * Math.pow(COST_MULT, currentLevel));
+
       const chars = getStore('Character');
       const charIdx = chars.findIndex(c => c.id === characterId);
-      if (charIdx === -1) return { data: { success: false, message: 'Character not found' } };
-      const char = chars[charIdx];
-      const gemLab = char.gem_lab || { level: 1, gems_stored: 0 };
-      const cost = gemLab.level * 500;
-      if ((char.gold || 0) < cost) return { data: { success: false, message: 'Not enough gold' } };
-      gemLab.level = (gemLab.level || 1) + 1;
-      chars[charIdx].gem_lab = gemLab;
-      chars[charIdx].gold = (char.gold || 0) - cost;
+      if (charIdx === -1 || (chars[charIdx].gold || 0) < cost) {
+        return { data: { success: false, error: 'Not enough gold' } };
+      }
+
+      chars[charIdx].gold = (chars[charIdx].gold || 0) - cost;
       setStore('Character', chars);
-      return { data: { success: true, gem_lab: gemLab, gold_spent: cost } };
+
+      const labIdx = labs.findIndex(l => l.id === lab.id);
+      labs[labIdx][levelKey] = currentLevel + 1;
+      setStore('GemLab', labs);
+      return { data: { success: true, upgradeType, goldRemaining: chars[charIdx].gold } };
     }
 
     case 'transmuteGold': {

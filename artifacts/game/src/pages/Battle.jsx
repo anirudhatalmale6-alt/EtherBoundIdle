@@ -374,9 +374,23 @@ export default function Battle({ character, onCharacterUpdate }) {
       objectiveType: 'combat_kills',
       targetResource: enemy.key,
       amount: 1,
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ["quests", character.id] });
     }).catch(() => {});
+
+    base44.functions.invoke('updateQuestProgress', {
+      characterId: character.id,
+      objectiveType: 'gold_earned',
+      amount: goldGain,
+    }).catch(() => {});
+
+    if (newLevel > character.level) {
+      base44.functions.invoke('updateQuestProgress', {
+        characterId: character.id,
+        objectiveType: 'level_up',
+        amount: newLevel - character.level,
+      }).catch(() => {});
+    }
+
+    queryClient.invalidateQueries({ queryKey: ["quests", character.id] });
 
     setTimeout(() => spawnEnemy(), 2500);
   }, [enemy, character, allItems, saveMutation, lootMutation, queryClient, spawnEnemy]);
