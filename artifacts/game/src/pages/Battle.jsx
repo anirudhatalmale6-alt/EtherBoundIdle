@@ -310,90 +310,53 @@ export default function Battle({ character, onCharacterUpdate }) {
     setTimeout(() => doEnemyTurn(newPlayerHp, enemy), 1500);
   }, [combatPhase, enemy, enemyHp, playerHp, playerMp, allItems, character, cooldowns, doEnemyTurn]);
 
-  const handleEnemyDefeat = useCallback(() => {
+  const handleEnemyDefeat = useCallback(async () => {
     if (!enemy || !character) return;
     setCombatPhase("enemy_dead");
-    const equipped = allItems.filter(i => i.equipped);
-    const { derived: d } = calculateFinalStats(character, equipped);
-    const expGain = Math.round(enemy.expReward * (1 + (d.expGainPct || 0) / 100) * (1 + partyBonus));
-    const goldGain = Math.round(enemy.goldReward * (1 + (d.goldGainPct || 0) / 100) * (1 + partyBonus));
 
-    let newExp = (character.exp || 0) + expGain;
-    let newLevel = character.level;
-    let newExpToNext = character.exp_to_next;
-    let newStatPoints = character.stat_points || 0;
-    let newSkillPoints = character.skill_points || 0;
-
-    while (newExp >= newExpToNext) {
-      newExp -= newExpToNext;
-      newLevel++;
-      newExpToNext = calculateExpToLevel(newLevel);
-      newStatPoints += 3;
-      newSkillPoints += 1;
-      addLog(`🎉 LEVEL UP! You are now level ${newLevel}!`);
-    }
-
-    const loot = generateLoot(character.level, character.luck || 5, enemy.isBoss || enemy.isElite || false, character.current_region, character.class);
-    if (loot) {
-      setLootDrop(loot);
-      lootMutation.mutate(loot);
-      const isRareDrop = RARE_RARITIES.includes(loot.rarity);
-      const lootEmoji = loot.rarity === "shiny" ? "🌟" : loot.rarity === "mythic" ? "💎" : loot.rarity === "legendary" ? "🏆" : "✨";
-      addLog(`${isRareDrop ? `${lootEmoji}${lootEmoji} ` : ""}${lootEmoji} ${isRareDrop ? "[" + loot.rarity.toUpperCase() + "] " : ""}${loot.name}${isRareDrop ? " DROP!" : ` (${loot.rarity})`}`);
-    }
-
-    // Each party member also gets their own loot roll
-    if (partyData?.members) {
-      partyData.members
-        .filter(m => m.character_id !== character.id)
-        .forEach(m => {
-          const memberLoot = generateLoot(m.level || character.level, 5, enemy.isBoss || enemy.isElite || false, character.current_region, m.class);
-          if (memberLoot) {
-            base44.entities.Item.create({ ...memberLoot, owner_id: m.character_id }).catch(() => {});
-            const isRare = RARE_RARITIES.includes(memberLoot.rarity);
-            const emoji = memberLoot.rarity === "shiny" ? "🌟" : memberLoot.rarity === "mythic" ? "💎" : memberLoot.rarity === "legendary" ? "🏆" : "🎁";
-            addLog(`${isRare ? `${emoji}${emoji} ` : ""}${emoji} ${m.name} found ${isRare ? "[" + memberLoot.rarity.toUpperCase() + "] " : ""}${memberLoot.name}!`);
-          }
-        });
-    }
-
-    addLog(`⚔️ Defeated ${enemy.name}! +${expGain} EXP +${goldGain} Gold`);
-
-    saveMutation.mutate({
-      exp: newExp, level: newLevel, exp_to_next: newExpToNext,
-      gold: (character.gold || 0) + goldGain,
-      stat_points: newStatPoints, skill_points: newSkillPoints,
-      total_kills: (character.total_kills || 0) + 1,
-      max_hp: character.max_hp + (newLevel - character.level) * 5,
-      max_mp: character.max_mp + (newLevel - character.level) * 3,
-    });
-
-    // Update quest progress via backend
-    base44.functions.invoke('updateQuestProgress', {
-      characterId: character.id,
-      objectiveType: 'combat_kills',
-      targetResource: enemy.key,
-      amount: 1,
-    }).catch(() => {});
-
-    base44.functions.invoke('updateQuestProgress', {
-      characterId: character.id,
-      objectiveType: 'gold_earned',
-      amount: goldGain,
-    }).catch(() => {});
-
-    if (newLevel > character.level) {
-      base44.functions.invoke('updateQuestProgress', {
+    try {
+      const response = await base44.functions.invoke('fight', {
         characterId: character.id,
-        objectiveType: 'level_up',
-        amount: newLevel - character.level,
-      }).catch(() => {});
-    }
+        enemyKey: enemy.key,
+        regionKey: character.current_region,
+        isElite: enemy.isElite || false,
+        isBoss: enemy.isBoss || false,
+        partySize: partySize,
+      });
 
-    queryClient.invalidateQueries({ queryKey: ["quests", character.id] });
+      const result = response.data;
+      if (!result?.success) {
+        addLog(`⚠️ Error processing rewards`);
+        setTimeout(() => spawnEnemy(), 2500);
+        return;
+      }
+
+      const { rewards, character: updatedChar, levelsGained, loot } = result;
+
+      if (levelsGained?.length > 0) {
+        levelsGained.forEach(lv => addLog(`🎉 LEVEL UP! You are now level ${lv}!`));
+      }
+
+      if (loot) {
+        setLootDrop(loot);
+        const isRareDrop = RARE_RARITIES.includes(loot.rarity);
+        const lootEmoji = loot.rarity === "shiny" ? "🌟" : loot.rarity === "mythic" ? "💎" : loot.rarity === "legendary" ? "🏆" : "✨";
+        addLog(`${isRareDrop ? `${lootEmoji}${lootEmoji} ` : ""}${lootEmoji} ${isRareDrop ? "[" + loot.rarity.toUpperCase() + "] " : ""}${loot.name}${isRareDrop ? " DROP!" : ` (${loot.rarity})`}`);
+        queryClient.invalidateQueries({ queryKey: ["items", character.id] });
+      }
+
+      addLog(`⚔️ Defeated ${enemy.name}! +${rewards.exp} EXP +${rewards.gold} Gold`);
+
+      onCharacterUpdate(updatedChar);
+
+      queryClient.invalidateQueries({ queryKey: ["quests", character.id] });
+    } catch (err) {
+      console.error('Fight error:', err);
+      addLog(`⚠️ Error: ${err.message || 'Unknown error'}`);
+    }
 
     setTimeout(() => spawnEnemy(), 2500);
-  }, [enemy, character, allItems, saveMutation, lootMutation, queryClient, spawnEnemy]);
+  }, [enemy, character, partySize, queryClient, spawnEnemy]);
 
   // ── AUTO-ATTACK TIMER (5s in player turn) ────────────────────────────────
   useEffect(() => {

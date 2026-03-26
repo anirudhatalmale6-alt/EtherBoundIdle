@@ -1,4 +1,5 @@
 import { Router, type IRouter, type Request, type Response } from "express";
+import { ENEMIES, calculateExpToLevel } from "../lib/gameData";
 import { db } from "@workspace/db";
 import {
   charactersTable,
@@ -1192,6 +1193,166 @@ router.post("/functions/gameConfigManager", async (req: Request, res: Response) 
     res.json({ data: { success: true, id: configRow?.id || "global", config: configRow?.config || {} } });
   } catch (err: any) {
     req.log.error({ err }, "gameConfigManager error");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/functions/fight", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId, enemyKey, regionKey, isElite, isBoss, partySize } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+
+    const enemyData = ENEMIES[enemyKey];
+    if (!enemyData) { res.status(400).json({ error: "Unknown enemy" }); return; }
+
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { res.status(404).json({ error: "Character not found" }); return; }
+
+    const partyBonus = Math.max(0, (partySize || 1) - 1) * 0.05;
+    const expGain = Math.round(enemyData.expReward * (1 + partyBonus));
+    const goldGain = Math.round(enemyData.goldReward * (1 + partyBonus));
+
+    let newExp = (char.exp || 0) + expGain;
+    let newLevel = char.level || 1;
+    let newExpToNext = char.expToNext || calculateExpToLevel(newLevel);
+    let newStatPoints = char.statPoints || 0;
+    let newSkillPoints = char.skillPoints || 0;
+    const levelsGained: number[] = [];
+
+    while (newExp >= newExpToNext) {
+      newExp -= newExpToNext;
+      newLevel++;
+      newExpToNext = calculateExpToLevel(newLevel);
+      newStatPoints += 3;
+      newSkillPoints += 1;
+      levelsGained.push(newLevel);
+    }
+
+    const levelDiff = newLevel - (char.level || 1);
+    const newMaxHp = (char.maxHp || 100) + levelDiff * 5;
+    const newMaxMp = (char.maxMp || 50) + levelDiff * 3;
+    const newGold = (char.gold || 0) + goldGain;
+    const newTotalKills = (char.totalKills || 0) + 1;
+
+    const [updated] = await db.update(charactersTable).set({
+      exp: newExp,
+      level: newLevel,
+      expToNext: newExpToNext,
+      gold: newGold,
+      statPoints: newStatPoints,
+      skillPoints: newSkillPoints,
+      totalKills: newTotalKills,
+      maxHp: newMaxHp,
+      maxMp: newMaxMp,
+    }).where(eq(charactersTable.id, characterId)).returning();
+
+    try {
+      const activeQuests = await db.select().from(questsTable).where(
+        and(eq(questsTable.characterId, characterId), eq(questsTable.status, "active"))
+      );
+      for (const q of activeQuests) {
+        const objType = q.type;
+        let increment = 0;
+        if (objType === "combat_kills") increment = 1;
+        else if (objType === "gold_earned") increment = goldGain;
+        else if (objType === "level_up" && levelDiff > 0) increment = levelDiff;
+        if (increment > 0) {
+          const newProgress = Math.min((q.progress || 0) + increment, q.target || 1);
+          const newStatus = newProgress >= (q.target || 1) ? "completed" : "active";
+          await db.update(questsTable).set({ progress: newProgress, status: newStatus }).where(eq(questsTable.id, q.id));
+        }
+      }
+    } catch (questErr: any) {
+      req.log.error({ err: questErr }, "fight quest update error");
+    }
+
+    res.json({
+      data: {
+        success: true,
+        rewards: { exp: expGain, gold: goldGain },
+        character: toClientCharacter(updated),
+        levelsGained,
+        loot: null,
+        newLevel,
+        newExp,
+        newGold,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "fight error");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/functions/getPlayer", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { res.status(404).json({ error: "Character not found" }); return; }
+
+    const lastClaim = char.lastIdleClaim ? new Date(char.lastIdleClaim as string).getTime() : Date.now();
+    const offlineMs = Date.now() - lastClaim;
+    const offlineHours = Math.min(offlineMs / (1000 * 60 * 60), 8);
+    let idleGold = 0;
+    let idleExp = 0;
+
+    if (offlineHours >= 0.1) {
+      idleGold = Math.floor(offlineHours * (char.level || 1) * 50);
+      idleExp = Math.floor(offlineHours * (char.level || 1) * 20);
+
+      let newExp = (char.exp || 0) + idleExp;
+      let newLevel = char.level || 1;
+      let newExpToNext = char.expToNext || calculateExpToLevel(newLevel);
+      let newStatPoints = char.statPoints || 0;
+      let newSkillPoints = char.skillPoints || 0;
+
+      while (newExp >= newExpToNext) {
+        newExp -= newExpToNext;
+        newLevel++;
+        newExpToNext = calculateExpToLevel(newLevel);
+        newStatPoints += 3;
+        newSkillPoints += 1;
+      }
+
+      const levelDiff = newLevel - (char.level || 1);
+      const newMaxHp = (char.maxHp || 100) + levelDiff * 5;
+      const newMaxMp = (char.maxMp || 50) + levelDiff * 3;
+
+      const [updated] = await db.update(charactersTable).set({
+        gold: (char.gold || 0) + idleGold,
+        exp: newExp,
+        level: newLevel,
+        expToNext: newExpToNext,
+        statPoints: newStatPoints,
+        skillPoints: newSkillPoints,
+        maxHp: newMaxHp,
+        maxMp: newMaxMp,
+        lastIdleClaim: new Date().toISOString(),
+      }).where(eq(charactersTable.id, characterId)).returning();
+
+      res.json({
+        data: {
+          success: true,
+          character: toClientCharacter(updated),
+          idleRewards: { gold: idleGold, exp: idleExp, hours: offlineHours.toFixed(1) },
+        },
+      });
+      return;
+    }
+
+    res.json({
+      data: {
+        success: true,
+        character: toClientCharacter(char),
+        idleRewards: null,
+      },
+    });
+  } catch (err: any) {
+    req.log.error({ err }, "getPlayer error");
     res.status(500).json({ error: err.message });
   }
 });

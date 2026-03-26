@@ -1,0 +1,94 @@
+Build a clean idle RPG architecture with a strict separation between frontend and backend.
+
+GENERAL RULES:
+
+* The backend (Node.js + Express) is the single source of truth.
+* The frontend (React) must NEVER calculate gold, EXP, or rewards.
+* All progression, combat rewards, and idle calculations must happen on the backend.
+* The frontend only sends actions and displays returned data.
+
+BACKEND REQUIREMENTS:
+
+1. Player System:
+
+* Store: id, gold, exp, level, gold_per_second, last_login
+* Ensure all updates are saved in the database (Supabase)
+
+2. EXP System:
+
+* Create a function addExperience(player, amount)
+* EXP must increase correctly
+* When EXP reaches threshold → level up
+* On level up:
+
+  * increase level
+  * reset or reduce EXP correctly
+  * optionally increase stats
+
+3. Enemy System:
+
+* Create an endpoint POST /fight/:id
+
+* Simulate a fight and return rewards:
+
+  * gold reward
+  * exp reward
+
+* Rewards MUST be added to player in backend:
+
+  * player.gold += rewardGold
+  * addExperience(player, rewardExp)
+
+* Save updated player in database
+
+4. Idle System:
+
+* Calculate offline progress based on last_login
+* Add gold automatically when player logs in
+
+5. API Endpoints:
+
+* GET /player/:id → returns updated player with idle progress applied
+* POST /fight/:id → gives rewards and updates player
+* POST /upgrade/... → handles upgrades
+
+6. Validation:
+
+* Ensure no negative gold
+* Ensure rewards are always applied before response
+
+FRONTEND REQUIREMENTS (React):
+
+* NEVER calculate rewards locally
+
+* Call backend endpoints:
+
+  * fetch player
+  * trigger fight
+
+* After every action:
+
+  * reload player from backend
+
+* Display:
+
+  * gold
+  * exp
+  * level
+
+* Add button:
+  "Fight Enemy" → calls POST /fight/:id
+
+CRITICAL BUG FIXES:
+
+* Ensure EXP is actually written back to the database
+* Ensure gold rewards are added BEFORE saving player
+* Ensure updated player object is returned after every action
+* Ensure async/await is used correctly so updates are not lost
+
+OUTPUT:
+
+* Provide working backend code (Express)
+* Provide working React frontend
+* Ensure rewards (gold + EXP) always update correctly
+* No frontend-side calculations allowed
