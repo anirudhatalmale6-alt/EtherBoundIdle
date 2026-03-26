@@ -1212,7 +1212,7 @@ async function handleLocalFunction(functionName, params) {
     }
 
     case 'manageParty': {
-      const { action, partyId, targetCharacterId } = params;
+      const { action, partyId, targetCharacterId, targetName, inviteId } = params;
       if (action === 'create') {
         const chars = getStore('Character');
         const char = chars.find(c => c.id === characterId);
@@ -1220,9 +1220,9 @@ async function handleLocalFunction(functionName, params) {
           id: generateId(),
           leader_id: characterId,
           leader_name: char?.name || 'Unknown',
-          members: [{ id: characterId, name: char?.name || 'Unknown' }],
+          members: [{ character_id: characterId, name: char?.name || 'Unknown', class: char?.class, level: char?.level }],
           status: 'active',
-          max_members: 4,
+          max_members: 6,
           created_date: new Date().toISOString(),
         };
         const parties = getStore('Party');
@@ -1231,13 +1231,23 @@ async function handleLocalFunction(functionName, params) {
         notifySubscribers('Party', { type: 'create', id: party.id, data: party });
         return { data: { success: true, party } };
       }
-      if (action === 'invite' && partyId && targetCharacterId) {
+      if (action === 'invite' && partyId) {
+        const chars = getStore('Character');
+        const fromChar = chars.find(c => c.id === characterId);
+        let resolvedTargetId = targetCharacterId;
+        if (targetName && !targetCharacterId?.includes('-')) {
+          const targetChar = chars.find(c => c.name?.toLowerCase() === targetName.toLowerCase());
+          if (targetChar) resolvedTargetId = targetChar.id;
+          else return { data: { success: false, message: `Player "${targetName}" not found` } };
+        }
+        if (!resolvedTargetId) return { data: { success: false, message: 'No target specified' } };
+        if (resolvedTargetId === characterId) return { data: { success: false, message: 'Cannot invite yourself' } };
         const invite = {
           id: generateId(),
           party_id: partyId,
           from_character_id: characterId,
-          from_character_name: params.characterName || 'Unknown',
-          to_character_id: targetCharacterId,
+          from_name: fromChar?.name || 'Unknown',
+          to_character_id: resolvedTargetId,
           status: 'pending',
           created_date: new Date().toISOString(),
         };
@@ -1247,17 +1257,44 @@ async function handleLocalFunction(functionName, params) {
         notifySubscribers('PartyInvite', { type: 'create', id: invite.id, data: invite });
         return { data: { success: true, invite } };
       }
+      if (action === 'accept' && inviteId) {
+        const invites = getStore('PartyInvite');
+        const inv = invites.find(i => i.id === inviteId);
+        if (!inv || inv.status !== 'pending') return { data: { success: false, message: 'Invite not found or expired' } };
+        inv.status = 'accepted';
+        setStore('PartyInvite', invites);
+        const parties = getStore('Party');
+        const pIdx = parties.findIndex(p => p.id === inv.party_id);
+        if (pIdx === -1) return { data: { success: false, message: 'Party no longer exists' } };
+        const members = parties[pIdx].members || [];
+        if (members.length >= (parties[pIdx].max_members || 6)) return { data: { success: false, message: 'Party is full' } };
+        if (members.some(m => m.character_id === characterId)) return { data: { success: true, message: 'Already in party' } };
+        const chars = getStore('Character');
+        const char = chars.find(c => c.id === characterId);
+        members.push({ character_id: characterId, name: char?.name || 'Unknown', class: char?.class, level: char?.level });
+        parties[pIdx].members = members;
+        setStore('Party', parties);
+        notifySubscribers('Party', { type: 'update', id: parties[pIdx].id, data: parties[pIdx] });
+        return { data: { success: true, party: parties[pIdx] } };
+      }
+      if (action === 'decline' && inviteId) {
+        const invites = getStore('PartyInvite');
+        const inv = invites.find(i => i.id === inviteId);
+        if (inv) inv.status = 'declined';
+        setStore('PartyInvite', invites);
+        return { data: { success: true } };
+      }
       if (action === 'join' && partyId) {
         const parties = getStore('Party');
         const pIdx = parties.findIndex(p => p.id === partyId);
         if (pIdx === -1) return { data: { success: false, message: 'Party not found' } };
         const members = parties[pIdx].members || [];
-        if (members.length >= (parties[pIdx].max_members || 4)) {
+        if (members.length >= (parties[pIdx].max_members || 6)) {
           return { data: { success: false, message: 'Party is full' } };
         }
         const chars = getStore('Character');
         const char = chars.find(c => c.id === characterId);
-        members.push({ id: characterId, name: char?.name || 'Unknown' });
+        members.push({ character_id: characterId, name: char?.name || 'Unknown', class: char?.class, level: char?.level });
         parties[pIdx].members = members;
         setStore('Party', parties);
         return { data: { success: true, party: parties[pIdx] } };
@@ -1266,18 +1303,22 @@ async function handleLocalFunction(functionName, params) {
         const parties = getStore('Party');
         const pIdx = parties.findIndex(p => p.id === partyId);
         if (pIdx !== -1) {
-          parties[pIdx].members = (parties[pIdx].members || []).filter(m => m.id !== characterId);
+          parties[pIdx].members = (parties[pIdx].members || []).filter(m => m.character_id !== characterId);
           if (parties[pIdx].members.length === 0) {
-            parties.splice(pIdx, 1);
+            parties[pIdx].status = 'disbanded';
           }
           setStore('Party', parties);
         }
         return { data: { success: true } };
       }
       if (action === 'disband' && partyId) {
-        let parties = getStore('Party');
-        parties = parties.filter(p => p.id !== partyId);
-        setStore('Party', parties);
+        const parties = getStore('Party');
+        const pIdx = parties.findIndex(p => p.id === partyId);
+        if (pIdx !== -1) {
+          parties[pIdx].status = 'disbanded';
+          parties[pIdx].members = [];
+          setStore('Party', parties);
+        }
         return { data: { success: true } };
       }
       return { data: { success: true } };

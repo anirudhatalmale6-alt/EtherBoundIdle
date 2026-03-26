@@ -833,29 +833,60 @@ router.post("/functions/completeTrade", async (req: Request, res: Response) => {
 router.post("/functions/manageParty", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   try {
-    const { characterId, action, partyId, targetCharacterId, characterName } = req.body;
+    const { characterId, action, partyId, targetCharacterId, targetName, inviteId } = req.body;
 
     if (action === "create") {
       const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
       const [party] = await db.insert(partiesTable).values({
         leaderId: characterId,
         leaderName: char?.name || "Unknown",
-        members: [{ id: characterId, name: char?.name || "Unknown" }],
+        members: [{ character_id: characterId, name: char?.name || "Unknown", class: char?.class, level: char?.level }],
         status: "open",
       }).returning();
       res.json({ data: { success: true, party } });
       return;
     }
 
-    if (action === "invite" && partyId && targetCharacterId) {
+    if (action === "invite" && partyId) {
+      const [fromChar] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      let resolvedTargetId = targetCharacterId;
+      if (targetName) {
+        const matches = await db.select().from(charactersTable).where(eq(charactersTable.name, targetName));
+        if (matches.length > 0) resolvedTargetId = matches[0].id;
+        else { res.json({ data: { success: false, message: `Player "${targetName}" not found` } }); return; }
+      }
+      if (!resolvedTargetId) { res.json({ data: { success: false, message: "No target specified" } }); return; }
+      if (resolvedTargetId === characterId) { res.json({ data: { success: false, message: "Cannot invite yourself" } }); return; }
       const [invite] = await db.insert(partyInvitesTable).values({
         partyId,
         fromCharacterId: characterId,
-        fromCharacterName: characterName || "Unknown",
-        toCharacterId: targetCharacterId,
+        fromCharacterName: fromChar?.name || "Unknown",
+        toCharacterId: resolvedTargetId,
         status: "pending",
       }).returning();
       res.json({ data: { success: true, invite } });
+      return;
+    }
+
+    if (action === "accept" && inviteId) {
+      const [inv] = await db.select().from(partyInvitesTable).where(eq(partyInvitesTable.id, inviteId));
+      if (!inv || inv.status !== "pending") { res.json({ data: { success: false, message: "Invite not found or expired" } }); return; }
+      await db.update(partyInvitesTable).set({ status: "accepted" }).where(eq(partyInvitesTable.id, inviteId));
+      const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, inv.partyId));
+      if (!party) { res.json({ data: { success: false, message: "Party no longer exists" } }); return; }
+      const members = (party.members as any[]) || [];
+      if (members.length >= (party.maxMembers || 6)) { res.json({ data: { success: false, message: "Party is full" } }); return; }
+      if (members.some((m: any) => m.character_id === characterId)) { res.json({ data: { success: true, message: "Already in party" } }); return; }
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      members.push({ character_id: characterId, name: char?.name || "Unknown", class: char?.class, level: char?.level });
+      await db.update(partiesTable).set({ members }).where(eq(partiesTable.id, inv.partyId));
+      res.json({ data: { success: true } });
+      return;
+    }
+
+    if (action === "decline" && inviteId) {
+      await db.update(partyInvitesTable).set({ status: "declined" }).where(eq(partyInvitesTable.id, inviteId));
+      res.json({ data: { success: true } });
       return;
     }
 
@@ -863,11 +894,11 @@ router.post("/functions/manageParty", async (req: Request, res: Response) => {
       const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
       if (!party) { res.json({ data: { success: false, message: "Party not found" } }); return; }
       const members = (party.members as any[]) || [];
-      if (members.length >= (party.maxMembers || 4)) {
+      if (members.length >= (party.maxMembers || 6)) {
         res.json({ data: { success: false, message: "Party is full" } }); return;
       }
       const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
-      members.push({ id: characterId, name: char?.name || "Unknown" });
+      members.push({ character_id: characterId, name: char?.name || "Unknown", class: char?.class, level: char?.level });
       await db.update(partiesTable).set({ members }).where(eq(partiesTable.id, partyId));
       res.json({ data: { success: true } });
       return;
@@ -876,7 +907,7 @@ router.post("/functions/manageParty", async (req: Request, res: Response) => {
     if (action === "leave" && partyId) {
       const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
       if (party) {
-        const members = ((party.members as any[]) || []).filter((m: any) => m.id !== characterId);
+        const members = ((party.members as any[]) || []).filter((m: any) => m.character_id !== characterId);
         if (members.length === 0) {
           await db.update(partiesTable).set({ status: "disbanded", members: [] }).where(eq(partiesTable.id, partyId));
         } else {

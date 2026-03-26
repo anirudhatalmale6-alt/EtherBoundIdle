@@ -92,7 +92,13 @@ export default function PartyPanel({ character }) {
   const expBonus = memberCount > 1 ? (memberCount - 1) * 5 : 0;
   const goldBonus = memberCount > 1 ? (memberCount - 1) * 10 : 0;
 
-  const handleCreate = () => mutation.mutate({ action: 'create' });
+  const handleCreate = () => mutation.mutate({ action: 'create' }, {
+    onSuccess: () => {
+      setMinimized(false);
+      setExpanded(true);
+      toast({ title: "Party created! Invite players by name.", duration: 3000 });
+    },
+  });
   const handleLeave = () => mutation.mutate({ action: 'leave', partyId: partyData.id });
   const handleAccept = (invite) => mutation.mutate({ action: 'accept', inviteId: invite.id });
   const handleDecline = (invite) => mutation.mutate({ action: 'decline', inviteId: invite.id });
@@ -244,11 +250,11 @@ export default function PartyPanel({ character }) {
                           <>
                             <div className="space-y-1.5">
                               {partyData.members?.map(m => {
-                                const details = memberDetails[m.character_id] || {};
-                                const displayLevel = liveLevels[m.character_id] ?? m.level;
-                                const memberClass = details.class || m.class;
-                                const memberZone = details.current_region;
                                 const isCurrentPlayer = m.character_id === character.id;
+                                const details = memberDetails[m.character_id] || {};
+                                const displayLevel = isCurrentPlayer ? character.level : (liveLevels[m.character_id] ?? m.level);
+                                const memberClass = isCurrentPlayer ? character.class : (details.class || m.class);
+                                const memberZone = isCurrentPlayer ? character.current_region : details.current_region;
                                 const isSameZone = memberZone === character.current_region;
 
                                 return (
