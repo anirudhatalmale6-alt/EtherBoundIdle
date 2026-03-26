@@ -159,13 +159,13 @@ export function getAllowedClassesLabel(item) {
 // ===== STAT SCALING =====
 export const RARITY_STAT_MULTIPLIERS = {
   common:    1.0,
-  uncommon:  1.4,
-  rare:      2.0,
-  epic:      3.0,
-  legendary: 4.5,
-  mythic:    7.0,
-  set:       5.5,
-  shiny:     12.0,
+  uncommon:  1.2,
+  rare:      1.5,
+  epic:      2.0,
+  legendary: 2.8,
+  mythic:    4.0,
+  set:       3.2,
+  shiny:     6.0,
 };
 
 // ===== SELL PRICE TABLE =====
@@ -187,27 +187,32 @@ export const TYPE_STAT_POOLS = {
 };
 
 // ===== ITEM STAT GENERATION =====
+const PCT_STATS = new Set([
+  "crit_chance", "crit_dmg_pct", "evasion", "block_chance",
+  "lifesteal", "gold_gain_pct", "exp_gain_pct", "attack_speed"
+]);
+
 export function generateItemStats(type, rarity, itemLevel) {
   const pool = TYPE_STAT_POOLS[type] || ["strength"];
   const rarityConfig = {
     common:    { slots: 1, basePerSlot: 0.5 },
-    uncommon:  { slots: 2, basePerSlot: 0.6 },
-    rare:      { slots: 3, basePerSlot: 0.7 },
-    epic:      { slots: 4, basePerSlot: 0.8 },
-    legendary: { slots: 5, basePerSlot: 1.0 },
-    mythic:    { slots: 6, basePerSlot: 1.3 },
-    shiny:     { slots: 7, basePerSlot: 1.8 },
+    uncommon:  { slots: 2, basePerSlot: 0.55 },
+    rare:      { slots: 3, basePerSlot: 0.6 },
+    epic:      { slots: 4, basePerSlot: 0.65 },
+    legendary: { slots: 5, basePerSlot: 0.75 },
+    mythic:    { slots: 6, basePerSlot: 0.85 },
+    shiny:     { slots: 7, basePerSlot: 1.0 },
   }[rarity] || { slots: 1, basePerSlot: 0.5 };
 
   const mult = RARITY_STAT_MULTIPLIERS[rarity] || 1.0;
-  const lvlScale = 1 + (itemLevel - 1) * 0.12;
+  const lvlScale = 1 + (itemLevel - 1) * 0.07;
   const stats = {};
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
   for (let i = 0; i < rarityConfig.slots && i < shuffled.length; i++) {
     const stat = shuffled[i];
-    // Lifesteal is 80% weaker than other stats on equipment
     const lifestealsReduction = stat === "lifesteal" ? 0.2 : 1.0;
-    const base = rarityConfig.basePerSlot * mult * lvlScale * lifestealsReduction;
+    const pctReduction = PCT_STATS.has(stat) ? 0.35 : 1.0;
+    const base = rarityConfig.basePerSlot * mult * lvlScale * lifestealsReduction * pctReduction;
     const value = Math.max(1, Math.round(base * (0.8 + Math.random() * 0.4)));
     stats[stat] = (stats[stat] || 0) + value;
   }

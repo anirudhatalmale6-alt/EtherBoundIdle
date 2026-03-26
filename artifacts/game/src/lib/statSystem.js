@@ -13,26 +13,22 @@ export const MP_PER_LEVEL  = { warrior: 2,   mage: 8,  ranger: 4,  rogue: 4  };
 // ─────────────────────────────────────────────────────────────────────────────
 // SCALING CONSTANTS
 // ─────────────────────────────────────────────────────────────────────────────
-export const VIT_TO_HP       = 15;   // 1 VIT → +15 max HP
-export const INT_TO_MP       = 5;    // 1 INT → +5 max MP
+export const VIT_TO_HP       = 10;   // 1 VIT → +10 max HP
+export const INT_TO_MP       = 4;    // 1 INT → +4 max MP
 
-// HP Regen: base + VIT contribution
-// Regen is intentionally low so it's sustain, not immortality
-const VIT_TO_HP_REGEN   = 0.05;  // 1 VIT  → +0.05 HP/s   (at 50 VIT = +2.5 HP/s)
-const INT_TO_MP_REGEN   = 0.04;  // 1 INT  → +0.04 MP/s   (at 50 INT = +2.0 MP/s)
-const BASE_HP_REGEN     = 0.5;   // everyone starts with 0.5 HP/s
-const BASE_MP_REGEN     = 0.5;   // everyone starts with 0.5 MP/s
+const VIT_TO_HP_REGEN   = 0.03;  // 1 VIT  → +0.03 HP/s   (at 50 VIT = +1.5 HP/s)
+const INT_TO_MP_REGEN   = 0.03;  // 1 INT  → +0.03 MP/s   (at 50 INT = +1.5 MP/s)
+const BASE_HP_REGEN     = 0.3;   // everyone starts with 0.3 HP/s
+const BASE_MP_REGEN     = 0.3;   // everyone starts with 0.3 MP/s
 
-// Evasion: DEX-based, slow scaling, hard cap
-const EVASION_DEX_RATE  = 0.10;  // 1 DEX → +0.10% evasion (50 DEX = 5%)
-const EVASION_SOFT_CAP  = 20;    // diminishing returns after 20%
-const EVASION_HARD_CAP  = 40;    // absolute max 40%
+const EVASION_DEX_RATE  = 0.06;  // 1 DEX → +0.06% evasion (50 DEX = 3%)
+const EVASION_SOFT_CAP  = 12;    // diminishing returns after 12%
+const EVASION_HARD_CAP  = 25;    // absolute max 25%
 
-// Block: primarily from equipment, minor VIT/STR contribution
-const BLOCK_STR_RATE    = 0.03;  // 1 STR → +0.03% block
-const BLOCK_VIT_RATE    = 0.03;  // 1 VIT → +0.03% block
-const BLOCK_HARD_CAP    = 50;    // max 50%
-const BLOCK_DAMAGE_REDUCTION = 0.60; // blocking reduces damage by 60%
+const BLOCK_STR_RATE    = 0.02;  // 1 STR → +0.02% block
+const BLOCK_VIT_RATE    = 0.02;  // 1 VIT → +0.02% block
+const BLOCK_HARD_CAP    = 30;    // max 30%
+const BLOCK_DAMAGE_REDUCTION = 0.50; // blocking reduces damage by 50%
 
 // ─────────────────────────────────────────────────────────────────────────────
 // ATTACK SPEED & CRIT DMG SCALING
@@ -40,30 +36,30 @@ const BLOCK_DAMAGE_REDUCTION = 0.60; // blocking reduces damage by 60%
 // attack_speed: base 1.0, DEX adds a small bonus, gear can push higher
 // crit_dmg_pct: base 150% (1.5x), each point of crit_dmg_pct stat = +1%
 export const BASE_ATTACK_SPEED    = 1.0;
-export const DEX_ATTACK_SPEED     = 0.002;  // 50 DEX = +0.10 speed (reduced)
-export const ATTACK_SPEED_CAP     = 2.0;    // max 2x base speed (reduced from 3x)
-export const BASE_CRIT_DMG_PCT    = 125;    // 125% = 1.25x multiplier on crit (reduced from 150%)
-export const CRIT_DMG_LUK_RATE    = 0.15;   // 1 LUK → +0.15% crit dmg (reduced from 0.3%)
-export const CRIT_DMG_CAP         = 175;    // max 175% (reduced from 400%)
+export const DEX_ATTACK_SPEED     = 0.0015; // 50 DEX = +0.075 speed
+export const ATTACK_SPEED_CAP     = 1.8;    // max 1.8x base speed
+export const BASE_CRIT_DMG_PCT    = 115;    // 115% = 1.15x multiplier on crit
+export const CRIT_DMG_LUK_RATE    = 0.10;   // 1 LUK → +0.10% crit dmg
+export const CRIT_DMG_CAP         = 160;    // max 160%
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DAMAGE SCALING
 // ─────────────────────────────────────────────────────────────────────────────
 export const CLASS_DAMAGE_SCALING = {
-  warrior: { primary: "strength",     primaryMult: 1.5, secondary: "vitality",     secondaryMult: 0.0 },
-  mage:    { primary: "intelligence", primaryMult: 1.6, secondary: "strength",     secondaryMult: 0.0 },
-  ranger:  { primary: "dexterity",    primaryMult: 1.4, secondary: "strength",     secondaryMult: 0.15 },
-  rogue:   { primary: "dexterity",    primaryMult: 1.4, secondary: "strength",     secondaryMult: 0.3 },
+  warrior: { primary: "strength",     primaryMult: 1.3, secondary: "vitality",     secondaryMult: 0.0 },
+  mage:    { primary: "intelligence", primaryMult: 1.4, secondary: "strength",     secondaryMult: 0.0 },
+  ranger:  { primary: "dexterity",    primaryMult: 1.2, secondary: "strength",     secondaryMult: 0.12 },
+  rogue:   { primary: "dexterity",    primaryMult: 1.2, secondary: "strength",     secondaryMult: 0.2 },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // CRIT SCALING
 // ─────────────────────────────────────────────────────────────────────────────
-export const CRIT_BASE      = 2;
-export const CRIT_DEX_RATE  = 0.05;
-export const CRIT_LUK_RATE  = 0.08;
-export const CRIT_SOFT_CAP  = 30;
-export const CRIT_HARD_CAP  = 50;
+export const CRIT_BASE      = 1;
+export const CRIT_DEX_RATE  = 0.03;
+export const CRIT_LUK_RATE  = 0.05;
+export const CRIT_SOFT_CAP  = 18;
+export const CRIT_HARD_CAP  = 30;
 
 function calcCritChance(dex, luck) {
   const raw = CRIT_BASE + dex * CRIT_DEX_RATE + luck * CRIT_LUK_RATE;
@@ -76,7 +72,7 @@ function calcCritChance(dex, luck) {
 // DEFENSE SCALING
 // ─────────────────────────────────────────────────────────────────────────────
 function calcDefenseReduction(defense) {
-  return defense / (defense + 100); // 0..1 soft curve
+  return defense / (defense + 200); // 0..1 soft curve, slower scaling
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
