@@ -679,6 +679,9 @@ async function handleLocalFunction(functionName, params) {
         description: `Restores ${30 + charLevel * 5} MP.`,
       });
 
+      if (supabaseSync.isEnabled()) {
+        supabaseSync.storeTimestamp(characterId, 'shop_rotation_seed', seed).catch(() => {});
+      }
       return { data: { success: true, items, nextRefreshAt } };
     }
 
@@ -836,6 +839,14 @@ async function handleLocalFunction(functionName, params) {
         }
         setStore('Resource', resources);
         notifySubscribers('Resource', { type: 'update' });
+        if (supabaseSync.isEnabled()) {
+          for (const drop of droppedResources) {
+            const synced = resources.find(r =>
+              r.character_id === charId && r.resource_type === drop.resource && r.rarity === drop.rarity
+            );
+            if (synced) supabaseSync.syncResource(synced).catch(() => {});
+          }
+        }
 
         const xpGain = 15 + skill.level * 2;
         skill.exp = (skill.exp || 0) + xpGain;
@@ -853,6 +864,9 @@ async function handleLocalFunction(functionName, params) {
         lifeSkills[skillType] = skill;
         chars[charIdx].life_skills = lifeSkills;
         setStore('Character', chars);
+        if (supabaseSync.isEnabled()) {
+          supabaseSync.syncCharacter(chars[charIdx]).catch(() => {});
+        }
 
         return {
           data: {
@@ -983,6 +997,9 @@ async function handleLocalFunction(functionName, params) {
       labs[labIdx].total_gems_generated = (labs[labIdx].total_gems_generated || 0) + gemsGenerated;
       labs[labIdx].last_collection_time = new Date().toISOString();
       setStore('GemLab', labs);
+      if (supabaseSync.isEnabled()) {
+        supabaseSync.syncGemLab(labs[labIdx]).catch(() => {});
+      }
       return { data: { success: true, gemsGenerated, offlineHours: (elapsedMin / 60).toFixed(1) } };
     }
 
@@ -1002,6 +1019,10 @@ async function handleLocalFunction(functionName, params) {
       if (charIdx !== -1) {
         chars[charIdx].gems = (chars[charIdx].gems || 0) + gemsToAdd;
         setStore('Character', chars);
+      }
+      if (supabaseSync.isEnabled()) {
+        supabaseSync.syncGemLab(labs[labIdx]).catch(() => {});
+        supabaseSync.syncCharacter(chars[charIdx]).catch(() => {});
       }
       return { data: { success: true, claimedGems: gemsToAdd, newTotal: chars[charIdx]?.gems || gemsToAdd } };
     }

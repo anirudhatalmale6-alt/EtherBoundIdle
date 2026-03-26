@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skull, Swords, Trophy, Timer, Flame } from "lucide-react";
 
-export default function GuildBoss({ guild, myMemberEntry, onAttack, onActivate, isAttacking, canActivate }) {
+export default function GuildBoss({ guild, myMemberEntry, onAttack, onActivate, isAttacking, canActivate, bossCooldown }) {
   const boss = guild.boss_active;
   const hp = guild.boss_hp || 0;
   const maxHp = guild.boss_max_hp || 1;
@@ -51,13 +51,19 @@ export default function GuildBoss({ guild, myMemberEntry, onAttack, onActivate, 
 
             <Button
               onClick={onAttack}
-              disabled={isAttacking || hp <= 0}
+              disabled={isAttacking || hp <= 0 || (bossCooldown && !bossCooldown.ready)}
               className="w-full gap-2 bg-destructive hover:bg-destructive/90"
             >
-              <Swords className="w-4 h-4" /> Attack Boss
+              <Swords className="w-4 h-4" />
+              {bossCooldown && !bossCooldown.ready
+                ? `Cooldown: ${bossCooldown.cooldownFormatted}`
+                : "Attack Boss"}
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
               Your damage today: <span className="text-red-400 font-semibold">{myDmgToday.toLocaleString()}</span>
+              {bossCooldown && !bossCooldown.ready && (
+                <span className="block mt-1 text-yellow-400">60-minute cooldown between attacks</span>
+              )}
             </p>
           </div>
 

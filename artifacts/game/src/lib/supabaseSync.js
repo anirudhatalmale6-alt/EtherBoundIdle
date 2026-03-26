@@ -202,6 +202,66 @@ export const supabaseSync = {
     }
   },
 
+  async storeTimestamp(characterId, key, value) {
+    const sb = getSupabase();
+    if (!sb || !characterId || !key) return;
+    try {
+      await sb.from("game_config").upsert({
+        id: `${characterId}_${key}`,
+        key,
+        value: JSON.stringify({ ts: value, character_id: characterId }),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+    } catch (e) {
+      console.warn("[supabaseSync] storeTimestamp failed:", e.message);
+    }
+  },
+
+  async getTimestamp(characterId, key) {
+    const sb = getSupabase();
+    if (!sb || !characterId || !key) return null;
+    try {
+      const { data } = await sb.from("game_config")
+        .select("value")
+        .eq("id", `${characterId}_${key}`)
+        .single();
+      if (data?.value) {
+        const parsed = JSON.parse(data.value);
+        return parsed.ts || null;
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  },
+
+  async validateElapsed(characterId, key, minElapsedMs) {
+    const serverTs = await this.getTimestamp(characterId, key);
+    if (!serverTs) return { valid: true, elapsed: Infinity };
+    const elapsed = Date.now() - serverTs;
+    return { valid: elapsed >= minElapsedMs, elapsed };
+  },
+
+  async syncGemLab(lab) {
+    const sb = getSupabase();
+    if (!sb || !lab?.id) return;
+    try {
+      await sb.from("gem_labs").upsert({
+        id: lab.id,
+        character_id: lab.character_id,
+        production_level: lab.production_level || 0,
+        speed_level: lab.speed_level || 0,
+        efficiency_level: lab.efficiency_level || 0,
+        pending_gems: lab.pending_gems || 0,
+        total_gems_generated: lab.total_gems_generated || 0,
+        last_collection_time: lab.last_collection_time || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "id" });
+    } catch (e) {
+      console.warn("[supabaseSync] gemLab sync failed:", e.message);
+    }
+  },
+
   async fullSync(characterId) {
     const sb = getSupabase();
     if (!sb || !characterId) return { synced: false };
@@ -228,12 +288,17 @@ export const supabaseSync = {
       const charResources = resources.filter(r => r.character_id === characterId);
       for (const r of charResources) await this.syncResource(r);
 
+      const gemLabs = JSON.parse(localStorage.getItem("eb_GemLab") || "[]");
+      const charLab = gemLabs.find(l => l.character_id === characterId);
+      if (charLab) await this.syncGemLab(charLab);
+
       return {
         synced: true,
         character: !!char,
         items: charItems.length,
         quests: charQuests.length,
         resources: charResources.length,
+        gemLab: !!charLab,
       };
     } catch (e) {
       console.warn("[supabaseSync] full sync failed:", e.message);

@@ -28,6 +28,7 @@ import { REGIONS, ENEMIES, SKILLS, CLASSES, calculateExpToLevel, generateLoot, R
 import { CLASS_SKILLS, ELEMENT_CONFIG } from "@/lib/skillData";
 import { rollDamage, calculateDamageTaken, calculateFinalStats } from "@/lib/statSystem";
 import hybridPersistence from "@/lib/hybridPersistence";
+import { idleEngine } from "@/lib/idleEngine";
 
 const RARE_RARITIES = ["legendary", "mythic", "shiny"];
 
@@ -36,6 +37,11 @@ const HP_REGEN_PER_TURN = 0.03; // 3%
 const MP_REGEN_PER_TURN = 0.05; // 5%
 
 export default function Battle({ character, onCharacterUpdate }) {
+  useEffect(() => {
+    idleEngine.pauseFight();
+    return () => { idleEngine.resumeFight(); };
+  }, []);
+
   const [partyData, setPartyData] = useState(null);
   const [enemy, setEnemy] = useState(null);
   const [enemyHp, setEnemyHp] = useState(0);

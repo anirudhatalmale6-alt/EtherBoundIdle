@@ -10,6 +10,7 @@ import {
   CircleDot, Gem, Heart, RefreshCw, Clock, FlaskConical, Package
 } from "lucide-react";
 import { RARITY_CONFIG } from "@/lib/gameData";
+import { idleEngine } from "@/lib/idleEngine";
 
 const TYPE_ICONS = {
   weapon: Sword, armor: Shield, helmet: Crown, boots: Footprints,
@@ -53,15 +54,23 @@ export default function Shop({ character, onCharacterUpdate }) {
 
   useEffect(() => { loadShop(); }, [character?.id]);
 
-  // Countdown timer
   useEffect(() => {
     if (!nextRefreshAt) return;
     const interval = setInterval(() => {
-      setTimeLeft(formatTimeLeft(nextRefreshAt));
-    }, 30000);
+      const tl = formatTimeLeft(nextRefreshAt);
+      setTimeLeft(tl);
+      if (tl === "Refreshing...") loadShop(true);
+    }, 1000);
     setTimeLeft(formatTimeLeft(nextRefreshAt));
     return () => clearInterval(interval);
   }, [nextRefreshAt]);
+
+  useEffect(() => {
+    const unsub = idleEngine.on('shopRotation', (data) => {
+      setTimeLeft(data.timeLeftFormatted);
+    });
+    return unsub;
+  }, []);
 
   const buyMutation = useMutation({
     mutationFn: async (shopItem) => {

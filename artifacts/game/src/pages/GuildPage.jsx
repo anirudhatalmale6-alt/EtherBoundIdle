@@ -15,6 +15,7 @@ import GuildBoss from "@/components/guild/GuildBoss";
 import GuildShop from "@/components/guild/GuildShop";
 import GuildBase from "@/components/guild/GuildBase";
 import InlineChat from "@/components/game/InlineChat";
+import { idleEngine } from "@/lib/idleEngine";
 
 const GUILD_BOSSES = [
   { name: "Ancient Golem", baseHp: 50000 },
@@ -155,8 +156,23 @@ export default function GuildPage({ character, onCharacterUpdate }) {
     },
   });
 
+  const [bossCooldown, setBossCooldown] = useState(() => idleEngine.getGuildBossCooldown(character?.id));
+
+  useEffect(() => {
+    if (!character?.id) return;
+    const unsub = idleEngine.on('guildBossStatus', (status) => {
+      setBossCooldown(status);
+    });
+    return unsub;
+  }, [character?.id]);
+
   const attackBossMutation = useMutation({
     mutationFn: async () => {
+      const cooldown = await idleEngine.validateGuildBossAttack(character.id);
+      if (!cooldown.ready) {
+        setBossCooldown(cooldown);
+        throw new Error(`Boss attack on cooldown. ${cooldown.cooldownFormatted} remaining.`);
+      }
       const dmg = Math.floor((character.strength || 10) * 50 + Math.random() * 500);
       const newHp = Math.max(0, (myGuild.boss_hp || 0) - dmg);
       const newMembers = (myGuild.members || []).map(m =>
@@ -178,6 +194,7 @@ export default function GuildPage({ character, onCharacterUpdate }) {
       await base44.entities.Guild.update(myGuild.id, updates);
       await base44.entities.Character.update(character.id, { gold: (character.gold || 0) + tokenReward });
       onCharacterUpdate({ ...character, gold: (character.gold || 0) + tokenReward });
+      idleEngine.recordGuildBossAttack(character.id);
       refetch();
     },
   });
@@ -235,6 +252,7 @@ export default function GuildPage({ character, onCharacterUpdate }) {
                 onActivate={() => activateBossMutation.mutate()}
                 isAttacking={attackBossMutation.isPending}
                 canActivate={["leader", "co-leader", "officer"].includes(myRole)}
+                bossCooldown={bossCooldown}
               />
             </TabsContent>
 

@@ -30,6 +30,7 @@ import DailyLoginModal from "./components/game/DailyLoginModal";
 import PartyPanel from "./components/game/PartyPanel";
 import { useCharacterAutoSave } from "./hooks/useCharacterAutoSave";
 import { supabaseSync } from "@/lib/supabaseSync";
+import { idleEngine } from "@/lib/idleEngine";
 
 const GameApp = () => {
   const { isAuthenticated } = useAuth();
@@ -63,6 +64,8 @@ const GameApp = () => {
     if (supabaseSync.isEnabled()) {
       supabaseSync.fullSync(character.id).catch(() => {});
     }
+    idleEngine.start(character.id);
+    return () => { idleEngine.stop(); };
   }, [character?.id]);
 
   const setCharacter = (charOrUpdater) => {

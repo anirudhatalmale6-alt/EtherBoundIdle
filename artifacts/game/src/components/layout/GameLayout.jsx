@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
 import RoleBadge from "@/components/game/RoleBadge";
 import CharacterProfileModal from "@/components/game/CharacterProfileModal";
+import IdleStatusBar from "@/components/game/IdleStatusBar";
 
 const NAV_ITEMS = [
   { path: "/", icon: Swords, label: "Battle" },
@@ -192,6 +193,8 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
              </nav>
            </div>
          )}
+
+        {character && <IdleStatusBar character={character} />}
 
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto">
