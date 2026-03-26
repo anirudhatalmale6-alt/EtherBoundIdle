@@ -585,18 +585,31 @@ async function handleLocalFunction(functionName, params) {
     }
 
     case 'getShopRotation': {
-      const now = new Date();
       const ROTATION_MS = 4 * 60 * 60 * 1000;
-      const seed = Math.floor(now.getTime() / ROTATION_MS);
-      const nextRefreshAt = new Date((seed + 1) * ROTATION_MS).toISOString();
-
+      const REFRESH_GEM_COST = 5;
       const chars = getStore('Character');
       const char = chars.find(c => c.id === characterId);
       const charLevel = char?.level || 1;
 
-      function seededRandom(s) {
-        let x = Math.sin(s) * 10000;
-        return x - Math.floor(x);
+      const cacheKey = `eb_shop_cache_${characterId}`;
+      let cached = null;
+      try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch {}
+
+      const isExpired = !cached || !cached.expiresAt || Date.now() >= cached.expiresAt;
+
+      if (params.forceRefresh && !isExpired) {
+        if ((char?.gems || 0) < REFRESH_GEM_COST) {
+          return { data: { success: false, error: 'Not enough gems (5 required to refresh)' } };
+        }
+        const charIdx = chars.findIndex(c => c.id === characterId);
+        chars[charIdx].gems = (chars[charIdx].gems || 0) - REFRESH_GEM_COST;
+        setStore('Character', chars);
+      }
+
+      const shouldGenerate = isExpired || params.forceRefresh;
+
+      if (!shouldGenerate && cached) {
+        return { data: { success: true, items: cached.items, nextRefreshAt: new Date(cached.expiresAt).toISOString(), gemsSpent: 0 } };
       }
 
       const EQUIP_TYPES = ['weapon', 'armor', 'helmet', 'boots', 'ring', 'amulet'];
@@ -620,12 +633,13 @@ async function handleLocalFunction(functionName, params) {
         amulet: ['intelligence', 'mp_bonus', 'magic_attack'],
       };
 
+      const genId = Date.now();
       const items = [];
       for (let i = 0; i < 8; i++) {
-        const s1 = seededRandom(seed * 100 + i * 7 + 1);
-        const s2 = seededRandom(seed * 100 + i * 7 + 2);
-        const s3 = seededRandom(seed * 100 + i * 7 + 3);
-        const s4 = seededRandom(seed * 100 + i * 7 + 4);
+        const s1 = Math.random();
+        const s2 = Math.random();
+        const s3 = Math.random();
+        const s4 = Math.random();
 
         const type = EQUIP_TYPES[Math.floor(s1 * EQUIP_TYPES.length)];
         const nameList = EQUIP_NAMES[type];
@@ -638,13 +652,13 @@ async function handleLocalFunction(functionName, params) {
         const statPool = STAT_KEYS[type] || ['attack', 'defense'];
         const stats = {};
         statPool.forEach((sk, si) => {
-          const val = Math.max(1, Math.floor((iLv * (1 + si * 0.3) * mult) * (0.7 + seededRandom(seed * 1000 + i * 30 + si) * 0.6)));
+          const val = Math.max(1, Math.floor((iLv * (1 + si * 0.3) * mult) * (0.7 + Math.random() * 0.6)));
           stats[sk] = val;
         });
 
         const basePrice = Math.floor(iLv * 25 * mult * (0.8 + s2 * 0.4));
         items.push({
-          id: `shop_${seed}_${i}`,
+          id: `shop_${genId}_${i}`,
           name: `${prefix} ${baseName}`,
           type,
           rarity,
@@ -657,7 +671,7 @@ async function handleLocalFunction(functionName, params) {
       }
 
       items.push({
-        id: `shop_${seed}_hp`,
+        id: `shop_${genId}_hp`,
         name: 'Health Potion',
         type: 'consumable',
         rarity: 'common',
@@ -668,7 +682,7 @@ async function handleLocalFunction(functionName, params) {
         description: `Restores ${50 + charLevel * 10} HP.`,
       });
       items.push({
-        id: `shop_${seed}_mp`,
+        id: `shop_${genId}_mp`,
         name: 'Mana Potion',
         type: 'consumable',
         rarity: 'common',
@@ -679,10 +693,14 @@ async function handleLocalFunction(functionName, params) {
         description: `Restores ${30 + charLevel * 5} MP.`,
       });
 
+      const expiresAt = Date.now() + ROTATION_MS;
+      const nextRefreshAt = new Date(expiresAt).toISOString();
+      localStorage.setItem(cacheKey, JSON.stringify({ items, expiresAt }));
+
       if (supabaseSync.isEnabled()) {
-        supabaseSync.storeTimestamp(characterId, 'shop_rotation_seed', seed).catch(() => {});
+        supabaseSync.storeTimestamp(characterId, 'shop_rotation_ts', Date.now()).catch(() => {});
       }
-      return { data: { success: true, items, nextRefreshAt } };
+      return { data: { success: true, items, nextRefreshAt, gemsSpent: (!isExpired && params.forceRefresh) ? REFRESH_GEM_COST : 0 } };
     }
 
     case 'manageDailyQuests': {

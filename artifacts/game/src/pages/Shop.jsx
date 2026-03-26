@@ -34,16 +34,24 @@ export default function Shop({ character, onCharacterUpdate }) {
   const [loadingShop, setLoadingShop] = useState(true);
   const [timeLeft, setTimeLeft] = useState("");
 
-  // Load shop rotation
   const loadShop = async (forceRefresh = false) => {
     try {
       setLoadingShop(true);
       const res = await base44.functions.invoke("getShopRotation", {
         characterId: character.id, forceRefresh
       });
+      if (res.data?.success === false && res.data?.error) {
+        toast({ title: res.data.error, variant: "destructive" });
+        return;
+      }
       if (res.data?.success) {
         setShopItems(res.data.items || []);
         setNextRefreshAt(res.data.nextRefreshAt);
+        if (res.data.gemsSpent > 0) {
+          const newGems = (character.gems || 0) - res.data.gemsSpent;
+          onCharacterUpdate({ ...character, gems: newGems });
+          toast({ title: `Stock refreshed! (${res.data.gemsSpent} gems spent)`, duration: 2000 });
+        }
       }
     } catch (e) {
       console.error(e);
@@ -110,6 +118,9 @@ export default function Shop({ character, onCharacterUpdate }) {
           <Badge variant="outline" className="text-accent border-accent/30 gap-1 text-sm">
             <Coins className="w-3.5 h-3.5" /> {(character?.gold || 0).toLocaleString()}
           </Badge>
+          <Badge variant="outline" className="text-purple-400 border-purple-400/30 gap-1 text-sm">
+            <Gem className="w-3.5 h-3.5" /> {(character?.gems || 0).toLocaleString()}
+          </Badge>
           <Badge variant="outline" className="gap-1 text-xs text-muted-foreground">
             <Clock className="w-3 h-3" /> {timeLeft || "Loading..."}
           </Badge>
@@ -126,7 +137,7 @@ export default function Shop({ character, onCharacterUpdate }) {
           disabled={loadingShop}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loadingShop ? "animate-spin" : ""}`} />
-          Refresh Stock
+          Refresh Stock (<Gem className="w-3 h-3 inline" /> 5)
         </Button>
       </div>
 

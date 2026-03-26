@@ -125,7 +125,7 @@ export default function GuildPage({ character, onCharacterUpdate }) {
 
   const perkMutation = useMutation({
     mutationFn: async ({ perk, currentLevel }) => {
-      const cost = perk.costPerLevel * (currentLevel + 1);
+      const cost = Math.floor(perk.baseCost * Math.pow(1.5, currentLevel));
       if ((myGuild.guild_tokens || 0) < cost) throw new Error("Not enough tokens");
       const newPerks = { ...(myGuild.perks || {}), [perk.key]: currentLevel + 1 };
       const buffDelta = { exp_boost: 5, gold_boost: 5, damage_boost: 3, idle_boost: 5 }[perk.key] || 0;
@@ -138,7 +138,7 @@ export default function GuildPage({ character, onCharacterUpdate }) {
 
   const buildingMutation = useMutation({
     mutationFn: async ({ building, currentLevel }) => {
-      const cost = building.costPerLevel * (currentLevel + 1);
+      const cost = Math.floor(building.baseCost * Math.pow(1.5, currentLevel));
       if ((myGuild.guild_tokens || 0) < cost) throw new Error("Not enough tokens");
       const newBuildings = { ...(myGuild.buildings || {}), [building.key]: currentLevel + 1 };
       await base44.entities.Guild.update(myGuild.id, { buildings: newBuildings, guild_tokens: (myGuild.guild_tokens || 0) - cost });
@@ -156,7 +156,7 @@ export default function GuildPage({ character, onCharacterUpdate }) {
     },
   });
 
-  const [bossCooldown, setBossCooldown] = useState(() => idleEngine.getGuildBossCooldown(character?.id));
+  const [bossCooldown, setBossCooldown] = useState(() => idleEngine.getBossAttackStatus(character?.id));
 
   useEffect(() => {
     if (!character?.id) return;
@@ -168,20 +168,22 @@ export default function GuildPage({ character, onCharacterUpdate }) {
 
   const attackBossMutation = useMutation({
     mutationFn: async () => {
-      const cooldown = await idleEngine.validateGuildBossAttack(character.id);
-      if (!cooldown.ready) {
-        setBossCooldown(cooldown);
-        throw new Error(`Boss attack on cooldown. ${cooldown.cooldownFormatted} remaining.`);
+      const status = await idleEngine.validateGuildBossAttack(character.id);
+      if (!status.ready) {
+        setBossCooldown(status);
+        throw new Error(`No attacks remaining. ${status.windowFormatted}`);
       }
       const dmg = Math.floor((character.strength || 10) * 50 + Math.random() * 500);
       const newHp = Math.max(0, (myGuild.boss_hp || 0) - dmg);
       const newMembers = (myGuild.members || []).map(m =>
         m.character_id === character.id ? { ...m, boss_damage_today: (m.boss_damage_today || 0) + dmg } : m
       );
-      const tokenReward = Math.floor(dmg / 100);
-      const updates = { boss_hp: newHp, members: newMembers, guild_tokens: (myGuild.guild_tokens || 0) + tokenReward };
+      const updates = { boss_hp: newHp, members: newMembers };
       if (newHp <= 0) {
         updates.boss_active = false;
+        const bossLevel = Math.min((myGuild.level || 1), 3);
+        const tokenReward = 100 * bossLevel + Math.floor(dmg / 50);
+        updates.guild_tokens = (myGuild.guild_tokens || 0) + tokenReward;
         const newExp = (myGuild.exp || 0) + 500;
         updates.exp = newExp;
         if (newExp >= (myGuild.exp_to_next || 1000)) {
@@ -192,8 +194,6 @@ export default function GuildPage({ character, onCharacterUpdate }) {
         }
       }
       await base44.entities.Guild.update(myGuild.id, updates);
-      await base44.entities.Character.update(character.id, { gold: (character.gold || 0) + tokenReward });
-      onCharacterUpdate({ ...character, gold: (character.gold || 0) + tokenReward });
       idleEngine.recordGuildBossAttack(character.id);
       refetch();
     },

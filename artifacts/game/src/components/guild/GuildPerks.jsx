@@ -4,10 +4,10 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Coins, Zap, Clock } from "lucide-react";
 
 const PERKS = [
-  { key: "exp_boost", label: "EXP Boost", icon: TrendingUp, color: "text-green-400", desc: "+5% EXP per level", buffKey: "exp_bonus", costPerLevel: 200 },
-  { key: "gold_boost", label: "Gold Boost", icon: Coins, color: "text-yellow-400", desc: "+5% Gold per level", buffKey: "gold_bonus", costPerLevel: 200 },
-  { key: "damage_boost", label: "Damage Boost", icon: Zap, color: "text-red-400", desc: "+3% DMG per level", buffKey: "damage_bonus", costPerLevel: 300 },
-  { key: "idle_boost", label: "Idle Efficiency", icon: Clock, color: "text-blue-400", desc: "+5% Idle per level", buffKey: "idle_bonus", costPerLevel: 250 },
+  { key: "exp_boost", label: "EXP Boost", icon: TrendingUp, color: "text-green-400", desc: "+5% EXP per level", buffKey: "exp_bonus", baseCost: 500 },
+  { key: "gold_boost", label: "Gold Boost", icon: Coins, color: "text-yellow-400", desc: "+5% Gold per level", buffKey: "gold_bonus", baseCost: 500 },
+  { key: "damage_boost", label: "Damage Boost", icon: Zap, color: "text-red-400", desc: "+3% DMG per level", buffKey: "damage_bonus", baseCost: 500 },
+  { key: "idle_boost", label: "Idle Efficiency", icon: Clock, color: "text-blue-400", desc: "+5% Idle per level", buffKey: "idle_bonus", baseCost: 500 },
 ];
 
 const MAX_LEVEL = 10;
@@ -25,7 +25,7 @@ export default function GuildPerks({ guild, myRole, onUpgrade, isUpgrading }) {
       </p>
       {PERKS.map(perk => {
         const level = perks[perk.key] || 0;
-        const cost = perk.costPerLevel * (level + 1);
+        const cost = Math.floor(perk.baseCost * Math.pow(1.5, level));
         const maxed = level >= MAX_LEVEL;
         const canAfford = tokens >= cost;
         const Icon = perk.icon;

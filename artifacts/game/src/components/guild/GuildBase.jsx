@@ -11,7 +11,7 @@ const BUILDINGS = [
     color: "text-orange-400",
     desc: "Increases item quality drops for all members.",
     bonus: "+5% item quality per level",
-    costPerLevel: 500,
+    baseCost: 500,
   },
   {
     key: "academy",
@@ -20,7 +20,7 @@ const BUILDINGS = [
     color: "text-blue-400",
     desc: "Boosts skill point gain for all members.",
     bonus: "+5% skill EXP per level",
-    costPerLevel: 600,
+    baseCost: 500,
   },
   {
     key: "treasury",
@@ -29,7 +29,7 @@ const BUILDINGS = [
     color: "text-yellow-400",
     desc: "Increases guild token gains from activities.",
     bonus: "+10% tokens per level",
-    costPerLevel: 400,
+    baseCost: 500,
   },
 ];
 
@@ -46,7 +46,7 @@ export default function GuildBase({ guild, myRole, onUpgrade, isUpgrading }) {
       <div className="grid gap-3">
         {BUILDINGS.map(b => {
           const level = buildings[b.key] || 0;
-          const cost = b.costPerLevel * (level + 1);
+          const cost = Math.floor(b.baseCost * Math.pow(1.5, level));
           const maxed = level >= MAX_LEVEL;
           const canAfford = tokens >= cost;
           const Icon = b.icon;

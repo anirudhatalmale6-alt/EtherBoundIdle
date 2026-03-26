@@ -5,9 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Users, Shield, AlertCircle, Check, X, ChevronRight, Backpack, Lock, Volume2, Trash2, Edit } from "lucide-react";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Users, Shield, AlertCircle, Check, X, ChevronRight, Backpack, Lock, Volume2, Trash2, Edit, Globe, RefreshCw } from "lucide-react";
 import { ROLES } from "@/lib/roleSystem";
 import { useAuth } from "@/lib/AuthContext";
+import { supabaseSync } from "@/lib/supabaseSync";
 
 
 export default function AdminPanel() {
@@ -70,6 +72,13 @@ export default function AdminPanel() {
     },
   });
 
+  const { data: serverPlayers = [], refetch: refetchServerPlayers, isFetching: fetchingServerPlayers } = useQuery({
+    queryKey: ["serverPlayers"],
+    queryFn: () => supabaseSync.fetchAllServerPlayers(),
+    enabled: isAdmin && supabaseSync.isEnabled(),
+    refetchInterval: 30000,
+  });
+
   const updateStatsMutation = useMutation({
     mutationFn: (data) => base44.functions.invoke("managePlayer", data),
     onSuccess: (response) => {
@@ -116,88 +125,152 @@ export default function AdminPanel() {
         <Badge className="ml-auto">{currentUser.role.toUpperCase()}</Badge>
       </div>
 
-      {/* Search */}
-      <div className="bg-card border border-border rounded-xl p-4">
-        <label className="text-sm font-medium text-muted-foreground block mb-2">Search</label>
-        <Input
-          placeholder="Search users by email/username or characters by name..."
-          value={searchEmail}
-          onChange={(e) => setSearchEmail(e.target.value)}
-          className="bg-muted/50"
-        />
-      </div>
+      <Tabs defaultValue="manage" className="w-full">
+        <TabsList className="w-full justify-start">
+          <TabsTrigger value="manage" className="gap-1.5"><Users className="w-3.5 h-3.5" /> Manage</TabsTrigger>
+          <TabsTrigger value="server-players" className="gap-1.5"><Globe className="w-3.5 h-3.5" /> Server Players ({serverPlayers.length})</TabsTrigger>
+        </TabsList>
 
-      <div className="grid md:grid-cols-2 gap-6">
-        {/* Users List */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border flex items-center gap-3">
-            <Users className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold">Users ({filteredUsers.length})</h2>
+        <TabsContent value="manage" className="space-y-6 mt-4">
+          {/* Search */}
+          <div className="bg-card border border-border rounded-xl p-4">
+            <label className="text-sm font-medium text-muted-foreground block mb-2">Search</label>
+            <Input
+              placeholder="Search users by email/username or characters by name..."
+              value={searchEmail}
+              onChange={(e) => setSearchEmail(e.target.value)}
+              className="bg-muted/50"
+            />
           </div>
 
-          <div className="divide-y divide-border max-h-96 overflow-y-auto">
-            {filteredUsers.length === 0 ? (
-              <div className="p-4 text-center text-muted-foreground">No users found</div>
-            ) : (
-              filteredUsers.map((user) => (
-                <div
-                  key={user.id}
-                  className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => setSelectedUser(user)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-sm">{user.full_name || user.email?.split('@')[0]}</p>
-                        <Badge className={`${ROLES[user.role]?.color || "text-gray-400"}`}>
-                          {ROLES[user.role]?.label || "Player"}
-                        </Badge>
+          <div className="grid md:grid-cols-2 gap-6">
+            {/* Users List */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-border flex items-center gap-3">
+                <Users className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold">Users ({filteredUsers.length})</h2>
+              </div>
+
+              <div className="divide-y divide-border max-h-96 overflow-y-auto">
+                {filteredUsers.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">No users found</div>
+                ) : (
+                  filteredUsers.map((user) => (
+                    <div
+                      key={user.id}
+                      className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => setSelectedUser(user)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-sm">{user.full_name || user.email?.split('@')[0]}</p>
+                            <Badge className={`${ROLES[user.role]?.color || "text-gray-400"}`}>
+                              {ROLES[user.role]?.label || "Player"}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground">{user.email}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </div>
-                      <p className="text-xs text-muted-foreground">{user.email}</p>
                     </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* Characters List */}
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <div className="p-4 border-b border-border flex items-center gap-3">
+                <Backpack className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold">Characters ({filteredCharacters.length})</h2>
+              </div>
+
+              <div className="divide-y divide-border max-h-96 overflow-y-auto">
+                {filteredCharacters.length === 0 ? (
+                  <div className="p-4 text-center text-muted-foreground">No characters found</div>
+                ) : (
+                  filteredCharacters.map((char) => (
+                    <div
+                      key={char.id}
+                      className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
+                      onClick={() => setSelectedCharacter(char)}
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-semibold text-sm">{char.name}</p>
+                            <Badge variant="outline">Lv.{char.level}</Badge>
+                            {char.is_banned && <Badge className="bg-destructive/20 text-destructive border-destructive/30">BANNED</Badge>}
+                            {char.is_muted && <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">MUTED</Badge>}
+                          </div>
+                          <p className="text-xs text-muted-foreground">{char.class}</p>
+                        </div>
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="server-players" className="mt-4">
+          <div className="bg-card border border-border rounded-xl overflow-hidden">
+            <div className="p-4 border-b border-border flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Globe className="w-4 h-4 text-primary" />
+                <h2 className="font-semibold">All Server Players ({serverPlayers.length})</h2>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-1.5 text-xs"
+                onClick={() => refetchServerPlayers()}
+                disabled={fetchingServerPlayers}
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${fetchingServerPlayers ? "animate-spin" : ""}`} />
+                Refresh
+              </Button>
+            </div>
+            {!supabaseSync.isEnabled() ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <Globe className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p>Supabase not connected. Server player list requires Supabase.</p>
+              </div>
+            ) : serverPlayers.length === 0 ? (
+              <div className="p-8 text-center text-muted-foreground">
+                <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p>No players synced to server yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border max-h-[600px] overflow-y-auto">
+                <div className="grid grid-cols-6 gap-2 p-3 text-xs font-semibold text-muted-foreground bg-muted/30 sticky top-0">
+                  <span>Name</span>
+                  <span>Class</span>
+                  <span>Level</span>
+                  <span>Gold</span>
+                  <span>Gems</span>
+                  <span>Last Sync</span>
                 </div>
-              ))
+                {serverPlayers.map((p) => (
+                  <div key={p.id} className="grid grid-cols-6 gap-2 p-3 text-sm hover:bg-muted/20 transition-colors">
+                    <span className="font-medium truncate">{p.name}</span>
+                    <span className="capitalize text-muted-foreground">{p.class || '-'}</span>
+                    <span><Badge variant="outline" className="text-xs">Lv.{p.level}</Badge></span>
+                    <span className="text-yellow-400">{(p.gold || 0).toLocaleString()}</span>
+                    <span className="text-purple-400">{(p.gems || 0).toLocaleString()}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {p.updated_at ? new Date(p.updated_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'}
+                    </span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
-        </div>
-
-        {/* Characters List */}
-        <div className="bg-card border border-border rounded-xl overflow-hidden">
-          <div className="p-4 border-b border-border flex items-center gap-3">
-            <Backpack className="w-4 h-4 text-primary" />
-            <h2 className="font-semibold">Characters ({filteredCharacters.length})</h2>
-          </div>
-
-          <div className="divide-y divide-border max-h-96 overflow-y-auto">
-            {filteredCharacters.length === 0 ? (
-              <div className="p-4 text-center text-muted-foreground">No characters found</div>
-            ) : (
-              filteredCharacters.map((char) => (
-                <div
-                  key={char.id}
-                  className="p-4 hover:bg-muted/30 transition-colors cursor-pointer"
-                  onClick={() => setSelectedCharacter(char)}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <p className="font-semibold text-sm">{char.name}</p>
-                        <Badge variant="outline">Lv.{char.level}</Badge>
-                        {char.is_banned && <Badge className="bg-destructive/20 text-destructive border-destructive/30">BANNED</Badge>}
-                        {char.is_muted && <Badge className="bg-orange-500/20 text-orange-400 border-orange-500/30">MUTED</Badge>}
-                      </div>
-                      <p className="text-xs text-muted-foreground">{char.class}</p>
-                    </div>
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </div>
-      </div>
+        </TabsContent>
+      </Tabs>
 
       {/* User Detail Modal */}
       <AnimatePresence>

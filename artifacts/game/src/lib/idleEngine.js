@@ -170,20 +170,38 @@ async function shopRotationTick() {
   }
 }
 
+const BOSS_MAX_ATTACKS = 10;
+const BOSS_WINDOW_MS = 8 * 60 * 60 * 1000;
+
+function getBossAttackData(characterId) {
+  try {
+    const raw = localStorage.getItem(`eb_guild_boss_attacks_${characterId}`);
+    if (!raw) return { attacks: [], windowStart: 0 };
+    const data = JSON.parse(raw);
+    const now = Date.now();
+    if (now - (data.windowStart || 0) >= BOSS_WINDOW_MS) {
+      return { attacks: [], windowStart: now };
+    }
+    return data;
+  } catch { return { attacks: [], windowStart: Date.now() }; }
+}
+
 async function guildBossTick() {
   if (!_characterId) return;
   try {
-    const lastAttackRaw = localStorage.getItem(`eb_guild_boss_last_attack_${_characterId}`);
-    const lastAttack = lastAttackRaw ? parseInt(lastAttackRaw, 10) : 0;
-    const elapsed = Date.now() - lastAttack;
-    const cooldownMs = 60 * 60 * 1000;
-    const ready = elapsed >= cooldownMs;
+    const data = getBossAttackData(_characterId);
+    const now = Date.now();
+    const windowRemaining = Math.max(0, BOSS_WINDOW_MS - (now - (data.windowStart || 0)));
+    const attacksUsed = data.attacks.length;
+    const attacksLeft = Math.max(0, BOSS_MAX_ATTACKS - attacksUsed);
 
     emit('guildBossStatus', {
-      ready,
-      cooldownRemaining: ready ? 0 : cooldownMs - elapsed,
-      cooldownFormatted: ready ? 'Ready!' : formatTime(cooldownMs - elapsed),
-      lastAttack,
+      ready: attacksLeft > 0,
+      attacksUsed,
+      attacksLeft,
+      maxAttacks: BOSS_MAX_ATTACKS,
+      windowRemaining,
+      windowFormatted: attacksLeft > 0 ? `${attacksLeft}/${BOSS_MAX_ATTACKS} attacks left` : `Resets in ${formatTime(windowRemaining)}`,
     });
   } catch {}
 }
@@ -272,44 +290,69 @@ const idleEngine = {
 
   recordGuildBossAttack(characterId) {
     const now = Date.now();
-    localStorage.setItem(`eb_guild_boss_last_attack_${characterId}`, String(now));
-    if (supabaseSync.isEnabled()) {
-      supabaseSync.storeTimestamp(characterId, 'guild_boss_last_attack', now).catch(() => {});
+    const data = getBossAttackData(characterId);
+    if (data.attacks.length === 0 || now - (data.windowStart || 0) >= BOSS_WINDOW_MS) {
+      data.windowStart = now;
+      data.attacks = [now];
+    } else {
+      data.attacks.push(now);
     }
+    localStorage.setItem(`eb_guild_boss_attacks_${characterId}`, JSON.stringify(data));
+    if (supabaseSync.isEnabled()) {
+      supabaseSync.recordBossAttack(characterId).catch(() => {});
+    }
+    const attacksLeft = Math.max(0, BOSS_MAX_ATTACKS - data.attacks.length);
+    const windowRemaining = Math.max(0, BOSS_WINDOW_MS - (now - data.windowStart));
     emit('guildBossStatus', {
-      ready: false,
-      cooldownRemaining: 60 * 60 * 1000,
-      cooldownFormatted: '60:00',
-      lastAttack: now,
+      ready: attacksLeft > 0,
+      attacksUsed: data.attacks.length,
+      attacksLeft,
+      maxAttacks: BOSS_MAX_ATTACKS,
+      windowRemaining,
+      windowFormatted: attacksLeft > 0 ? `${attacksLeft}/${BOSS_MAX_ATTACKS} attacks left` : `Resets in ${formatTime(windowRemaining)}`,
     });
   },
 
-  getGuildBossCooldown(characterId) {
-    const lastAttackRaw = localStorage.getItem(`eb_guild_boss_last_attack_${characterId}`);
-    const lastAttack = lastAttackRaw ? parseInt(lastAttackRaw, 10) : 0;
-    const elapsed = Date.now() - lastAttack;
-    const cooldownMs = 60 * 60 * 1000;
-    const ready = elapsed >= cooldownMs;
+  getBossAttackStatus(characterId) {
+    const data = getBossAttackData(characterId);
+    const now = Date.now();
+    const windowRemaining = Math.max(0, BOSS_WINDOW_MS - (now - (data.windowStart || 0)));
+    const attacksLeft = Math.max(0, BOSS_MAX_ATTACKS - data.attacks.length);
     return {
-      ready,
-      cooldownRemaining: ready ? 0 : cooldownMs - elapsed,
-      cooldownFormatted: ready ? 'Ready!' : formatTime(cooldownMs - elapsed),
+      ready: attacksLeft > 0,
+      attacksUsed: data.attacks.length,
+      attacksLeft,
+      maxAttacks: BOSS_MAX_ATTACKS,
+      windowRemaining,
+      windowFormatted: attacksLeft > 0 ? `${attacksLeft}/${BOSS_MAX_ATTACKS} attacks left` : `Resets in ${formatTime(windowRemaining)}`,
     };
   },
 
   async validateGuildBossAttack(characterId) {
-    if (!supabaseSync.isEnabled()) return this.getGuildBossCooldown(characterId);
-    const cooldownMs = 60 * 60 * 1000;
-    const result = await supabaseSync.validateElapsed(characterId, 'guild_boss_last_attack', cooldownMs);
-    if (!result.valid) {
-      const remaining = cooldownMs - result.elapsed;
-      return {
-        ready: false,
-        cooldownRemaining: remaining,
-        cooldownFormatted: formatTime(remaining),
-      };
+    if (supabaseSync.isEnabled()) {
+      try {
+        const serverResult = await supabaseSync.validateBossAttackLimit(characterId);
+        if (!serverResult.valid) {
+          return {
+            ready: false,
+            attacksUsed: serverResult.attacksUsed,
+            attacksLeft: 0,
+            maxAttacks: BOSS_MAX_ATTACKS,
+            windowRemaining: serverResult.windowRemaining || 0,
+            windowFormatted: `Resets in ${formatTime(serverResult.windowRemaining || 0)}`,
+          };
+        }
+        return {
+          ready: true,
+          attacksUsed: serverResult.attacksUsed || 0,
+          attacksLeft: serverResult.attacksLeft || BOSS_MAX_ATTACKS,
+          maxAttacks: BOSS_MAX_ATTACKS,
+          windowRemaining: serverResult.windowRemaining || 0,
+          windowFormatted: `${serverResult.attacksLeft || BOSS_MAX_ATTACKS}/${BOSS_MAX_ATTACKS} attacks left`,
+        };
+      } catch {}
     }
-    return { ready: true, cooldownRemaining: 0, cooldownFormatted: 'Ready!' };
+    return this.getBossAttackStatus(characterId);
   },
 
   async validateWithSupabase(characterId, key) {

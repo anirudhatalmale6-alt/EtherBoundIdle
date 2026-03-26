@@ -56,14 +56,17 @@ export default function GuildBoss({ guild, myMemberEntry, onAttack, onActivate, 
             >
               <Swords className="w-4 h-4" />
               {bossCooldown && !bossCooldown.ready
-                ? `Cooldown: ${bossCooldown.cooldownFormatted}`
+                ? bossCooldown.windowFormatted
                 : "Attack Boss"}
             </Button>
             <p className="text-xs text-muted-foreground text-center mt-2">
               Your damage today: <span className="text-red-400 font-semibold">{myDmgToday.toLocaleString()}</span>
-              {bossCooldown && !bossCooldown.ready && (
-                <span className="block mt-1 text-yellow-400">60-minute cooldown between attacks</span>
+              {bossCooldown && (
+                <span className="block mt-1 text-yellow-400">
+                  {bossCooldown.windowFormatted} (resets every 8h)
+                </span>
               )}
+              <span className="block mt-1 text-purple-400">Tokens awarded when boss is defeated!</span>
             </p>
           </div>
 

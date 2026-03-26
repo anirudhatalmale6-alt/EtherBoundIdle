@@ -262,6 +262,84 @@ export const supabaseSync = {
     }
   },
 
+  async getBossAttackCount(characterId) {
+    const sb = getSupabase();
+    if (!sb || !characterId) return null;
+    try {
+      const { data, error } = await sb
+        .from("game_config")
+        .select("value")
+        .eq("character_id", characterId)
+        .eq("key", "guild_boss_attack_window")
+        .single();
+      if (error || !data) return null;
+      return JSON.parse(data.value);
+    } catch { return null; }
+  },
+
+  async recordBossAttack(characterId) {
+    const sb = getSupabase();
+    if (!sb || !characterId) return;
+    const WINDOW_MS = 8 * 60 * 60 * 1000;
+    try {
+      let existing = await this.getBossAttackCount(characterId);
+      const now = Date.now();
+      if (!existing || now - (existing.windowStart || 0) >= WINDOW_MS) {
+        existing = { windowStart: now, count: 0 };
+      }
+      existing.count += 1;
+      await sb.from("game_config").upsert({
+        character_id: characterId,
+        key: "guild_boss_attack_window",
+        value: JSON.stringify(existing),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "character_id,key" });
+    } catch (e) {
+      console.warn("[supabaseSync] recordBossAttack failed:", e.message);
+    }
+  },
+
+  async validateBossAttackLimit(characterId) {
+    const sb = getSupabase();
+    if (!sb || !characterId) return { valid: true };
+    const WINDOW_MS = 8 * 60 * 60 * 1000;
+    const MAX_ATTACKS = 10;
+    try {
+      const data = await this.getBossAttackCount(characterId);
+      if (!data) return { valid: true, attacksUsed: 0, attacksLeft: MAX_ATTACKS };
+      const now = Date.now();
+      if (now - (data.windowStart || 0) >= WINDOW_MS) {
+        return { valid: true, attacksUsed: 0, attacksLeft: MAX_ATTACKS };
+      }
+      const attacksLeft = Math.max(0, MAX_ATTACKS - (data.count || 0));
+      return {
+        valid: attacksLeft > 0,
+        attacksUsed: data.count || 0,
+        attacksLeft,
+        windowRemaining: WINDOW_MS - (now - data.windowStart),
+      };
+    } catch {
+      return { valid: true };
+    }
+  },
+
+  async fetchAllServerPlayers() {
+    const sb = getSupabase();
+    if (!sb) return [];
+    try {
+      const { data, error } = await sb
+        .from("characters")
+        .select("id, name, class, level, gold, gems, hp, max_hp, created_by, updated_at")
+        .order("level", { ascending: false })
+        .limit(200);
+      if (error) throw error;
+      return data || [];
+    } catch (e) {
+      console.warn("[supabaseSync] fetchAllServerPlayers failed:", e.message);
+      return [];
+    }
+  },
+
   async fullSync(characterId) {
     const sb = getSupabase();
     if (!sb || !characterId) return { synced: false };
