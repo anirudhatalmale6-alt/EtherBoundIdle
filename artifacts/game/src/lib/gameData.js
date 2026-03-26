@@ -487,6 +487,7 @@ export {
   SLOT_LABELS,
   CLASS_WEAPON_SUBTYPES,
   CLASS_ARMOR_WEIGHT,
+  CLASS_HELMET_WEIGHT,
   ARMOR_WEIGHT_LABELS,
   SUBTYPE_CLASS_RESTRICTIONS,
   WEAPON_SUBTYPE_BY_CLASS,
@@ -537,7 +538,11 @@ const ITEM_NAMES = {
       medium: ["Reinforced Cloak","Forestweave Tunic","Scout's Jerkin","Hunter's Vest","Thornweave Coat","Ranger's Leathers","Dryad's Guard","Trailblazer's Coat","Sylvan Mail"],
       light:  ["Torn Cloak","Druidic Bark Armor","Mossy Robe","Aegis of Light","Nature's Vestment","Leafweave Robe","Grove Mantle","Bloom Wrap","Druid's Shroud"],
     },
-    helmet: ["Frayed Helmet","Iron Helmet","War Helm","Antler Crown","Ranger's Hood","Bark Helm","Thornwood Cap","Forest Cowl","Leaf Circlet","Vine Wreath","Dryad's Diadem","Greenleaf Helm","Moss Cap"],
+    helmet: {
+      plate_helm:  ["Iron Helmet","War Helm","Bark Helm","Thornwood Cap","Greenleaf Helm","Forest Sentinel Helm","Iron Cap","Warden's Helm","Oaken Greathelm"],
+      leather_helm:["Ranger's Hood","Antler Crown","Forest Cowl","Scout's Cap","Trailblazer Hood","Dryad's Circlet","Wildhunter Cap","Leatherbark Cap"],
+      cloth_helm:  ["Frayed Helmet","Leaf Circlet","Vine Wreath","Dryad's Diadem","Moss Cap","Grove Veil","Mystic Hood","Druid's Crown","Nature's Circlet"],
+    },
     gloves: ["Tattered Gloves","Leather Gauntlets","Iron Grips","Mossy Handwraps","Thorngrip Gloves","Bark Gauntlets","Scout's Wraps","Dryad's Mitts","Forestweave Gloves","Warden's Grips"],
     boots:  ["Old Boots","Leather Boots","Swift Boots","Thornstep Boots","Forest Treads","Mosswalk Sandals","Dryad's Slippers","Pathfinder Boots","Root-step Greaves","Undergrowth Treads"],
     ring:   ["Cracked Ring","Silver Ring","Emerald Ring","Ring of Growth","Vine Ring","Leaf Band","Forest Spirit Ring","Thornweave Band","Bark Circle","Moss Ring","Nature's Seal"],
@@ -560,7 +565,11 @@ const ITEM_NAMES = {
       medium: ["Bandit's Chainmail","Dune Guard Vest","Sandweave Coat","Scorpion Scale Mail","Desert Raider's Vest","Heat-Treated Leather","Dune Scout Coat","Oasis Vest","Amber Chain"],
       light:  ["Sand Wrap Armor","Heatweave Robe","Desert Wraps","Pharaoh's Linen","Sun Vestment","Dune Silk Robe","Oasis Mantle","Sandstorm Shroud","Mirage Robes"],
     },
-    helmet: ["Desert Wrap","Dune Helm","Pharaoh's Crown","Warlord's Helm","Scarab Visage","Sun Helm","Tomb Mask","Oasis Hood","Scorpion Crown","Heat Cap","Desert Cowl","Blazeguard Helm","Dune Circlet"],
+    helmet: {
+      plate_helm:  ["Dune Helm","Pharaoh's Crown","Warlord's Helm","Scarab Visage","Sun Helm","Blazeguard Helm","Sandstone Greathelm","Tomb Guardian Helm"],
+      leather_helm:["Desert Wrap","Oasis Hood","Scorpion Crown","Heat Cap","Dune Circlet","Sand Tracker Hood","Desert Scout Cap","Sunrunner's Cowl"],
+      cloth_helm:  ["Tomb Mask","Desert Cowl","Heatwave Veil","Mirage Hood","Sandweave Circlet","Oasis Veil","Sun Mystic Crown","Pharaoh's Wraps"],
+    },
     gloves: ["Sand Gauntlets","Scorpion Grips","Warlord's Gloves","Dune Handwraps","Sunfire Mitts","Tomb Grips","Heatforged Gauntlets","Desert Scout's Gloves","Oasis Wraps","Blazing Grips"],
     boots:  ["Traveler's Boots","Sand Dancer Boots","Dunerunner Boots","Miragewalker Boots","Heatstep Sandals","Tomb Treads","Sunward Boots","Oasis Sandals","Dune Sprint Boots","Scorpion Treads"],
     ring:   ["Copper Ring","Amber Ring","Topaz Ring","Ring of the Sun","Oasis Band","Scorpion Band","Pharaoh's Seal","Sunfire Ring","Desert Heart","Tomb Band","Ember Ring"],
@@ -583,7 +592,11 @@ const ITEM_NAMES = {
       medium: ["Bear Hide Armor","Frostweave Coat","Snowhunter's Vest","Blizzard Scout Mail","Tundra Ranger Coat","Glacial Chain Vest","Ice Tracker's Garb","Permafrost Leather","Yeti Fur Coat"],
       light:  ["Padded Coat","Frostweave Robe","Blizzard Robes","Glacial Silk Vestment","Tundra Mystic Robes","Ice Witch's Wrap","Snowflake Mantle","Cryomancer's Coat","Frostbind Robe"],
     },
-    helmet: ["Wool Cap","Yeti Skull Helm","Dragon Ice Helm","Blizzard Crown","Frostforged Helm","Icecrystal Crown","Tundra War Helm","Glacial Visage","Snowpeak Hood","Frostmane Helm","Blizzard Cowl","Cryomancer's Crown","Permafrost Cap"],
+    helmet: {
+      plate_helm:  ["Yeti Skull Helm","Dragon Ice Helm","Frostforged Helm","Tundra War Helm","Glacial Visage","Frostmane Helm","Iceforged Greathelm","Permafrost Helm"],
+      leather_helm:["Snowpeak Hood","Blizzard Crown","Blizzard Cowl","Tundra Scout Cap","Frosthunter Hood","Iceleather Cap","Snowtracker Crown","Yeti Hide Cap"],
+      cloth_helm:  ["Wool Cap","Icecrystal Crown","Cryomancer's Crown","Permafrost Cap","Frostweave Circlet","Blizzard Veil","Tundra Mystic Hood","Glacial Veil"],
+    },
     gloves: ["Fur Mitts","Ice Gauntlets","Frost Grips","Yeti Handwraps","Glacial Gloves","Blizzard Mitts","Tundra Gauntlets","Frostweave Wraps","Snowpeak Grips","Icecap Gloves","Permafrost Mitts"],
     boots:  ["Fur Boots","Snowtreader Boots","Icestep Greaves","Frostwalker Boots","Glacial Treads","Blizzard Boots","Tundra Greaves","Permafrost Sandals","Snowpeak Treads","Icewalker Boots","Frostbound Greaves"],
     ring:   ["Tin Circlet","Sapphire Ring","Frost Ring","Diamond Ring","Blizzard Band","Glacial Seal","Tundra Loop","Frostweave Band","Ice Crystal Ring","Snowpeak Ring","Permafrost Band"],
@@ -606,7 +619,11 @@ const ITEM_NAMES = {
       medium: ["Darkweave Armor","Voidweave Vest","Shadow Scout Coat","Nightmare Leather","Cursed Chain Vest","Dread Ranger Mail","Soul Scout Garb","Wraith Chain Coat","Obsidian Vest"],
       light:  ["Tattered Shadow Robe","Darkweave Robe","Shadowstitch Coat","Nightmare Silk","Cursed Vestment","Void Mystic Wrap","Wraith Mantle","Soul Witch's Robe","Oblivion Shroud"],
     },
-    helmet: ["Shroud Helm","Horned Shadow Helm","Lich Crown","Wraith Crown","Deathmask","Soulfire Helm","Nightmare Visage","Void Hood","Cursed Cowl","Dread Circlet","Oblivion Mask","Shadow War Helm","Soul Crown"],
+    helmet: {
+      plate_helm:  ["Horned Shadow Helm","Deathmask","Soulfire Helm","Shadow War Helm","Voidsteel Greathelm","Dread Warlord Helm","Oblivion Mask","Cursed Knight Helm"],
+      leather_helm:["Shroud Helm","Void Hood","Cursed Cowl","Nightmare Visage","Dread Circlet","Shadow Scout Hood","Wraith Tracker Cap","Soul Stalker Cap"],
+      cloth_helm:  ["Lich Crown","Wraith Crown","Soul Crown","Oblivion Veil","Shadowweave Circlet","Nightmare Hood","Cursed Veil","Void Mystic Crown"],
+    },
     gloves: ["Shadow Grips","Void Gauntlets","Lich Handwraps","Dread Gloves","Soulshred Grips","Nightmare Mitts","Cursed Gauntlets","Wraith Grips","Obsidian Gloves","Void Silk Wraps"],
     boots:  ["Shadowwalker Sandals","Phantom Boots","Duskstrider Boots","Shadowstep Boots","Wraith Treads","Nightmare Greaves","Void Sandals","Cursed Boots","Soul Treads","Dread Stalker Boots","Oblivion Greaves"],
     ring:   ["Dim Ring","Obsidian Ring","Shadow Ring","Ring of Void","Dread Band","Cursed Seal","Soul Loop","Nightmare Band","Wraith Ring","Void Signet","Oblivion Ring"],
@@ -629,7 +646,11 @@ const ITEM_NAMES = {
       medium: ["Stardust Armor","Astral Guard Coat","Nova Scout Vest","Celestial Chain Mail","Cosmic Ranger Vest","Empyrean Leather","Heaven's Tracker Garb","Stellar Scout Coat","Quasar Mail"],
       light:  ["Pale Celestial Wrap","Astral Robe","Nebula Vestments","Nova Silk Robe","Cosmic Mystic Wrap","Empyrean Shroud","Heaven's Vestment","Divine Mantle","Stellar Silk Robes","Starweave Robe"],
     },
-    helmet: ["Halo Helm","Starlight Crown","Titan Helm","Halo of Divinity","Divinity Crown","Nebula Helm","Celestial Visor","Cosmic War Helm","Nova Crown","Empyrean Cowl","Astral Diadem","Heaven's Helm","Stellar Circlet","Quasar Crown","Seraph's Helm"],
+    helmet: {
+      plate_helm:  ["Titan Helm","Halo of Divinity","Celestial Visor","Cosmic War Helm","Heaven's Helm","Seraph's Helm","Starforged Greathelm","Divine Warlord Helm"],
+      leather_helm:["Halo Helm","Nebula Helm","Empyrean Cowl","Astral Diadem","Nova Crown","Startracker Hood","Cosmic Scout Cap","Stellar Ranger Helm"],
+      cloth_helm:  ["Starlight Crown","Divinity Crown","Quasar Crown","Stellar Circlet","Empyrean Veil","Celestial Mystic Hood","Heaven's Circlet","Astral Veil"],
+    },
     gloves: ["Celestial Grips","Nova Gauntlets","Divine Handwraps","Astral Gloves","Star Mitts","Cosmic Gauntlets","Empyrean Grips","Heaven's Touch","Stellar Mitts","Quasar Gloves","Seraph's Gauntlets","Nova Silk Wraps"],
     boots:  ["Skywalker Boots","Aurora Boots","Voidwalker Boots","Starwalker Boots","Nebula Treads","Celestial Greaves","Nova Sprint Boots","Cosmic Sandals","Empyrean Treads","Heaven's Stride","Astral Greaves","Stellar Boots","Quasar Treads"],
     ring:   ["Nebula Ring","Quasar Ring","Ring of Stars","Ring of the Cosmos","Singularity Band","Celestial Signet","Nova Loop","Divine Band","Astral Seal","Empyrean Ring","Heaven's Ring","Stellar Band","Cosmic Signet"],
@@ -669,6 +690,13 @@ const CLASS_ARMOR_WEIGHT_LOCAL = {
   mage:    "light",
   ranger:  "medium",
   rogue:   "light",
+};
+
+const CLASS_HELMET_WEIGHT_LOCAL = {
+  warrior: "plate_helm",
+  mage:    "cloth_helm",
+  ranger:  "leather_helm",
+  rogue:   "cloth_helm",
 };
 
 export function generateLoot(enemyLevel, luck, isBoss = false, regionKey = null, characterClass = null) {
@@ -723,10 +751,8 @@ export function generateLoot(enemyLevel, luck, isBoss = false, regionKey = null,
     const namePool = zoneNames.armor?.[subtype] || zoneNames.armor?.light || ["Unknown Armor"];
     name = namePool[Math.floor(Math.random() * namePool.length)];
   } else {
-    // Random type (universal slots or any)
     type = allTypes[Math.floor(Math.random() * allTypes.length)];
     if (type === "weapon") {
-      // If random weapon, still prefer class weapon if smart loot
       const subtypes = characterClass ? (CLASS_WEAPON_SUBTYPES_LOCAL[characterClass] || ["sword"]) : ["sword","axe","staff","wand","bow","dagger"];
       subtype = subtypes[Math.floor(Math.random() * subtypes.length)];
       const namePool = zoneNames.weapon?.[subtype] || ["Unknown Weapon"];
@@ -735,6 +761,14 @@ export function generateLoot(enemyLevel, luck, isBoss = false, regionKey = null,
       const weight = characterClass ? (CLASS_ARMOR_WEIGHT_LOCAL[characterClass] || "light") : "light";
       subtype = weight;
       const namePool = zoneNames.armor?.[weight] || ["Unknown Armor"];
+      name = namePool[Math.floor(Math.random() * namePool.length)];
+    } else if (type === "helmet") {
+      const helmWeight = characterClass ? (CLASS_HELMET_WEIGHT_LOCAL[characterClass] || "cloth_helm") : "cloth_helm";
+      subtype = helmWeight;
+      const helmNames = zoneNames.helmet;
+      const namePool = (helmNames && typeof helmNames === 'object' && !Array.isArray(helmNames))
+        ? (helmNames[helmWeight] || helmNames.cloth_helm || ["Unknown Helmet"])
+        : (Array.isArray(helmNames) ? helmNames : ["Unknown Helmet"]);
       name = namePool[Math.floor(Math.random() * namePool.length)];
     } else {
       subtype = null;

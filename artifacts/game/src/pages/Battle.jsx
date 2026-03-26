@@ -134,29 +134,46 @@ export default function Battle({ character, onCharacterUpdate }) {
 
   const spawnEnemy = useCallback(() => {
     if (!region) return;
-    // Elite spawn: 1.5% each for eliteEnemy and eliteEnemy2
     const eliteRoll = Math.random();
     let key;
     let isEliteSpawn = false;
+    let isEmpowered = false;
     if (region.eliteEnemy && eliteRoll < 0.015) {
       key = region.eliteEnemy;
       isEliteSpawn = true;
     } else if (region.eliteEnemy2 && eliteRoll < 0.03) {
       key = region.eliteEnemy2;
       isEliteSpawn = true;
+    } else if (eliteRoll < 0.11) {
+      key = region.enemies[Math.floor(Math.random() * region.enemies.length)];
+      isEmpowered = true;
     } else {
       key = region.enemies[Math.floor(Math.random() * region.enemies.length)];
     }
     const enemyData = ENEMIES[key];
     if (!enemyData) return;
     const lvlScale = 1 + (character.level - 1) * 0.1;
-    const hp = Math.floor(enemyData.baseHp * lvlScale);
-    setEnemy({ ...enemyData, key, maxHp: hp, dmg: Math.floor(enemyData.baseDmg * lvlScale) });
+    const hpMult = isEmpowered ? 3 : 1;
+    const dmgMult = isEmpowered ? 1.5 : 1;
+    const hp = Math.floor(enemyData.baseHp * lvlScale * hpMult);
+    const spawnData = {
+      ...enemyData,
+      key,
+      maxHp: hp,
+      dmg: Math.floor(enemyData.baseDmg * lvlScale * dmgMult),
+      isElite: enemyData.isElite || false,
+      isEmpowered,
+      name: isEmpowered ? `⚡ ${enemyData.name}` : enemyData.name,
+      expReward: isEmpowered ? enemyData.expReward * 3 : enemyData.expReward,
+      goldReward: isEmpowered ? enemyData.goldReward * 3 : enemyData.goldReward,
+    };
+    setEnemy(spawnData);
     setEnemyHp(hp);
     setLootDrop(null);
     setCombatPhase("player_turn");
     setIsPlayerTurn(true);
     if (isEliteSpawn) addLog(`⚡ ELITE appeared: ${enemyData.name}! Rare loot bonus!`);
+    if (isEmpowered) addLog(`⚡ Empowered ${enemyData.name} appeared! 3x HP, 3x rewards!`);
   }, [region, character?.level]);
 
   // ── ENEMY TURN ────────────────────────────────────────────────────────────
@@ -199,8 +216,14 @@ export default function Battle({ character, onCharacterUpdate }) {
     });
 
     if (newPlayerHp <= 0) {
-      addLog("💀 You were defeated! Respawning...");
+      const xpLost = Math.floor((character.exp || 0) * 0.10);
+      const goldLost = Math.floor((character.gold || 0) * 0.03);
+      addLog(`💀 You were defeated! Lost ${xpLost} EXP and ${goldLost} Gold!`);
       setCombatPhase("player_dead");
+      const newExp = Math.max(0, (character.exp || 0) - xpLost);
+      const newGold = Math.max(0, (character.gold || 0) - goldLost);
+      saveMutation.mutate({ exp: newExp, gold: newGold });
+      onCharacterUpdate({ ...character, exp: newExp, gold: newGold });
       setTimeout(() => {
         setPlayerHp(character.max_hp);
         setPlayerMp(character.max_mp);
@@ -327,6 +350,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         regionKey: character.current_region,
         isElite: enemy.isElite || false,
         isBoss: enemy.isBoss || false,
+        isEmpowered: enemy.isEmpowered || false,
         partySize: partySize,
         _fallbackCharacter: character,
       });
@@ -339,7 +363,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         return;
       }
 
-      const { rewards, character: updatedChar, levelsGained, loot } = result;
+      const { rewards, character: updatedChar, levelsGained, loot, partyBonuses } = result;
 
       if (levelsGained?.length > 0) {
         levelsGained.forEach(lv => addLog(`🎉 LEVEL UP! You are now level ${lv}!`));
@@ -354,6 +378,9 @@ export default function Battle({ character, onCharacterUpdate }) {
       }
 
       addLog(`⚔️ Defeated ${enemy.name}! +${rewards.exp} EXP +${rewards.gold} Gold`);
+      if (partyBonuses) {
+        addLog(`👥 Party bonus: +${partyBonuses.expPct}% EXP, +${partyBonuses.goldPct}% Gold`);
+      }
 
       onCharacterUpdate(updatedChar);
 

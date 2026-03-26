@@ -1200,7 +1200,7 @@ router.post("/functions/gameConfigManager", async (req: Request, res: Response) 
 router.post("/functions/fight", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   try {
-    const { characterId, enemyKey, regionKey, isElite, isBoss, partySize } = req.body;
+    const { characterId, enemyKey, regionKey, isElite, isBoss, isEmpowered, partySize } = req.body;
     if (!(await requireCharacterOwner(req, res, characterId))) return;
 
     const enemyData = ENEMIES[enemyKey];
@@ -1209,9 +1209,12 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
     const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
     if (!char) { res.status(404).json({ error: "Character not found" }); return; }
 
-    const partyBonus = Math.max(0, (partySize || 1) - 1) * 0.05;
-    const expGain = Math.round(enemyData.expReward * (1 + partyBonus));
-    const goldGain = Math.round(enemyData.goldReward * (1 + partyBonus));
+    const empoweredMult = isEmpowered ? 3 : 1;
+    const partyMembers = Math.max(0, (partySize || 1) - 1);
+    const partyExpBonus = partyMembers * 0.05;
+    const partyGoldBonus = partyMembers * 0.10;
+    const expGain = Math.round(enemyData.expReward * empoweredMult * (1 + partyExpBonus));
+    const goldGain = Math.round(enemyData.goldReward * empoweredMult * (1 + partyGoldBonus));
 
     let newExp = (char.exp || 0) + expGain;
     let newLevel = char.level || 1;
@@ -1271,6 +1274,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
       data: {
         success: true,
         rewards: { exp: expGain, gold: goldGain },
+        partyBonuses: partyMembers > 0 ? { expPct: Math.round(partyExpBonus * 100), goldPct: Math.round(partyGoldBonus * 100) } : null,
         character: toClientCharacter(updated),
         levelsGained,
         loot: null,

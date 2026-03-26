@@ -31,6 +31,13 @@ export const CLASS_ARMOR_WEIGHT = {
   rogue:   "light",
 };
 
+export const CLASS_HELMET_WEIGHT = {
+  warrior: "plate_helm",
+  mage:    "cloth_helm",
+  ranger:  "leather_helm",
+  rogue:   "cloth_helm",
+};
+
 // Armor weight labels for display
 export const ARMOR_WEIGHT_LABELS = {
   heavy:  "Heavy Armor",
@@ -56,10 +63,13 @@ export const SUBTYPE_CLASS_RESTRICTIONS = {
   heavy:     ["warrior"],
   medium:    ["ranger"],
   light:     ["mage", "rogue"],
+  // Helmet — by weight (like armor)
+  plate_helm:  ["warrior"],
+  leather_helm:["ranger"],
+  cloth_helm:  ["mage", "rogue"],
   // Universal slots
   ring:      ["warrior", "mage", "ranger", "rogue"],
   amulet:    ["warrior", "mage", "ranger", "rogue"],
-  helmet:    ["warrior", "mage", "ranger", "rogue"],
   boots:     ["warrior", "mage", "ranger", "rogue"],
   gloves:    ["warrior", "mage", "ranger", "rogue"],
 };

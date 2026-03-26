@@ -1460,9 +1460,12 @@ async function handleLocalFunction(functionName, params) {
         const baseExpReward = enemyData.expReward || 10;
         const baseGoldReward = enemyData.goldReward || 5;
 
-        const partyBonus = Math.max(0, (pSize || 1) - 1) * 0.05;
-        const expGain = Math.round(baseExpReward * (1 + partyBonus));
-        const goldGain = Math.round(baseGoldReward * (1 + partyBonus));
+        const empoweredMult = params.isEmpowered ? 3 : 1;
+        const partyMembers = Math.max(0, (pSize || 1) - 1);
+        const partyExpBonus = partyMembers * 0.05;
+        const partyGoldBonus = partyMembers * 0.10;
+        const expGain = Math.round(baseExpReward * empoweredMult * (1 + partyExpBonus));
+        const goldGain = Math.round(baseGoldReward * empoweredMult * (1 + partyGoldBonus));
 
         let newExp = (char.exp || 0) + expGain;
         let newLevel = char.level || 1;
@@ -1491,7 +1494,7 @@ async function handleLocalFunction(functionName, params) {
           lootDrop = gameLootGen(
             newLevel,
             char.luck || 5,
-            isElite || isBoss || false,
+            isElite || isBoss || params.isEmpowered || false,
             regionKey || char.current_region,
             char.class
           );
@@ -1546,6 +1549,7 @@ async function handleLocalFunction(functionName, params) {
           data: {
             success: true,
             rewards: { exp: expGain, gold: goldGain },
+            partyBonuses: partyMembers > 0 ? { expPct: Math.round(partyExpBonus * 100), goldPct: Math.round(partyGoldBonus * 100) } : null,
             character: chars[charIdx],
             levelsGained,
             loot: lootDrop,

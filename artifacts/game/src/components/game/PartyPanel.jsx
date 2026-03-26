@@ -95,6 +95,7 @@ export default function PartyPanel({ character }) {
   const isLeader = partyData?.leader_id === character.id;
   const memberCount = partyData?.members?.length || 0;
   const expBonus = memberCount > 1 ? (memberCount - 1) * 5 : 0;
+  const goldBonus = memberCount > 1 ? (memberCount - 1) * 10 : 0;
 
   const handleCreate = () => mutation.mutate({ action: 'create' });
   const handleLeave = () => mutation.mutate({ action: 'leave', partyId: partyData.id });
@@ -172,7 +173,7 @@ export default function PartyPanel({ character }) {
             )}
           </div>
           <div className="flex items-center gap-1">
-            {expBonus > 0 && <span className="text-xs text-accent">+{expBonus}% EXP</span>}
+            {expBonus > 0 && <span className="text-xs text-accent">+{expBonus}%EXP +{goldBonus}%G</span>}
             {expanded ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
           </div>
         </button>
@@ -214,7 +215,7 @@ export default function PartyPanel({ character }) {
 
                     {expBonus > 0 && (
                       <div className="bg-primary/10 rounded-lg p-2 text-xs text-primary">
-                        +{expBonus}% EXP & Gold bonus
+                        +{expBonus}% EXP · +{goldBonus}% Gold bonus
                       </div>
                     )}
 
