@@ -359,7 +359,7 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
   try {
     const dbData = toDb(entity, req.body);
 
-    if (entity === "Character" && !dbData.createdBy) {
+    if (entity === "Character") {
       dbData.createdBy = req.user!.id;
     }
 

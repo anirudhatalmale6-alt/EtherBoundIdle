@@ -1,0 +1,199 @@
+Refactor my entire backend into a clean, minimal, production-ready architecture.
+
+IMPORTANT:
+Do NOT partially fix things. Do a FULL cleanup and restructuring.
+
+---
+
+## 🎯 GOAL
+
+Create a SIMPLE, CLEAN backend with:
+
+* no duplicate logic
+* no inconsistent API responses
+* no broken auth
+* no experimental or legacy code
+
+---
+
+## 📁 TARGET STRUCTURE
+
+Restructure everything into:
+
+src/
+server.ts
+routes/
+auth.ts
+character.ts
+middleware/
+auth.ts
+services/
+sessionService.ts
+db/
+index.ts
+
+Delete everything else that is unused or redundant.
+
+---
+
+## 🔥 API STANDARD (VERY IMPORTANT)
+
+ALL endpoints MUST return EXACTLY this format:
+
+SUCCESS:
+{
+"success": true,
+"data": ...
+}
+
+ERROR:
+{
+"success": false,
+"error": "message"
+}
+
+❌ Remove ALL other formats like:
+
+* [ {...} ]
+* { data: [...] }
+* mixed responses
+
+---
+
+## 🔐 AUTH SYSTEM (FIX COMPLETELY)
+
+* REMOVE any usage of:
+  req.isAuthenticated
+
+* Use ONLY session-based auth with "sid"
+
+* Create middleware:
+  requireAuth(req, res, next)
+
+It must:
+
+* read sid from:
+  Authorization: Bearer <sid>
+  OR cookies.sid
+* validate session from database
+* attach user to req.user
+* reject if invalid
+
+---
+
+## 🔑 AUTH ROUTES
+
+Create:
+
+POST /api/auth/login
+
+* input: email (simple for now)
+* create session
+* return:
+  { success: true, data: { sessionId } }
+
+GET /api/auth/user
+
+* return current user from session
+
+POST /api/auth/logout
+
+* destroy session
+
+---
+
+## 👤 CHARACTER SYSTEM
+
+POST /api/character
+
+* MUST require auth middleware
+* automatically set:
+  created_by = req.user.id
+* NEVER trust frontend for this field
+
+Return:
+{
+success: true,
+data: [character]
+}
+
+---
+
+## 🧠 BUSINESS LOGIC
+
+* Move logic OUT of routes into services when possible
+* Keep routes thin and clean
+* Remove duplicated entity logic
+
+---
+
+## 🧹 CLEANUP TASKS
+
+* Delete:
+
+  * old auth systems
+  * local mode / hybrid mode logic
+  * unused helpers
+  * duplicated entity systems
+* Remove dead code completely
+
+---
+
+## ⚙️ SERVER SETUP
+
+server.ts must:
+
+* use express
+* use cors (with credentials: true)
+* use cookie-parser
+* use express.json()
+
+Routes:
+
+* /api/auth
+* /api/character
+
+Add:
+GET /api/test → returns { success: true }
+
+---
+
+## 🚨 CRITICAL FIXES
+
+* Fix ALL "Not authenticated" errors
+* Ensure Authorization header works
+* Ensure cookies work
+* Ensure session persists
+
+---
+
+## 🧪 DO NOT BREAK
+
+These MUST still work:
+
+* character creation
+* login
+* session handling
+* existing database connection
+
+---
+
+## ✨ BONUS
+
+* Add basic error logging (console.error)
+* Keep code readable and minimal
+* Prefer clarity over complexity
+
+---
+
+## 🧠 FINAL RESULT
+
+I want:
+
+* ONE clean backend
+* ONE auth system
+* ZERO duplication
+* ZERO confusion
+* production-ready structure
+
+Do NOT explain. Just refactor and clean everything.

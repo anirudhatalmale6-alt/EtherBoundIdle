@@ -7,4 +7,8 @@ router.get("/healthz", (_req, res) => {
   sendSuccess(res, { status: "ok" });
 });
 
+router.get("/test", (_req, res) => {
+  sendSuccess(res, { success: true });
+});
+
 export default router;
