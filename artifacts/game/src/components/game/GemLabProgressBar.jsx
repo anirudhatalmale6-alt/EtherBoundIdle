@@ -5,13 +5,14 @@ export default function GemLabProgressBar({ gemLab, metrics }) {
   const [progressPct, setProgressPct] = useState(0);
 
   useEffect(() => {
-    if (!gemLab?.last_collection_time || !metrics?.cycleTime) {
+    const lastCollectionTime = gemLab?.data?.last_collection_time;
+    if (!lastCollectionTime || !metrics?.cycleTime) {
       setProgressPct(0);
       return;
     }
 
     const cycleMs = metrics.cycleTime * 60 * 1000;
-    const lastCollectionMs = new Date(gemLab.last_collection_time).getTime();
+    const lastCollectionMs = new Date(lastCollectionTime).getTime();
 
     const updateProgress = () => {
       const now = Date.now();
@@ -24,7 +25,7 @@ export default function GemLabProgressBar({ gemLab, metrics }) {
     updateProgress();
     const interval = setInterval(updateProgress, 200);
     return () => clearInterval(interval);
-  }, [gemLab?.last_collection_time, metrics?.cycleTime]);
+  }, [gemLab?.data?.last_collection_time, metrics?.cycleTime]);
 
   const cycleTimeMin = metrics?.cycleTime || 0;
   const timeLeftMin = Math.max(0, ((100 - progressPct) / 100) * cycleTimeMin);

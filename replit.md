@@ -86,7 +86,10 @@ Character, Item, Guild, Quest, Trade, Party, PartyActivity, PartyInvite, Presenc
 - **Server-authoritative**: All game logic (combat, loot, upgrades) validated on backend
 - **No local/hybrid mode**: Frontend is purely server-connected, no localStorage game logic
 - **Items schema**: No subtype/levelReq/sellPrice/setName columns — stored in `extraData` JSONB; `setId` column holds setKey
-- **GemLab**: Uses `gem_labs` table (characterId, data JSONB) — NOT character.gemLab JSONB
+- **GemLab**: Uses `gem_labs` table (characterId, data JSONB) — NOT character.gemLab JSONB. Frontend reads `gemLab.data.production_level` etc.
+- **IdleEngine**: `start(characterId, characterData)` takes initial char; `setCharacterData(char)` syncs updates from App.jsx
+- **Quest fields**: `type` (daily/weekly/story), `progress`, `target`, `reward` (singular object)
+- **Shop**: Backend generates seeded level-based items (weapon/armor/etc) with rarity/stats; `buy_price`/`sell_price` fields; force refresh costs 5 gems server-side
 - **Gear upgrades**: Safe = 300*(upgrade+1)*rarityMult gold, +5%; Star = ceil(5*1.5^star*rarityMult) gems, +15%/destroy, max 7; Awaken = 50 gems (star 7), +50%
 - **Fight**: regionKey from char.currentRegion, isBoss/isElite from ENEMIES definition
 - **Auth**: Custom bcrypt email/password auth (NOT Supabase Auth). Passwords hashed with bcrypt (12 rounds). Sessions stored in `sessions` table, cookie `sid` set httpOnly. Frontend calls backend via `fetch` with `credentials: 'include'`. Cookie `secure` flag is env-aware (true in production only).

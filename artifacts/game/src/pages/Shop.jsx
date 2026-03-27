@@ -40,21 +40,16 @@ export default function Shop({ character, onCharacterUpdate }) {
       const res = await base44.functions.invoke("getShopRotation", {
         characterId: character.id, forceRefresh
       });
-      if (res?.success === false && res?.error) {
-        toast({ title: res.error, variant: "destructive" });
-        return;
-      }
-      if (res?.success) {
-        setShopItems(res.items || []);
-        setNextRefreshAt(res.nextRefreshAt);
-        if (res.gemsSpent > 0) {
-          const newGems = (character.gems || 0) - res.gemsSpent;
-          onCharacterUpdate({ ...character, gems: newGems });
-          toast({ title: `Stock refreshed! (${res.gemsSpent} gems spent)`, duration: 2000 });
-        }
+      setShopItems(res?.items || []);
+      setNextRefreshAt(res?.refreshes_at || res?.nextRefreshAt || null);
+      if (res?.gemsSpent > 0) {
+        const newGems = (character.gems || 0) - res.gemsSpent;
+        onCharacterUpdate({ ...character, gems: newGems });
+        toast({ title: `Stock refreshed! (${res.gemsSpent} gems spent)`, duration: 2000 });
       }
     } catch (e) {
       console.error(e);
+      toast({ title: "Could not load shop", variant: "destructive" });
     } finally {
       setLoadingShop(false);
     }
@@ -67,7 +62,7 @@ export default function Shop({ character, onCharacterUpdate }) {
     const interval = setInterval(() => {
       const tl = formatTimeLeft(nextRefreshAt);
       setTimeLeft(tl);
-      if (tl === "Refreshing...") loadShop(true);
+      if (tl === "Refreshing...") loadShop(false);
     }, 1000);
     setTimeLeft(formatTimeLeft(nextRefreshAt));
     return () => clearInterval(interval);
@@ -152,7 +147,8 @@ export default function Shop({ character, onCharacterUpdate }) {
           {shopItems.map((item, idx) => {
             const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
             const Icon = TYPE_ICONS[item.type] || ShoppingBag;
-            const canAfford = (character?.gold || 0) >= item.buy_price;
+            const price = item.buy_price || item.price || 0;
+            const canAfford = (character?.gold || 0) >= price;
 
             return (
               <motion.div
@@ -190,10 +186,10 @@ export default function Shop({ character, onCharacterUpdate }) {
                   size="sm"
                   variant={canAfford ? "default" : "outline"}
                   disabled={!canAfford || buyMutation.isPending}
-                  onClick={() => buyMutation.mutate(item)}
+                  onClick={() => buyMutation.mutate({ ...item, buy_price: price })}
                   className="shrink-0 gap-1"
                 >
-                  <Coins className="w-3.5 h-3.5" /> {item.buy_price.toLocaleString()}
+                  <Coins className="w-3.5 h-3.5" /> {price.toLocaleString()}
                 </Button>
               </motion.div>
             );

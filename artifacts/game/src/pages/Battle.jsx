@@ -344,7 +344,7 @@ export default function Battle({ character, onCharacterUpdate }) {
     setCombatPhase("enemy_dead");
 
     try {
-      const response = await base44.functions.invoke('fight', {
+      const result = await base44.functions.invoke('fight', {
         characterId: character.id,
         enemyKey: enemy.key,
         regionKey: character.current_region,
@@ -352,16 +352,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         isBoss: enemy.isBoss || false,
         isEmpowered: enemy.isEmpowered || false,
         partySize: partySize,
-        _fallbackCharacter: character,
       });
-
-      const result = response;
-      if (!result?.success) {
-        console.error('[handleEnemyDefeat] Fight failed:', result);
-        addLog(`⚠️ Error processing rewards: ${result?.error || 'unknown'}`);
-        setTimeout(() => spawnEnemy(), 2500);
-        return;
-      }
 
       const { rewards, character: updatedChar, levelsGained, loot, partyBonuses } = result;
 
@@ -445,17 +436,20 @@ export default function Battle({ character, onCharacterUpdate }) {
           characterId: character.id,
           action: 'sync_progression',
         });
-        if (response?.success) {
-          const { exp_gained, gems_gained, offline_minutes, resources_gained } = response.results;
-          // Apply offline rewards
-          if (offline_minutes > 0) {
-            const newExp = (character.exp || 0) + exp_gained;
-            const newGems = (character.gems || 0) + gems_gained;
-            onCharacterUpdate({ exp: newExp, gems: newGems });
-            if (offline_minutes > 5) {
-              addLog(`🌟 Offline for ${offline_minutes}m: +${exp_gained} EXP, +${gems_gained} Gems`);
-            }
+        const results = response?.results || response || {};
+        const { exp_gained = 0, gold_gained = 0, gems_gained = 0, offline_minutes = 0 } = results;
+        if (results.character) {
+          onCharacterUpdate(results.character);
+          if (exp_gained > 0 || gold_gained > 0) {
+            addLog(`🌟 Synced: +${exp_gained} EXP, +${gold_gained} Gold`);
           }
+        } else if (exp_gained > 0 || gems_gained > 0 || gold_gained > 0) {
+          const updates = {};
+          if (exp_gained) updates.exp = (character.exp || 0) + exp_gained;
+          if (gold_gained) updates.gold = (character.gold || 0) + gold_gained;
+          if (gems_gained) updates.gems = (character.gems || 0) + gems_gained;
+          onCharacterUpdate({ ...character, ...updates });
+          addLog(`🌟 Synced progression: +${exp_gained} EXP, +${gold_gained} Gold`);
         }
       } catch {}
     };

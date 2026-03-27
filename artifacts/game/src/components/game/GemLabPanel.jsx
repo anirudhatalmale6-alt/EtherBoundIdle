@@ -29,23 +29,20 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   const processMutation = useMutation({
     mutationFn: () => base44.functions.invoke("processGemLab", { characterId: character.id }),
     onSuccess: (response) => {
-      if (response?.success) {
-        setRefreshTrigger(t => t + 1);
-        if (response.gemsGenerated > 0) {
-          toast({
-            title: `Generated ${response.gemsGenerated.toFixed(3)} gems while offline (${response.offlineHours}h)`,
-            duration: 2000,
-          });
-        }
+      setRefreshTrigger(t => t + 1);
+      if (response?.gemsGenerated > 0) {
+        toast({
+          title: `Generated ${response.gemsGenerated.toFixed(3)} gems while offline (${response.offlineHours}h)`,
+          duration: 2000,
+        });
       }
     },
   });
 
-  // Claim gems
   const claimMutation = useMutation({
     mutationFn: () => base44.functions.invoke("claimGemLabGems", { characterId: character.id }),
     onSuccess: (response) => {
-      if (response?.success) {
+      if (response?.claimedGems > 0) {
         onCharacterUpdate({ ...character, gems: response.newTotal });
         queryClient.invalidateQueries({ queryKey: ["gemlab"] });
         toast({
@@ -56,25 +53,25 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
     },
   });
 
-  // Upgrade mutation
   const upgradeMutation = useMutation({
     mutationFn: (upgradeType) =>
       base44.functions.invoke("upgradeGemLab", { characterId: character.id, upgradeType }),
     onSuccess: (response) => {
-      if (response?.success) {
+      if (response?.goldRemaining !== undefined) {
         onCharacterUpdate({ ...character, gold: response.goldRemaining });
         queryClient.invalidateQueries({ queryKey: ["gemlab"] });
         toast({
           title: `Upgraded ${response.upgradeType}!`,
           duration: 1500,
         });
-      } else {
-        toast({
-          title: response?.error || "Upgrade failed",
-          variant: "destructive",
-          duration: 2000,
-        });
       }
+    },
+    onError: (err) => {
+      toast({
+        title: err?.message || "Upgrade failed",
+        variant: "destructive",
+        duration: 2000,
+      });
     },
   });
 
@@ -82,32 +79,37 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   const calculateMetrics = () => {
     if (!gemLab) return { production: 0.001, cycleTime: 10, efficiency: 1, nextCost: 1000 };
 
+    const labData = gemLab.data || {};
     const BASE_PRODUCTION = 0.001;
     const BASE_COST = 1000;
     const COST_MULTIPLIER = 1.15;
 
-    const prodMult = 1 + (gemLab.production_level * 0.05);
-    const speedMult = 1 + (gemLab.speed_level * 0.02);
-    const effMult = 1 + (gemLab.efficiency_level * 0.03);
+    const prodLevel = labData.production_level || 0;
+    const speedLevel = labData.speed_level || 0;
+    const effLevel = labData.efficiency_level || 0;
+
+    const prodMult = 1 + (prodLevel * 0.05);
+    const speedMult = 1 + (speedLevel * 0.02);
+    const effMult = 1 + (effLevel * 0.03);
 
     const gemsPerCycle = BASE_PRODUCTION * prodMult * effMult;
     const cycleTime = 10 / speedMult;
 
-    const nextProdCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, gemLab.production_level));
-    const nextSpeedCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, gemLab.speed_level));
-    const nextEffCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, gemLab.efficiency_level));
+    const nextProdCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, prodLevel));
+    const nextSpeedCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, speedLevel));
+    const nextEffCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, effLevel));
 
     return {
       production: gemsPerCycle,
       cycleTime,
       efficiency: effMult,
-      prodLevel: gemLab.production_level,
-      speedLevel: gemLab.speed_level,
-      effLevel: gemLab.efficiency_level,
+      prodLevel,
+      speedLevel,
+      effLevel,
       nextProdCost,
       nextSpeedCost,
       nextEffCost,
-      pendingGems: Math.floor(gemLab.pending_gems),
+      pendingGems: Math.floor(labData.pending_gems || 0),
     };
   };
 
@@ -123,15 +125,15 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   // Save gem state on unmount (for resume)
   useEffect(() => {
     return () => {
-      if (gemLab && character?.id) {
+      if (gemLab?.data && character?.id) {
         hybridPersistence.saveGemLab(
           character.id,
-          gemLab.last_collection_time,
-          gemLab.pending_gems
+          gemLab.data.last_collection_time,
+          gemLab.data.pending_gems
         );
       }
     };
-  }, [character?.id, gemLab?.last_collection_time, gemLab?.pending_gems]);
+  }, [character?.id, gemLab?.data?.last_collection_time, gemLab?.data?.pending_gems]);
 
   if (!character) return null;
 
@@ -143,7 +145,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
           <Gem className="w-5 h-5" /> Gem Lab
         </h3>
         <Badge className="bg-secondary/20 text-secondary border-secondary/30">
-          Lvl {gemLab?.production_level || 0} / {gemLab?.speed_level || 0} / {gemLab?.efficiency_level || 0}
+          Lvl {gemLab?.data?.production_level || 0} / {gemLab?.data?.speed_level || 0} / {gemLab?.data?.efficiency_level || 0}
         </Badge>
       </div>
 
@@ -168,7 +170,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-3">
           <p className="text-xs text-muted-foreground">Total</p>
-          <p className="font-bold text-lg text-accent">{(gemLab?.total_gems_generated ?? 0).toFixed(0)}</p>
+          <p className="font-bold text-lg text-accent">{(gemLab?.data?.total_gems_generated ?? 0).toFixed(0)}</p>
           <p className="text-xs text-muted-foreground mt-1">all-time</p>
         </div>
       </div>

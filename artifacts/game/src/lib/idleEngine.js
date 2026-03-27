@@ -20,6 +20,7 @@ function emit(event, data) {
 }
 
 let _characterId = null;
+let _characterData = null;
 let _intervals = {};
 let _running = false;
 let _lastFightEnemy = null;
@@ -28,23 +29,7 @@ let _lifeSkillsPaused = false;
 let _inFlight = { fight: false, lifeSkills: false, gemLab: false, guildBoss: false, save: false };
 
 function getCharacter() {
-  try {
-    const raw = localStorage.getItem('eb_Character');
-    const chars = raw ? JSON.parse(raw) : [];
-    return chars.find(c => c.id === _characterId) || null;
-  } catch { return null; }
-}
-
-function updateCharacter(updates) {
-  try {
-    const raw = localStorage.getItem('eb_Character');
-    let chars = raw ? JSON.parse(raw) : [];
-    const idx = chars.findIndex(c => c.id === _characterId);
-    if (idx === -1) return null;
-    chars[idx] = { ...chars[idx], ...updates };
-    localStorage.setItem('eb_Character', JSON.stringify(chars));
-    return chars[idx];
-  } catch { return null; }
+  return _characterData;
 }
 
 async function fightTick() {
@@ -73,9 +58,11 @@ async function _fightTickInner() {
       characterId: _characterId,
       enemyKey,
       regionKey: region,
-      _fallbackCharacter: char,
     });
-    if (result?.success) {
+    if (result) {
+      if (result.character) {
+        _characterData = result.character;
+      }
       emit('fightResult', {
         enemyKey,
         rewards: result.rewards,
@@ -107,7 +94,7 @@ async function _lifeSkillsTickInner() {
       action: 'tick',
       skillType: activeSkill,
     });
-    if (result?.success) {
+    if (result?.success !== false) {
       emit('lifeSkillTick', {
         skillType: activeSkill,
         resources: result.resources,
@@ -125,7 +112,7 @@ async function gemLabTick() {
     const result = await base44.functions.invoke('processGemLab', {
       characterId: _characterId,
     });
-    if (result?.success) {
+    if (result) {
       emit('gemLabTick', {
         gemsGenerated: result.gemsGenerated,
         gemsPerCycle: result.gemsPerCycle,
@@ -207,10 +194,11 @@ function formatTime(ms) {
 }
 
 const idleEngine = {
-  start(characterId) {
+  start(characterId, characterData = null) {
     if (_running && _characterId === characterId) return;
     this.stop();
     _characterId = characterId;
+    _characterData = characterData;
     _running = true;
     _fightPaused = false;
     _lifeSkillsPaused = false;
@@ -238,8 +226,15 @@ const idleEngine = {
     }
     _intervals = {};
     _characterId = null;
+    _characterData = null;
     _inFlight = { fight: false, lifeSkills: false, gemLab: false, guildBoss: false, save: false };
     emit('stopped', {});
+  },
+
+  setCharacterData(data) {
+    if (data) {
+      _characterData = { ..._characterData, ...data };
+    }
   },
 
   isRunning() { return _running; },

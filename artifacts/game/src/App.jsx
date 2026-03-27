@@ -50,20 +50,15 @@ const GameApp = () => {
 
   useEffect(() => {
     if (!character?.id) return;
-    const storeKey = 'eb_Character';
-    try {
-      const raw = localStorage.getItem(storeKey);
-      let chars = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(chars)) chars = [];
-      const exists = chars.some(c => c.id === character.id);
-      if (!exists) {
-        chars.push(character);
-        localStorage.setItem(storeKey, JSON.stringify(chars));
-      }
-    } catch {}
-    idleEngine.start(character.id);
+    idleEngine.start(character.id, character);
     return () => { idleEngine.stop(); };
   }, [character?.id]);
+
+  useEffect(() => {
+    if (character?.id) {
+      idleEngine.setCharacterData(character);
+    }
+  }, [character]);
 
   const setCharacter = (charOrUpdater) => {
     setCharacterState(prev => {

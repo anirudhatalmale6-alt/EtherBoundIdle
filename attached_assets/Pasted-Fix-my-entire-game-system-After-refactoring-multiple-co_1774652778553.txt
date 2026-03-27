@@ -1,0 +1,215 @@
+Fix my entire game system. After refactoring, multiple core gameplay systems stopped working. Restore ALL functionality cleanly using the new backend + frontend architecture.
+
+IMPORTANT:
+Do NOT hack fixes. Rebuild systems properly so they are clean, consistent, and production-ready.
+
+---
+
+## 🎯 BROKEN SYSTEMS (MUST FIX ALL)
+
+1. Shop system
+
+* Items are no longer generated or shown
+* Players cannot buy items
+
+2. Gem Lab
+
+* No longer generates gems over time
+* Offline progression is broken
+
+3. Life Skills
+
+* No real-time progression
+* Gathering does not tick automatically
+
+4. Combat / Idle system
+
+* No progression when tab is inactive
+* Idle combat is broken
+
+5. Quest system
+
+* No quests are generated
+* Progress tracking not working
+
+---
+
+## 🔥 GLOBAL REQUIREMENTS
+
+* ALL systems must work with backend + database
+* NO localStorage-only systems
+* ALL game state must persist via backend
+* Use API calls for everything
+
+---
+
+## ⏱ REAL-TIME + OFFLINE PROGRESSION (CRITICAL)
+
+Rebuild time-based systems using timestamps:
+
+* Store last_update timestamps in database
+* On every request:
+  → calculate elapsed time
+  → apply rewards (gold, exp, resources, gems)
+
+This applies to:
+
+* Idle combat
+* Life skills
+* Gem lab
+
+NO reliance on browser timers only.
+
+---
+
+## 🛒 SHOP SYSTEM
+
+Backend:
+
+* Create endpoint:
+  GET /api/shop
+* Generate items based on player level
+* Refresh every X hours
+* Store rotation in DB (or cache with timestamp)
+
+Frontend:
+
+* Fetch shop from backend
+* Display items
+* Allow purchase via:
+  POST /api/shop/buy
+
+---
+
+## 💎 GEM LAB
+
+Backend:
+
+* Store:
+  last_collection_time
+  production_level
+  speed
+
+* On request:
+  → calculate generated gems since last timestamp
+
+Frontend:
+
+* Show real-time progress
+* Claim button triggers backend calculation
+
+---
+
+## 🌿 LIFE SKILLS
+
+Backend:
+
+* Store skill states:
+  level, exp, is_active, last_tick
+
+* On request:
+  → calculate gathered resources since last_tick
+
+Frontend:
+
+* Start/stop skill
+* Show progress bar
+* Auto-update UI
+
+---
+
+## ⚔️ COMBAT SYSTEM
+
+Backend:
+
+* Add idle combat calculation:
+  based on last_idle_timestamp
+
+* When player loads:
+  → calculate:
+  exp gained
+  gold gained
+  kills
+
+Frontend:
+
+* Trigger via:
+  /api/player or /api/progression
+
+---
+
+## 📜 QUEST SYSTEM
+
+Backend:
+
+* Generate daily quests if none exist
+* Store quests in DB
+* Track:
+  progress
+  completion
+
+Frontend:
+
+* Fetch quests
+* Update progress via API
+
+---
+
+## 🔁 API STRUCTURE (MANDATORY)
+
+ALL endpoints MUST return:
+
+{
+success: true,
+data: ...
+}
+
+NO arrays directly
+NO mixed formats
+
+---
+
+## 🧠 FRONTEND RULES
+
+* Use ONE apiFetch system
+* Always:
+  const data = await apiFetch(...)
+* NO:
+  result.data[0]
+  result[0]
+
+---
+
+## 🧹 CLEAN IMPLEMENTATION
+
+* Do NOT reintroduce old messy code
+* Keep logic separated:
+  backend = logic
+  frontend = UI only
+
+---
+
+## 🚨 CRITICAL
+
+Everything MUST:
+
+* Work across tabs
+* Work after reload
+* Work after being offline
+* Be consistent with backend data
+
+---
+
+## ✨ FINAL RESULT
+
+I want:
+
+* Shop working
+* Gem lab producing
+* Life skills ticking
+* Idle combat progressing
+* Quests appearing
+
+ALL clean, ALL server-driven, NO hacks.
+
+Do NOT explain. Just fix and rebuild everything correctly.

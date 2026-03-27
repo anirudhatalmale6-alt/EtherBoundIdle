@@ -87,8 +87,8 @@ export default function LifeSkills({ character, onCharacterUpdate }) {
       action: "tick", character_id: character.id, skill_type: skillType,
     }),
     onSuccess: (res, skillType) => {
-      const d = res;
-      if (!d?.success) return;
+      const d = res || {};
+      if (d.success === false) return;
 
       queryClient.invalidateQueries({ queryKey: ["lifeskills", character.id] });
 
@@ -134,8 +134,8 @@ export default function LifeSkills({ character, onCharacterUpdate }) {
     }),
     onSuccess: (res, { upgradeType }) => {
       queryClient.invalidateQueries({ queryKey: ["lifeskills", character.id] });
-      const d = res;
-      if (d?.success) {
+      const d = res || {};
+      if (d.gold_spent !== undefined) {
         onCharacterUpdate?.({ gold: (character.gold || 0) - d.gold_spent });
         const label = upgradeType === "speed" ? `Speed Lv.${d.new_speed_level}` : `Luck Lv.${d.new_luck_level}`;
         toast({ title: `Upgraded! ${label}`, description: `-${d.gold_spent} Gold` });

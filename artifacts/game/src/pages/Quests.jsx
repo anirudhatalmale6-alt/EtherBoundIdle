@@ -42,10 +42,11 @@ export default function Quests({ character, onCharacterUpdate }) {
   const claimMutation = useMutation({
     mutationFn: async (quest) => {
       await base44.entities.Quest.update(quest.id, { status: "claimed" });
+      const rewards = quest.reward || {};
       const updates = {};
-      if (quest.rewards?.exp) updates.exp = (character.exp || 0) + quest.rewards.exp;
-      if (quest.rewards?.gold) updates.gold = (character.gold || 0) + quest.rewards.gold;
-      if (quest.rewards?.gems) updates.gems = (character.gems || 0) + quest.rewards.gems;
+      if (rewards.exp) updates.exp = (character.exp || 0) + rewards.exp;
+      if (rewards.gold) updates.gold = (character.gold || 0) + rewards.gold;
+      if (rewards.gems) updates.gems = (character.gems || 0) + rewards.gems;
       if (Object.keys(updates).length > 0) {
         await base44.entities.Character.update(character.id, updates);
         onCharacterUpdate({ ...character, ...updates });
@@ -54,18 +55,19 @@ export default function Quests({ character, onCharacterUpdate }) {
     },
   });
 
-  // Filter quests by type
-  const dailyQuests = quests.filter(q => q.is_daily && (q.status === "active" || q.status === "completed"));
-  const weeklyQuests = quests.filter(q => !q.is_daily && q.type === "weekly" && (q.status === "active" || q.status === "completed"));
+  const dailyQuests = quests.filter(q => q.type === "daily" && (q.status === "active" || q.status === "completed"));
+  const weeklyQuests = quests.filter(q => q.type === "weekly" && (q.status === "active" || q.status === "completed"));
   const storyQuests = quests.filter(q => q.type === "story" && (q.status === "active" || q.status === "completed"));
 
   const QuestCard = ({ quest, idx }) => {
-    const pct = quest.target_count > 0 ? Math.min(100, (quest.current_count / quest.target_count) * 100) : 0;
-    const isComplete = quest.status === "completed" || quest.current_count >= quest.target_count;
+    const targetCount = quest.target || 1;
+    const currentCount = quest.progress || 0;
+    const rewards = quest.reward || {};
+    const pct = targetCount > 0 ? Math.min(100, (currentCount / targetCount) * 100) : 0;
+    const isComplete = quest.status === "completed" || currentCount >= targetCount;
 
-    // Objective type icon
     const getObjectiveIcon = () => {
-      switch (quest.objective_type) {
+      switch (quest.type) {
         case 'mining': return '⛏️';
         case 'fishing': return '🎣';
         case 'herbalism': return '🌿';
@@ -90,7 +92,7 @@ export default function Quests({ character, onCharacterUpdate }) {
             <div className="flex items-center gap-2">
               <span className="text-lg">{getObjectiveIcon()}</span>
               <h3 className="font-semibold">{quest.title}</h3>
-              {quest.is_daily && (
+              {quest.type === "daily" && (
                 <Badge variant="secondary" className="text-xs gap-1 flex items-center">
                   <Clock className="w-3 h-3" /> Daily
                 </Badge>
@@ -108,25 +110,25 @@ export default function Quests({ character, onCharacterUpdate }) {
               <div className="flex justify-between text-xs mb-1">
                 <span className="text-muted-foreground">Progress</span>
                 <span className="text-foreground font-semibold">
-                  {quest.current_count}/{quest.target_count}
+                  {currentCount}/{targetCount}
                 </span>
               </div>
               <Progress value={pct} className="h-2" />
             </div>
             <div className="flex gap-2 mt-2 flex-wrap">
-              {quest.rewards?.exp && (
+              {rewards.exp && (
                 <span className="text-xs text-primary flex items-center gap-1">
-                  <Star className="w-3 h-3" /> {quest.rewards.exp} EXP
+                  <Star className="w-3 h-3" /> {rewards.exp} EXP
                 </span>
               )}
-              {quest.rewards?.gold && (
+              {rewards.gold && (
                 <span className="text-xs text-accent flex items-center gap-1">
-                  <Coins className="w-3 h-3" /> {quest.rewards.gold} Gold
+                  <Coins className="w-3 h-3" /> {rewards.gold} Gold
                 </span>
               )}
-              {quest.rewards?.gems && (
+              {rewards.gems && (
                 <span className="text-xs text-secondary flex items-center gap-1">
-                  <Gem className="w-3 h-3" /> {quest.rewards.gems} Gems
+                  <Gem className="w-3 h-3" /> {rewards.gems} Gems
                 </span>
               )}
             </div>
@@ -134,7 +136,7 @@ export default function Quests({ character, onCharacterUpdate }) {
           {isComplete && quest.status !== "claimed" && (
             <Button
               size="sm"
-              onClick={() => claimMutation.mutate(quest)}
+              onClick={() => claimMutation.mutate({ ...quest, reward: rewards })}
               disabled={claimMutation.isPending}
               className="gap-1 shrink-0 bg-primary hover:bg-primary/90"
             >

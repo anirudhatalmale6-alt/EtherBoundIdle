@@ -483,17 +483,109 @@ router.post("/functions/awakenItem", async (req: Request, res: Response) => {
 
 router.post("/functions/getShopRotation", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
-  const now = new Date();
-  const seed = Math.floor(now.getTime() / (6 * 60 * 60 * 1000));
-  const shopItems = [
-    { id: `shop_${seed}_1`, name: "Health Potion", type: "consumable", price: 50, currency: "gold" },
-    { id: `shop_${seed}_2`, name: "Mana Potion", type: "consumable", price: 50, currency: "gold" },
-    { id: `shop_${seed}_3`, name: "Mystery Box", type: "lootbox", price: 100, currency: "gems" },
-    { id: `shop_${seed}_4`, name: "EXP Boost", type: "boost", price: 200, currency: "gold" },
-    { id: `shop_${seed}_5`, name: "Gold Boost", type: "boost", price: 150, currency: "gold" },
-  ];
-  sendSuccess(res, { items: shopItems, refreshes_at: new Date((seed + 1) * 6 * 60 * 60 * 1000).toISOString() });
+  try {
+    const { characterId, forceRefresh } = req.body;
+    const now = new Date();
+    const ROTATION_MS = 4 * 60 * 60 * 1000;
+    const seed = Math.floor(now.getTime() / ROTATION_MS);
+    const refreshesAt = new Date((seed + 1) * ROTATION_MS).toISOString();
+
+    let charLevel = 1;
+    if (characterId) {
+      const [char] = await db.select({ level: charactersTable.level }).from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (char) charLevel = char.level || 1;
+    }
+
+    let gemsSpent = 0;
+    if (forceRefresh && characterId) {
+      const REFRESH_COST = 5;
+      const [charData] = await db.select({ gems: charactersTable.gems }).from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!charData || (charData.gems || 0) < REFRESH_COST) {
+        return sendError(res, 400, "Not enough gems to refresh shop");
+      }
+      await db.update(charactersTable).set({ gems: (charData.gems || 0) - REFRESH_COST }).where(eq(charactersTable.id, characterId));
+      gemsSpent = REFRESH_COST;
+    }
+
+    const rng = mulberry32(seed + charLevel);
+    const TYPES = ["weapon", "armor", "helmet", "boots", "ring", "amulet"];
+    const RARITIES = ["common", "uncommon", "rare", "epic"];
+    const RARITY_WEIGHTS = [40, 30, 20, 10];
+    const STAT_KEYS = ["strength", "dexterity", "intelligence", "vitality", "luck"];
+    const CONSUMABLES = [
+      { name: "Health Potion", type: "consumable", stats: { hp_bonus: 50 }, rarity: "common" },
+      { name: "Mana Potion", type: "consumable", stats: { mp_bonus: 30 }, rarity: "common" },
+      { name: "Greater Health Potion", type: "consumable", stats: { hp_bonus: 150 }, rarity: "uncommon" },
+    ];
+
+    function pickRarity(): string {
+      const roll = rng() * 100;
+      let sum = 0;
+      for (let i = 0; i < RARITIES.length; i++) {
+        sum += RARITY_WEIGHTS[i];
+        if (roll < sum) return RARITIES[i];
+      }
+      return "common";
+    }
+
+    const items: any[] = [];
+    for (let i = 0; i < 6; i++) {
+      const type = TYPES[Math.floor(rng() * TYPES.length)];
+      const rarity = pickRarity();
+      const itemLevel = Math.max(1, charLevel + Math.floor((rng() - 0.5) * 6));
+      const rarityMult = rarity === "epic" ? 3 : rarity === "rare" ? 2 : rarity === "uncommon" ? 1.5 : 1;
+      const stats: Record<string, number> = {};
+      const numStats = rarity === "epic" ? 3 : rarity === "rare" ? 2 : 1;
+      const shuffled = [...STAT_KEYS].sort(() => rng() - 0.5);
+      for (let s = 0; s < numStats; s++) {
+        stats[shuffled[s]] = Math.floor((3 + itemLevel * 0.5) * rarityMult * (0.8 + rng() * 0.4));
+      }
+      const buyPrice = Math.floor((50 + itemLevel * 20) * rarityMult);
+      const sellPrice = Math.floor(buyPrice * 0.3);
+      const namePrefix = rarity === "epic" ? "Superior" : rarity === "rare" ? "Fine" : rarity === "uncommon" ? "Sturdy" : "";
+      const typeNames: Record<string, string> = { weapon: "Blade", armor: "Chestplate", helmet: "Helm", boots: "Greaves", ring: "Ring", amulet: "Amulet" };
+      items.push({
+        id: `shop_${seed}_${i}`,
+        name: `${namePrefix} ${typeNames[type] || type}`.trim(),
+        type,
+        rarity,
+        item_level: itemLevel,
+        stats,
+        buy_price: buyPrice,
+        sell_price: sellPrice,
+        description: `Level ${itemLevel} ${rarity} ${type}`,
+      });
+    }
+    for (let c = 0; c < 2; c++) {
+      const con = CONSUMABLES[Math.floor(rng() * CONSUMABLES.length)];
+      const price = Math.floor((30 + charLevel * 5) * (con.rarity === "uncommon" ? 2 : 1));
+      items.push({
+        id: `shop_${seed}_con_${c}`,
+        name: con.name,
+        type: con.type,
+        rarity: con.rarity,
+        stats: con.stats,
+        buy_price: price,
+        sell_price: Math.floor(price * 0.3),
+        description: con.name,
+      });
+    }
+
+    sendSuccess(res, { items, refreshes_at: refreshesAt, gemsSpent });
+  } catch (err: any) {
+    req.log.error({ err }, "getShopRotation error");
+    sendError(res, 500, err.message);
+  }
 });
+
+function mulberry32(a: number) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
 
 router.post("/functions/manageDailyQuests", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
