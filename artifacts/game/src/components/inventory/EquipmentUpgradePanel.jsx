@@ -40,7 +40,7 @@ export default function EquipmentUpgradePanel({ item, character, onClose }) {
   const safeMutation = useMutation({
     mutationFn: async () => {
       const response = await base44.functions.invoke('upgradeItemSafe', { itemId: item.id });
-      return response.data;
+      return response;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -69,7 +69,7 @@ export default function EquipmentUpgradePanel({ item, character, onClose }) {
   const starMutation = useMutation({
     mutationFn: async () => {
       const response = await base44.functions.invoke('starUpgradeItem', { itemId: item.id });
-      return response.data;
+      return response;
     },
     onSuccess: (data) => {
       if (data.success) {
@@ -109,7 +109,7 @@ export default function EquipmentUpgradePanel({ item, character, onClose }) {
   const awakenMutation = useMutation({
     mutationFn: async () => {
       const response = await base44.functions.invoke('awakenItem', { itemId: item.id });
-      return response.data;
+      return response;
     },
     onSuccess: (data) => {
       if (data.success) {

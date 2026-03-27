@@ -1,5 +1,4 @@
 import base44 from '@/api/base44Client';
-import { supabaseSync } from '@/lib/supabaseSync';
 
 const TICK_INTERVALS = {
   fight: 4000,
@@ -70,13 +69,12 @@ async function _fightTickInner() {
   _lastFightEnemy = enemyKey;
 
   try {
-    const res = await base44.functions.invoke('fight', {
+    const result = await base44.functions.invoke('fight', {
       characterId: _characterId,
       enemyKey,
       regionKey: region,
       _fallbackCharacter: char,
     });
-    const result = res?.data;
     if (result?.success) {
       emit('fightResult', {
         enemyKey,
@@ -85,10 +83,6 @@ async function _fightTickInner() {
         levelsGained: result.levelsGained,
         character: result.character,
       });
-
-      if (supabaseSync.isEnabled()) {
-        supabaseSync.storeTimestamp(_characterId, 'last_idle_fight', Date.now()).catch(() => {});
-      }
     }
   } catch {}
 }
@@ -108,12 +102,11 @@ async function _lifeSkillsTickInner() {
   if (!activeSkill) return;
 
   try {
-    const res = await base44.functions.invoke('lifeSkills', {
+    const result = await base44.functions.invoke('lifeSkills', {
       characterId: _characterId,
       action: 'tick',
       skillType: activeSkill,
     });
-    const result = res?.data;
     if (result?.success) {
       emit('lifeSkillTick', {
         skillType: activeSkill,
@@ -121,10 +114,6 @@ async function _lifeSkillsTickInner() {
         leveled_up: result.leveled_up,
         new_level: result.new_level,
       });
-
-      if (supabaseSync.isEnabled()) {
-        supabaseSync.storeTimestamp(_characterId, 'last_lifeskill_tick', Date.now()).catch(() => {});
-      }
     }
   } catch {}
 }
@@ -133,10 +122,9 @@ async function gemLabTick() {
   if (!_characterId || _inFlight.gemLab) return;
   _inFlight.gemLab = true;
   try {
-    const res = await base44.functions.invoke('processGemLab', {
+    const result = await base44.functions.invoke('processGemLab', {
       characterId: _characterId,
     });
-    const result = res?.data;
     if (result?.success) {
       emit('gemLabTick', {
         gemsGenerated: result.gemsGenerated,
@@ -144,10 +132,6 @@ async function gemLabTick() {
         cycleSeconds: result.cycleSeconds,
         offlineHours: result.offlineHours,
       });
-
-      if (result.gemsGenerated > 0 && supabaseSync.isEnabled()) {
-        supabaseSync.storeTimestamp(_characterId, 'gem_lab_last_collection', Date.now()).catch(() => {});
-      }
     }
   } catch {} finally { _inFlight.gemLab = false; }
 }
@@ -166,10 +150,6 @@ async function shopRotationTick() {
     timeLeftMs: timeLeft,
     timeLeftFormatted: formatTime(timeLeft),
   });
-
-  if (supabaseSync.isEnabled()) {
-    supabaseSync.storeTimestamp(_characterId, 'shop_rotation_seed', currentSeed).catch(() => {});
-  }
 }
 
 const BOSS_MAX_ATTACKS = 10;
@@ -212,11 +192,6 @@ async function saveTick() {
   if (!_characterId || _inFlight.save) return;
   _inFlight.save = true;
   try {
-    const char = getCharacter();
-    if (!char) return;
-    if (supabaseSync.isEnabled()) {
-      supabaseSync.syncCharacter(char).catch(() => {});
-    }
     emit('autoSave', { timestamp: Date.now() });
   } finally { _inFlight.save = false; }
 }
@@ -300,9 +275,6 @@ const idleEngine = {
       data.attacks.push(now);
     }
     localStorage.setItem(`eb_guild_boss_attacks_${characterId}`, JSON.stringify(data));
-    if (supabaseSync.isEnabled()) {
-      supabaseSync.recordBossAttack(characterId).catch(() => {});
-    }
     const attacksLeft = Math.max(0, BOSS_MAX_ATTACKS - data.attacks.length);
     const windowRemaining = Math.max(0, BOSS_WINDOW_MS - (now - data.windowStart));
     emit('guildBossStatus', {
@@ -331,35 +303,7 @@ const idleEngine = {
   },
 
   async validateGuildBossAttack(characterId) {
-    if (supabaseSync.isEnabled()) {
-      try {
-        const serverResult = await supabaseSync.validateBossAttackLimit(characterId);
-        if (!serverResult.valid) {
-          return {
-            ready: false,
-            attacksUsed: serverResult.attacksUsed,
-            attacksLeft: 0,
-            maxAttacks: BOSS_MAX_ATTACKS,
-            windowRemaining: serverResult.windowRemaining || 0,
-            windowFormatted: `Resets in ${formatTime(serverResult.windowRemaining || 0)}`,
-          };
-        }
-        return {
-          ready: true,
-          attacksUsed: serverResult.attacksUsed || 0,
-          attacksLeft: serverResult.attacksLeft || BOSS_MAX_ATTACKS,
-          maxAttacks: BOSS_MAX_ATTACKS,
-          windowRemaining: serverResult.windowRemaining || 0,
-          windowFormatted: `${serverResult.attacksLeft || BOSS_MAX_ATTACKS}/${BOSS_MAX_ATTACKS} attacks left`,
-        };
-      } catch {}
-    }
     return this.getBossAttackStatus(characterId);
-  },
-
-  async validateWithSupabase(characterId, key) {
-    if (!supabaseSync.isEnabled()) return null;
-    return supabaseSync.getTimestamp(characterId, key);
   },
 
   triggerFightNow() {

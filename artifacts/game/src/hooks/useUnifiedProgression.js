@@ -31,12 +31,12 @@ export function useUnifiedProgression(characterId, enabled = true) {
         action: 'sync_state',
       });
 
-      if (response.data?.success) {
-        setCharacter(response.data.character);
-        setSession(response.data.session);
+      if (response?.success) {
+        setCharacter(response.character);
+        setSession(response.session);
         setError(null);
       } else {
-        setError(response.data?.error || 'Sync failed');
+        setError(response?.error || 'Sync failed');
       }
     } catch (err) {
       setError(err.message);
@@ -69,11 +69,11 @@ export function useUnifiedProgression(characterId, enabled = true) {
         payload: { skill_type: skillType },
       });
 
-      if (response.data?.success) {
-        setSession(response.data.session);
+      if (response?.success) {
+        setSession(response.session);
         return { success: true };
       }
-      return { success: false, error: response.data?.error };
+      return { success: false, error: response?.error };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -89,11 +89,11 @@ export function useUnifiedProgression(characterId, enabled = true) {
         action: 'stop_skill',
       });
 
-      if (response.data?.success) {
-        setSession(response.data.session);
+      if (response?.success) {
+        setSession(response.session);
         return { success: true };
       }
-      return { success: false, error: response.data?.error };
+      return { success: false, error: response?.error };
     } catch (err) {
       return { success: false, error: err.message };
     }
@@ -110,16 +110,16 @@ export function useUnifiedProgression(characterId, enabled = true) {
         payload: { damage },
       });
 
-      if (response.data?.success) {
-        setSession(response.data.session);
+      if (response?.success) {
+        setSession(response.session);
         return {
           success: true,
-          damage: response.data.damage,
-          enemyHp: response.data.enemyHp,
-          isDead: response.data.isDead,
+          damage: response.damage,
+          enemyHp: response.enemyHp,
+          isDead: response.isDead,
         };
       }
-      return { success: false, error: response.data?.error };
+      return { success: false, error: response?.error };
     } catch (err) {
       return { success: false, error: err.message };
     }

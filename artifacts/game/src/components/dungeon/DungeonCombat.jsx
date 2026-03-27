@@ -94,7 +94,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
         sessionId: session.id,
         skillId,
       });
-      if (res.data?.session) setSession(res.data.session);
+      if (res?.session) setSession(res.session);
     } finally {
       setLoading(false);
     }
@@ -108,7 +108,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
         characterId: character.id,
         sessionId: session.id,
       });
-      if (res.data?.session) setSession(res.data.session);
+      if (res?.session) setSession(res.session);
     } finally {
       setLoading(false);
     }

@@ -167,10 +167,10 @@ export default function GameConfig() {
     const load = async () => {
       try {
         const res = await base44.functions.invoke('gameConfigManager', {});
-        if (res.data?.success) {
-          setConfig(JSON.parse(JSON.stringify(res.data.config)));
-          setOriginalConfig(JSON.parse(JSON.stringify(res.data.config)));
-          setConfigId(res.data.id);
+        if (res?.success) {
+          setConfig(JSON.parse(JSON.stringify(res.config)));
+          setOriginalConfig(JSON.parse(JSON.stringify(res.config)));
+          setConfigId(res.id);
         }
       } catch (e) {
         console.error("Failed to load config:", e);
@@ -202,8 +202,8 @@ export default function GameConfig() {
         config,
         id: configId,
       });
-      if (res.data?.success) {
-        setConfigId(res.data.id);
+      if (res?.success) {
+        setConfigId(res.id);
         setOriginalConfig(JSON.parse(JSON.stringify(config)));
         setChanged(false);
         setStatus("saved");

@@ -52,7 +52,7 @@ function RecipeRow({ recipe, availableQty, characterId, onDone }) {
         recipe_input: recipe.input,
         quantity: qty,
       });
-      if (res.data?.success) {
+      if (res?.success) {
         toast({
           title: `Processed ${qty}× ${recipe.input_label}`,
           description: `+${qty}× ${recipe.output_label}`,

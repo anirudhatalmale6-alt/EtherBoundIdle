@@ -1,23 +1,5 @@
 import React, { createContext, useState, useContext, useEffect } from 'react';
-
-const API_URL_KEY = 'eb_api_url';
-const DEFAULT_API_URL = 'http://46.224.121.242:3000';
-
-function detectApiUrl() {
-  const host = window.location.hostname;
-  if (host.includes('replit.dev') || host.includes('replit.app') || host === 'localhost' || host === '127.0.0.1') {
-    return window.location.origin;
-  }
-  return DEFAULT_API_URL;
-}
-
-function getApiUrl() {
-  try {
-    const stored = localStorage.getItem(API_URL_KEY);
-    if (stored) return stored;
-    return detectApiUrl();
-  } catch { return DEFAULT_API_URL; }
-}
+import { base44 } from '../api/base44Client';
 
 const AuthContext = createContext();
 
@@ -34,14 +16,11 @@ export const AuthProvider = ({ children }) => {
   const checkSession = async () => {
     try {
       setIsLoadingAuth(true);
-      const res = await fetch(`${getApiUrl()}/api/auth/user`, {
-        credentials: 'include',
-      });
-      const data = await res.json();
-      if (data.user) {
-        setUser(data.user);
+      const me = await base44.auth.me();
+      if (me) {
+        setUser(me);
         setIsAuthenticated(true);
-        localStorage.setItem('eb_local_user', JSON.stringify(data.user));
+        localStorage.setItem('eb_local_user', JSON.stringify(me));
       } else {
         setUser(null);
         setIsAuthenticated(false);
@@ -60,22 +39,25 @@ export const AuthProvider = ({ children }) => {
   const register = async (email, password, username) => {
     try {
       setAuthError(null);
-      const res = await fetch(`${getApiUrl()}/api/auth/register`, {
+      const apiUrl = base44.getApiUrl();
+      const res = await fetch(`${apiUrl}/api/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password, username }),
       });
-      const data = await res.json();
+      const json = await res.json();
 
-      if (!res.ok) {
-        setAuthError(data.error);
-        return { success: false, error: data.error };
+      if (!res.ok || json.success === false) {
+        const msg = json.error || 'Registration failed';
+        setAuthError(msg);
+        return { success: false, error: msg };
       }
 
-      setUser(data.user);
+      const u = json.data?.user || json.user;
+      setUser(u);
       setIsAuthenticated(true);
-      localStorage.setItem('eb_local_user', JSON.stringify(data.user));
+      localStorage.setItem('eb_local_user', JSON.stringify(u));
       return { success: true };
     } catch (err) {
       const msg = err.message || 'Registration failed';
@@ -87,22 +69,25 @@ export const AuthProvider = ({ children }) => {
   const login = async (email, password) => {
     try {
       setAuthError(null);
-      const res = await fetch(`${getApiUrl()}/api/auth/login`, {
+      const apiUrl = base44.getApiUrl();
+      const res = await fetch(`${apiUrl}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({ email, password }),
       });
-      const data = await res.json();
+      const json = await res.json();
 
-      if (!res.ok) {
-        setAuthError(data.error);
-        return { success: false, error: data.error };
+      if (!res.ok || json.success === false) {
+        const msg = json.error || 'Login failed';
+        setAuthError(msg);
+        return { success: false, error: msg };
       }
 
-      setUser(data.user);
+      const u = json.data?.user || json.user;
+      setUser(u);
       setIsAuthenticated(true);
-      localStorage.setItem('eb_local_user', JSON.stringify(data.user));
+      localStorage.setItem('eb_local_user', JSON.stringify(u));
       return { success: true };
     } catch (err) {
       const msg = err.message || 'Login failed';
@@ -112,14 +97,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   const logout = async () => {
-    try {
-      await fetch(`${getApiUrl()}/api/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-      });
-    } catch {}
-    localStorage.removeItem('eb_local_user');
-    sessionStorage.removeItem('activeCharacter');
+    await base44.auth.logout();
     setUser(null);
     setIsAuthenticated(false);
   };

@@ -21,7 +21,9 @@ import {
   gemLabsTable,
   privateMessagesTable,
 } from "@workspace/db";
-import { eq, and, desc, asc, sql } from "drizzle-orm";
+import { eq, and, desc, asc } from "drizzle-orm";
+import { requireAuth } from "../middlewares/authMiddleware";
+import { sendSuccess, sendError } from "../lib/response";
 
 const router: IRouter = Router();
 
@@ -239,21 +241,12 @@ function toClient(entityName: string, row: Record<string, any>): Record<string, 
   for (const [clientKey, dbKey] of Object.entries(mappings)) {
     reverseMappings[dbKey] = clientKey;
   }
-
   const result: Record<string, any> = {};
   for (const [key, value] of Object.entries(row)) {
     const clientKey = reverseMappings[key] || key;
     result[clientKey] = value;
   }
   return result;
-}
-
-function requireAuth(req: Request, res: Response): boolean {
-  if (!req.isAuthenticated()) {
-    res.status(401).json({ error: "Not authenticated" });
-    return false;
-  }
-  return true;
 }
 
 const ownerFieldMap: Record<string, string> = {
@@ -283,7 +276,7 @@ router.get("/entities/:entity", async (req: Request, res: Response) => {
   const { entity } = req.params;
   const table = tableMap[entity];
   if (!table) {
-    res.status(404).json({ error: `Entity ${entity} not found` });
+    sendError(res, 404, `Entity ${entity} not found`);
     return;
   }
 
@@ -323,10 +316,10 @@ router.get("/entities/:entity", async (req: Request, res: Response) => {
     }
 
     const rows = await query;
-    res.json(rows.map((r: any) => toClient(entity, r)));
+    sendSuccess(res, rows.map((r: any) => toClient(entity, r)));
   } catch (err: any) {
     req.log.error({ err }, "Entity list error");
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err.message);
   }
 });
 
@@ -336,20 +329,20 @@ router.get("/entities/:entity/:id", async (req: Request, res: Response) => {
   const { entity, id } = req.params;
   const table = tableMap[entity];
   if (!table) {
-    res.status(404).json({ error: `Entity ${entity} not found` });
+    sendError(res, 404, `Entity ${entity} not found`);
     return;
   }
 
   try {
     const [row] = await db.select().from(table).where(eq((table as any).id, id));
     if (!row) {
-      res.status(404).json({ error: "Not found" });
+      sendError(res, 404, "Not found");
       return;
     }
-    res.json(toClient(entity, row));
+    sendSuccess(res, toClient(entity, row));
   } catch (err: any) {
     req.log.error({ err }, "Entity get error");
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err.message);
   }
 });
 
@@ -359,7 +352,7 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
   const { entity } = req.params;
   const table = tableMap[entity];
   if (!table) {
-    res.status(404).json({ error: `Entity ${entity} not found` });
+    sendError(res, 404, `Entity ${entity} not found`);
     return;
   }
 
@@ -374,16 +367,16 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
       const [existing] = await db.select().from(table).where(eq((table as any).characterId, dbData.characterId));
       if (existing) {
         const [updated] = await db.update(table).set(dbData).where(eq((table as any).id, (existing as any).id)).returning();
-        res.json(toClient(entity, updated));
+        sendSuccess(res, toClient(entity, updated));
         return;
       }
     }
 
     const [row] = await db.insert(table).values(dbData).returning();
-    res.json(toClient(entity, row));
+    sendSuccess(res, toClient(entity, row));
   } catch (err: any) {
     req.log.error({ err }, "Entity create error");
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err.message);
   }
 });
 
@@ -393,25 +386,25 @@ router.patch("/entities/:entity/:id", async (req: Request, res: Response) => {
   const { entity, id } = req.params;
   const table = tableMap[entity];
   if (!table) {
-    res.status(404).json({ error: `Entity ${entity} not found` });
+    sendError(res, 404, `Entity ${entity} not found`);
     return;
   }
 
   try {
     if (!(await verifyOwnership(req, entity, id))) {
-      res.status(403).json({ error: "Not authorized to modify this record" });
+      sendError(res, 403, "Not authorized to modify this record");
       return;
     }
     const dbData = toDb(entity, req.body);
     const [row] = await db.update(table).set(dbData).where(eq((table as any).id, id)).returning();
     if (!row) {
-      res.status(404).json({ error: "Not found" });
+      sendError(res, 404, "Not found");
       return;
     }
-    res.json(toClient(entity, row));
+    sendSuccess(res, toClient(entity, row));
   } catch (err: any) {
     req.log.error({ err }, "Entity update error");
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err.message);
   }
 });
 
@@ -421,20 +414,20 @@ router.delete("/entities/:entity/:id", async (req: Request, res: Response) => {
   const { entity, id } = req.params;
   const table = tableMap[entity];
   if (!table) {
-    res.status(404).json({ error: `Entity ${entity} not found` });
+    sendError(res, 404, `Entity ${entity} not found`);
     return;
   }
 
   try {
     if (!(await verifyOwnership(req, entity, id))) {
-      res.status(403).json({ error: "Not authorized to delete this record" });
+      sendError(res, 403, "Not authorized to delete this record");
       return;
     }
     await db.delete(table).where(eq((table as any).id, id));
-    res.json({ success: true });
+    sendSuccess(res, null);
   } catch (err: any) {
     req.log.error({ err }, "Entity delete error");
-    res.status(500).json({ error: err.message });
+    sendError(res, 500, err.message);
   }
 });
 

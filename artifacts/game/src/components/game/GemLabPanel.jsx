@@ -29,11 +29,11 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   const processMutation = useMutation({
     mutationFn: () => base44.functions.invoke("processGemLab", { characterId: character.id }),
     onSuccess: (response) => {
-      if (response.data?.success) {
+      if (response?.success) {
         setRefreshTrigger(t => t + 1);
-        if (response.data.gemsGenerated > 0) {
+        if (response.gemsGenerated > 0) {
           toast({
-            title: `Generated ${response.data.gemsGenerated.toFixed(3)} gems while offline (${response.data.offlineHours}h)`,
+            title: `Generated ${response.gemsGenerated.toFixed(3)} gems while offline (${response.offlineHours}h)`,
             duration: 2000,
           });
         }
@@ -45,11 +45,11 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   const claimMutation = useMutation({
     mutationFn: () => base44.functions.invoke("claimGemLabGems", { characterId: character.id }),
     onSuccess: (response) => {
-      if (response.data?.success) {
-        onCharacterUpdate({ ...character, gems: response.data.newTotal });
+      if (response?.success) {
+        onCharacterUpdate({ ...character, gems: response.newTotal });
         queryClient.invalidateQueries({ queryKey: ["gemlab"] });
         toast({
-          title: `Claimed ${response.data.claimedGems} gems!`,
+          title: `Claimed ${response.claimedGems} gems!`,
           duration: 1500,
         });
       }
@@ -61,16 +61,16 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
     mutationFn: (upgradeType) =>
       base44.functions.invoke("upgradeGemLab", { characterId: character.id, upgradeType }),
     onSuccess: (response) => {
-      if (response.data?.success) {
-        onCharacterUpdate({ ...character, gold: response.data.goldRemaining });
+      if (response?.success) {
+        onCharacterUpdate({ ...character, gold: response.goldRemaining });
         queryClient.invalidateQueries({ queryKey: ["gemlab"] });
         toast({
-          title: `Upgraded ${response.data.upgradeType}!`,
+          title: `Upgraded ${response.upgradeType}!`,
           duration: 1500,
         });
       } else {
         toast({
-          title: response.data?.error || "Upgrade failed",
+          title: response?.error || "Upgrade failed",
           variant: "destructive",
           duration: 2000,
         });

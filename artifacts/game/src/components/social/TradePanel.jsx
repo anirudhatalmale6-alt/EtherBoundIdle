@@ -127,7 +127,7 @@ export default function TradePanel({ character, onCharacterUpdate }) {
       // If both confirmed, execute trade via backend
       if ((isInit && trade.receiver_confirmed) || (!isInit && trade.initiator_confirmed)) {
         const result = await base44.functions.invoke("completeTrade", { trade_id: trade.id });
-        if (result.data?.success) {
+        if (result?.success) {
           qc.invalidateQueries({ queryKey: ["items", character.id] });
           qc.invalidateQueries({ queryKey: ["trades_active", character.id] });
           setView("list");

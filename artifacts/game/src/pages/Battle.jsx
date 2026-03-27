@@ -355,7 +355,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         _fallbackCharacter: character,
       });
 
-      const result = response?.data;
+      const result = response;
       if (!result?.success) {
         console.error('[handleEnemyDefeat] Fight failed:', result);
         addLog(`⚠️ Error processing rewards: ${result?.error || 'unknown'}`);
@@ -445,8 +445,8 @@ export default function Battle({ character, onCharacterUpdate }) {
           characterId: character.id,
           action: 'sync_progression',
         });
-        if (response.data?.success) {
-          const { exp_gained, gems_gained, offline_minutes, resources_gained } = response.data.results;
+        if (response?.success) {
+          const { exp_gained, gems_gained, offline_minutes, resources_gained } = response.results;
           // Apply offline rewards
           if (offline_minutes > 0) {
             const newExp = (character.exp || 0) + exp_gained;
@@ -581,8 +581,8 @@ export default function Battle({ character, onCharacterUpdate }) {
     const run = async () => {
       try {
         const response = await base44.functions.invoke('catchUpOfflineProgress', { characterId: character.id });
-        if (response.data?.success && response.data.hours_offline > 0) {
-          const results = response.data.results;
+        if (response?.success && response.hours_offline > 0) {
+          const results = response.results;
           let totalGems = 0;
           if (results.gemLab) {
             totalGems = results.gemLab.gems_gained || 0;
@@ -592,7 +592,7 @@ export default function Battle({ character, onCharacterUpdate }) {
             gems: totalGems,
             lifeSkills: results.lifeSkills,
           });
-          setWelcomeBackHours(parseFloat(response.data.hours_offline));
+          setWelcomeBackHours(parseFloat(response.hours_offline));
           setShowWelcomeBack(true);
           if (totalGems > 0) {
             onCharacterUpdate({ gems: (character.gems || 0) + totalGems });

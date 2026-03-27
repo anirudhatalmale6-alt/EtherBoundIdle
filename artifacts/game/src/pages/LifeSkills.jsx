@@ -33,7 +33,7 @@ export default function LifeSkills({ character, onCharacterUpdate }) {
         action: "get_skills",
         character_id: character.id,
       });
-      return res.data;
+      return res;
     },
     enabled: !!character?.id,
     refetchInterval: 30000,
@@ -87,7 +87,7 @@ export default function LifeSkills({ character, onCharacterUpdate }) {
       action: "tick", character_id: character.id, skill_type: skillType,
     }),
     onSuccess: (res, skillType) => {
-      const d = res.data;
+      const d = res;
       if (!d?.success) return;
 
       queryClient.invalidateQueries({ queryKey: ["lifeskills", character.id] });
@@ -134,7 +134,7 @@ export default function LifeSkills({ character, onCharacterUpdate }) {
     }),
     onSuccess: (res, { upgradeType }) => {
       queryClient.invalidateQueries({ queryKey: ["lifeskills", character.id] });
-      const d = res.data;
+      const d = res;
       if (d?.success) {
         onCharacterUpdate?.({ gold: (character.gold || 0) - d.gold_spent });
         const label = upgradeType === "speed" ? `Speed Lv.${d.new_speed_level}` : `Luck Lv.${d.new_luck_level}`;

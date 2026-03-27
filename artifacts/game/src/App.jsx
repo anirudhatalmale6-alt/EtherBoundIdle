@@ -30,7 +30,6 @@ import ChatWindow from "./components/game/ChatWindow";
 import DailyLoginModal from "./components/game/DailyLoginModal";
 import PartyPanel from "./components/game/PartyPanel";
 import { useCharacterAutoSave } from "./hooks/useCharacterAutoSave";
-import { supabaseSync } from "@/lib/supabaseSync";
 import { idleEngine } from "@/lib/idleEngine";
 
 const GameApp = () => {
@@ -62,9 +61,6 @@ const GameApp = () => {
         localStorage.setItem(storeKey, JSON.stringify(chars));
       }
     } catch {}
-    if (supabaseSync.isEnabled()) {
-      supabaseSync.fullSync(character.id).catch(() => {});
-    }
     idleEngine.start(character.id);
     return () => { idleEngine.stop(); };
   }, [character?.id]);
@@ -95,11 +91,7 @@ const GameApp = () => {
 
   const handleCharacterUpdate = (updated) => {
     setCharacter(prev => {
-      const merged = { ...prev, ...updated };
-      if (supabaseSync.isEnabled()) {
-        supabaseSync.syncCharacter(merged).catch(() => {});
-      }
-      return merged;
+      return { ...prev, ...updated };
     });
   };
 

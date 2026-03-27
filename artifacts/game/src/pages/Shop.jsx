@@ -40,17 +40,17 @@ export default function Shop({ character, onCharacterUpdate }) {
       const res = await base44.functions.invoke("getShopRotation", {
         characterId: character.id, forceRefresh
       });
-      if (res.data?.success === false && res.data?.error) {
-        toast({ title: res.data.error, variant: "destructive" });
+      if (res?.success === false && res?.error) {
+        toast({ title: res.error, variant: "destructive" });
         return;
       }
-      if (res.data?.success) {
-        setShopItems(res.data.items || []);
-        setNextRefreshAt(res.data.nextRefreshAt);
-        if (res.data.gemsSpent > 0) {
-          const newGems = (character.gems || 0) - res.data.gemsSpent;
+      if (res?.success) {
+        setShopItems(res.items || []);
+        setNextRefreshAt(res.nextRefreshAt);
+        if (res.gemsSpent > 0) {
+          const newGems = (character.gems || 0) - res.gemsSpent;
           onCharacterUpdate({ ...character, gems: newGems });
-          toast({ title: `Stock refreshed! (${res.data.gemsSpent} gems spent)`, duration: 2000 });
+          toast({ title: `Stock refreshed! (${res.gemsSpent} gems spent)`, duration: 2000 });
         }
       }
     } catch (e) {

@@ -9,7 +9,6 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Users, Shield, AlertCircle, Check, X, ChevronRight, Backpack, Lock, Volume2, Trash2, Edit, Globe, RefreshCw, Swords, LogOut } from "lucide-react";
 import { ROLES } from "@/lib/roleSystem";
 import { useAuth } from "@/lib/AuthContext";
-import { supabaseSync } from "@/lib/supabaseSync";
 
 
 export default function AdminPanel() {
@@ -39,7 +38,7 @@ export default function AdminPanel() {
     queryKey: ["allUsers"],
     queryFn: async () => {
       const res = await base44.functions.invoke("getAllUsers", {});
-      return res.data?.users || [];
+      return Array.isArray(res) ? res : res?.users || [];
     },
     enabled: isAdmin,
   });
@@ -49,7 +48,7 @@ export default function AdminPanel() {
     queryKey: ["allCharacters"],
     queryFn: async () => {
       const res = await base44.functions.invoke("getAllCharacters", {});
-      return res.data?.characters || [];
+      return Array.isArray(res) ? res : res?.characters || [];
     },
     enabled: isAdmin,
   });
@@ -66,8 +65,8 @@ export default function AdminPanel() {
   const managePlayerMutation = useMutation({
     mutationFn: (data) => base44.functions.invoke("managePlayer", data),
     onSuccess: (response) => {
-      if (response.data?.data) {
-        setSelectedCharacter(prev => prev ? { ...prev, ...response.data.data } : null);
+      if (response?.data) {
+        setSelectedCharacter(prev => prev ? { ...prev, ...response } : null);
       }
       queryClient.invalidateQueries({ queryKey: ["allCharacters"] });
     },
@@ -93,16 +92,16 @@ export default function AdminPanel() {
 
   const { data: serverPlayers = [], refetch: refetchServerPlayers, isFetching: fetchingServerPlayers } = useQuery({
     queryKey: ["serverPlayers"],
-    queryFn: () => supabaseSync.fetchAllServerPlayers(),
-    enabled: isAdmin && supabaseSync.isEnabled(),
+    queryFn: () => base44.entities.Character.list("-level", 100),
+    enabled: isAdmin,
     refetchInterval: 30000,
   });
 
   const updateStatsMutation = useMutation({
     mutationFn: (data) => base44.functions.invoke("managePlayer", data),
     onSuccess: (response) => {
-      if (response.data?.data) {
-        setSelectedCharacter(prev => prev ? { ...prev, ...response.data.data } : null);
+      if (response) {
+        setSelectedCharacter(prev => prev ? { ...prev, ...response } : null);
       }
       queryClient.invalidateQueries({ queryKey: ["allCharacters"] });
       setEditStats(null);
@@ -333,12 +332,7 @@ export default function AdminPanel() {
                 Refresh
               </Button>
             </div>
-            {!supabaseSync.isEnabled() ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <Globe className="w-8 h-8 mx-auto mb-2 opacity-30" />
-                <p>Supabase not connected. Server player list requires Supabase.</p>
-              </div>
-            ) : serverPlayers.length === 0 ? (
+            {serverPlayers.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Users className="w-8 h-8 mx-auto mb-2 opacity-30" />
                 <p>No players synced to server yet.</p>

@@ -39,7 +39,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
     const loadUserRole = async () => {
       try {
         const response = await base44.functions.invoke("getCurrentUser", {});
-        setCurrentUserRole(response.data?.role);
+        setCurrentUserRole(response?.role);
       } catch (e) {
         console.log("Could not fetch user role");
       }

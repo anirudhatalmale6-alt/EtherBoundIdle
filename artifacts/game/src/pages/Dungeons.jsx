@@ -182,11 +182,11 @@ export default function Dungeons({ character, onCharacterUpdate }) {
         characterId: character.id,
         dungeonId: dungeon.id,
       });
-      if (res.data?.success) {
-        setActiveSession(res.data.session);
-        await broadcastDungeonEntry(res.data.session.id, dungeon.id, dungeon.name);
+      if (res?.success) {
+        setActiveSession(res.session);
+        await broadcastDungeonEntry(res.session.id, dungeon.id, dungeon.name);
       } else {
-        toast({ title: res.data?.error || "Failed to create session", variant: "destructive" });
+        toast({ title: res?.error || "Failed to create session", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: e.message, variant: "destructive" });
@@ -204,12 +204,12 @@ export default function Dungeons({ character, onCharacterUpdate }) {
         characterId: character.id,
         sessionId: joinId.trim(),
       });
-      if (res.data?.success) {
-        setActiveSession(res.data.session);
+      if (res?.success) {
+        setActiveSession(res.session);
         setShowJoin(false);
         setJoinId("");
       } else {
-        toast({ title: res.data?.error || "Session not found", variant: "destructive" });
+        toast({ title: res?.error || "Session not found", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: e.message, variant: "destructive" });
@@ -227,10 +227,10 @@ export default function Dungeons({ character, onCharacterUpdate }) {
         characterId: character.id,
         sessionId,
       });
-      if (res.data?.success) {
-        setActiveSession(res.data.session);
+      if (res?.success) {
+        setActiveSession(res.session);
       } else {
-        toast({ title: res.data?.error || "Could not join", variant: "destructive" });
+        toast({ title: res?.error || "Could not join", variant: "destructive" });
       }
     } catch (e) {
       toast({ title: e.message, variant: "destructive" });
@@ -417,8 +417,8 @@ export default function Dungeons({ character, onCharacterUpdate }) {
                                 characterId: character.id,
                                 dungeonId: dungeon.id,
                               });
-                              if (res.data?.success) {
-                                const sess = res.data.session;
+                              if (res?.success) {
+                                const sess = res.session;
                                 setActiveSession(sess);
                                 // Broadcast to all party members
                                 if (partyData?.id) {
@@ -433,7 +433,7 @@ export default function Dungeons({ character, onCharacterUpdate }) {
                                   toast({ title: `Dungeon invite sent to ${partyData.members.length - 1} party member(s)!`, duration: 3000 });
                                 }
                               } else {
-                                toast({ title: res.data?.error || "Failed to create", variant: "destructive" });
+                                toast({ title: res?.error || "Failed to create", variant: "destructive" });
                               }
                             } catch (err) {
                               toast({ title: err.message, variant: "destructive" });

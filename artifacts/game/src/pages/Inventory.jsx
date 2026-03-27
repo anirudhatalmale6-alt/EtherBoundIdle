@@ -248,16 +248,16 @@ export default function Inventory({ character, onCharacterUpdate }) {
   const sellMutation = useMutation({
     mutationFn: async (itemIdToSell) => {
       const response = await base44.functions.invoke('sellItem', { itemId: itemIdToSell });
-      if (response.data?.success) {
-        onCharacterUpdate({ ...character, gold: response.data.newGold });
+      if (response?.success) {
+        onCharacterUpdate({ ...character, gold: response.newGold });
         queryClient.invalidateQueries({ queryKey: ["items"] });
         queryClient.invalidateQueries({ queryKey: ["characters"] });
         setSelectedItem(null);
-        toast({ title: `Sold for ${response.data.sellPrice} gold!`, duration: 1000 });
-      } else if (response.data?.error) {
-        toast({ title: response.data.error, variant: 'destructive' });
+        toast({ title: `Sold for ${response.sellPrice} gold!`, duration: 1000 });
+      } else if (response?.error) {
+        toast({ title: response.error, variant: 'destructive' });
       }
-      return response.data;
+      return response;
     },
   });
 

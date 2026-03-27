@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { base44 } from "@/api/base44Client";
-import { supabaseSync } from "@/lib/supabaseSync";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +22,6 @@ export default function Leaderboard() {
   const { data: characters = [], isLoading } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      if (supabaseSync.isEnabled()) {
-        const players = await supabaseSync.fetchAllServerPlayers();
-        if (players.length > 0) return players;
-      }
       return base44.entities.Character.list("-level", 50);
     },
     refetchInterval: 30000,
@@ -36,7 +31,7 @@ export default function Leaderboard() {
     queryKey: ["userRolesMap"],
     queryFn: async () => {
       const res = await base44.functions.invoke("getAllUsers", {});
-      const users = res.data?.users || [];
+      const users = Array.isArray(res) ? res : res?.users || [];
       const map = {};
       users.forEach(u => { if (u.email) map[u.email] = u.role; });
       return map;
@@ -47,16 +42,16 @@ export default function Leaderboard() {
     queryKey: ["currentUser"],
     queryFn: async () => {
       const response = await base44.functions.invoke("getCurrentUser", {});
-      setCurrentUser(response.data);
-      return response.data;
+      setCurrentUser(response);
+      return response;
     },
   });
 
   const managePlayerMutation = useMutation({
     mutationFn: (data) => base44.functions.invoke("managePlayer", data),
     onSuccess: (response) => {
-      if (response.data?.data) {
-        setSelectedChar(prev => prev ? { ...prev, ...response.data.data } : null);
+      if (response) {
+        setSelectedChar(prev => prev ? { ...prev, ...response } : null);
       }
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
     },
@@ -65,8 +60,8 @@ export default function Leaderboard() {
   const updateStatsMutation = useMutation({
     mutationFn: (data) => base44.functions.invoke("managePlayer", data),
     onSuccess: (response) => {
-      if (response.data?.data) {
-        setSelectedChar(prev => prev ? { ...prev, ...response.data.data } : null);
+      if (response) {
+        setSelectedChar(prev => prev ? { ...prev, ...response } : null);
       }
       queryClient.invalidateQueries({ queryKey: ["leaderboard"] });
       setEditStats(null);

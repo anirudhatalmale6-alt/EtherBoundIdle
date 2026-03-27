@@ -34,7 +34,7 @@ export default function GoldTransmutation({ character, onCharacterUpdate }) {
   const transmuteMutation = useMutation({
     mutationFn: async () => {
       const response = await base44.functions.invoke('transmuteGold', {});
-      return response.data;
+      return response;
     },
     onSuccess: (data) => {
       if (data.success) {

@@ -15,12 +15,12 @@ export default function DailyLoginModal({ character, onCharacterUpdate }) {
     const claim = async () => {
       try {
         const res = await base44.functions.invoke("claimDailyLogin", { characterId: character.id });
-        if (res.data?.success) {
-          setReward(res.data.reward);
-          setStreak(res.data.streak);
+        if (res?.success) {
+          setReward(res.reward);
+          setStreak(res.streak);
           onCharacterUpdate({
-            gold: (character.gold || 0) + (res.data.reward?.gold || 0),
-            gems: (character.gems || 0) + (res.data.reward?.gems || 0),
+            gold: (character.gold || 0) + (res.reward?.gold || 0),
+            gems: (character.gems || 0) + (res.reward?.gems || 0),
           });
           setShow(true);
         }
