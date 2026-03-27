@@ -91,7 +91,7 @@ router.post("/auth/register", async (req: Request, res: Response) => {
     const sid = await createSession(sessionData);
     setSessionCookie(res, sid);
 
-    sendSuccess(res, { user: authUser }, 201);
+    sendSuccess(res, { user: authUser, sessionId: sid }, 201);
   } catch (err: any) {
     req.log.error({ err }, "Register error");
     sendError(res, 500, "Registration failed. Please try again.");
@@ -133,7 +133,7 @@ router.post("/auth/login", async (req: Request, res: Response) => {
     const sid = await createSession(sessionData);
     setSessionCookie(res, sid);
 
-    sendSuccess(res, { user: authUser });
+    sendSuccess(res, { user: authUser, sessionId: sid });
   } catch (err: any) {
     req.log.error({ err }, "Login error");
     sendError(res, 500, "Login failed. Please try again.");

@@ -20,17 +20,14 @@ export const AuthProvider = ({ children }) => {
       if (me) {
         setUser(me);
         setIsAuthenticated(true);
-        localStorage.setItem('eb_local_user', JSON.stringify(me));
       } else {
         setUser(null);
         setIsAuthenticated(false);
-        localStorage.removeItem('eb_local_user');
       }
     } catch (error) {
       console.error('Session check failed:', error);
       setUser(null);
       setIsAuthenticated(false);
-      localStorage.removeItem('eb_local_user');
     } finally {
       setIsLoadingAuth(false);
     }
@@ -54,10 +51,13 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: msg };
       }
 
-      const u = json.data?.user || json.user;
+      const data = json.data || {};
+      if (data.sessionId) {
+        localStorage.setItem('eb_session_id', data.sessionId);
+      }
+      const u = data.user;
       setUser(u);
       setIsAuthenticated(true);
-      localStorage.setItem('eb_local_user', JSON.stringify(u));
       return { success: true };
     } catch (err) {
       const msg = err.message || 'Registration failed';
@@ -84,10 +84,13 @@ export const AuthProvider = ({ children }) => {
         return { success: false, error: msg };
       }
 
-      const u = json.data?.user || json.user;
+      const data = json.data || {};
+      if (data.sessionId) {
+        localStorage.setItem('eb_session_id', data.sessionId);
+      }
+      const u = data.user;
       setUser(u);
       setIsAuthenticated(true);
-      localStorage.setItem('eb_local_user', JSON.stringify(u));
       return { success: true };
     } catch (err) {
       const msg = err.message || 'Login failed';

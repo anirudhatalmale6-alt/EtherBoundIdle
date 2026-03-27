@@ -17,15 +17,11 @@ export default function CharacterCreation({ onCreated }) {
   const createMutation = useMutation({
     mutationFn: async () => {
       try {
-        const me = await base44.auth.me();
-        if (!me) throw new Error("Not authenticated");
-
         const cls = CLASSES[selectedClass];
         const baseHp = (CLASS_BASE_HP[selectedClass] || 100) + cls.baseStats.vitality * VIT_TO_HP;
         const baseMp = (CLASS_BASE_MP[selectedClass] || 50) + cls.baseStats.intelligence * INT_TO_MP;
         const char = await base44.entities.Character.create({
           name,
-          created_by: me.id,
           class: selectedClass,
           level: 1,
           exp: 0,

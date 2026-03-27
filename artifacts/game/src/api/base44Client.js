@@ -19,22 +19,36 @@ function getApiUrl() {
 async function apiFetch(path, options = {}) {
   const baseUrl = getApiUrl();
   const url = `${baseUrl}/api${path}`;
+
+  const headers = {
+    'Content-Type': 'application/json',
+    ...(options.headers || {}),
+  };
+
+  const sid = localStorage.getItem('eb_session_id');
+  if (sid) {
+    headers['Authorization'] = `Bearer ${sid}`;
+  }
+
   const res = await fetch(url, {
     credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+    headers,
     ...options,
   });
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok || json.success === false) {
-    throw new Error(json.error || `API error: ${res.status}`);
+
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || data.success === false) {
+    throw new Error(data.error || `API error: ${res.status}`);
   }
-  return json.data !== undefined ? json.data : json;
+
+  return data.data !== undefined ? data.data : data;
 }
 
 function createEntityProxy(entityName) {
   return {
-    async create(data) {
-      return apiFetch(`/entities/${entityName}`, { method: 'POST', body: JSON.stringify(data) });
+    async create(body) {
+      return apiFetch(`/entities/${entityName}`, { method: 'POST', body: JSON.stringify(body) });
     },
     async get(id) {
       return apiFetch(`/entities/${entityName}/${id}`);
@@ -50,8 +64,8 @@ function createEntityProxy(entityName) {
     async list(sort, limit) {
       return this.filter({}, sort, limit);
     },
-    async update(id, data) {
-      return apiFetch(`/entities/${entityName}/${id}`, { method: 'PATCH', body: JSON.stringify(data) });
+    async update(id, body) {
+      return apiFetch(`/entities/${entityName}/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
     },
     async delete(id) {
       return apiFetch(`/entities/${entityName}/${id}`, { method: 'DELETE' });
@@ -111,7 +125,7 @@ export const base44 = {
       try {
         await apiFetch('/auth/logout', { method: 'POST' });
       } catch {}
-      try { localStorage.removeItem('eb_local_user'); } catch {}
+      try { localStorage.removeItem('eb_session_id'); } catch {}
       try { sessionStorage.removeItem('activeCharacter'); } catch {}
       window.location.reload();
     },

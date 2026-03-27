@@ -1,0 +1,197 @@
+Refactor my entire frontend into a clean, minimal, production-ready structure.
+
+IMPORTANT:
+Do a FULL cleanup. Remove all hacks, duplicates, and inconsistent logic.
+
+---
+
+## 🎯 GOAL
+
+Create a SIMPLE frontend with:
+
+* one API system
+* one response format
+* no duplicated logic
+* no hybrid/local/server confusion
+* stable authentication flow
+
+---
+
+## ❌ REMOVE COMPLETELY
+
+* localStorage fallback mode
+* hybrid entity system (local + server)
+* duplicate entity proxies
+* inconsistent API handling
+* any logic that switches between "local" and "server"
+
+Keep ONLY server-based communication.
+
+---
+
+## 🔥 API CLIENT (CRITICAL)
+
+Refactor apiFetch to:
+
+* ALWAYS call res.json() ONLY ONCE
+
+* ALWAYS return:
+  return data.data
+
+* Handle errors like:
+  if (!res.ok) throw new Error(data.error)
+
+Final apiFetch MUST look like:
+
+async function apiFetch(path, options = {}) {
+const baseUrl = getApiUrl();
+const url = `${baseUrl}/api${path}`;
+
+const headers = {
+"Content-Type": "application/json",
+...(options.headers || {}),
+};
+
+const sid = localStorage.getItem("eb_session_id");
+if (sid) {
+headers["Authorization"] = `Bearer ${sid}`;
+}
+
+const res = await fetch(url, {
+credentials: "include",
+headers,
+...options,
+});
+
+const data = await res.json().catch(() => ({}));
+
+if (!res.ok) {
+throw new Error(data.error || "API error");
+}
+
+return data.data;
+}
+
+---
+
+## 🔁 RESPONSE HANDLING (FIX EVERYWHERE)
+
+Remove ALL usages of:
+
+* result.data[0]
+* result[0]
+* mixed handling
+
+Replace EVERY API usage with:
+
+const data = await apiFetch(...);
+
+Use it directly.
+
+---
+
+## 🔐 AUTH SYSTEM
+
+Refactor auth to:
+
+async login(data) {
+const res = await apiFetch("/auth/login", {
+method: "POST",
+body: JSON.stringify(data),
+});
+
+localStorage.setItem("eb_session_id", res.sessionId);
+return res;
+}
+
+async me() {
+try {
+return await apiFetch("/auth/user");
+} catch {
+return null;
+}
+}
+
+---
+
+## 👤 CHARACTER CREATION FIX
+
+Replace mutation logic with:
+
+const char = await apiFetch("/character", {
+method: "POST",
+body: JSON.stringify({...})
+});
+
+return char;
+
+NO:
+
+* result.data[0]
+* array checks
+* fallback logic
+
+---
+
+## 🧱 STRUCTURE
+
+Refactor into:
+
+src/
+api/
+client.ts
+hooks/
+useAuth.ts
+useCharacter.ts
+pages/
+components/
+
+---
+
+## 🧠 STATE MANAGEMENT
+
+* Keep it simple
+* Use React Query correctly
+* No manual caching hacks
+* No duplicated state logic
+
+---
+
+## 🚨 FIX THESE BUGS
+
+* JSON showing on screen after character creation
+* "Not authenticated" after login
+* broken API responses
+* inconsistent navigation after actions
+
+---
+
+## ✨ CLEAN UI FLOW
+
+After character creation:
+→ directly transition to game
+→ no raw JSON rendering
+→ no errors
+
+---
+
+## 🧹 CLEANUP
+
+* remove unused imports
+* delete dead code
+* simplify components
+* reduce complexity
+
+---
+
+## 🧠 FINAL RESULT
+
+I want:
+
+* ONE clean API layer
+* ONE consistent response format
+* ZERO duplication
+* ZERO hacks
+* smooth game flow
+
+Do NOT explain. Just refactor everything cleanly.
