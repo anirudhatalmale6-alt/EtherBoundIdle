@@ -5,9 +5,10 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import cors from "cors";
-app.use(cors());
 
 const app: Express = express();
+
+app.use(cors());
 
 app.use(
   pinoHttp({
