@@ -82,7 +82,8 @@ Character, Item, Guild, Quest, Trade, Party, PartyActivity, PartyInvite, Presenc
 - **GemLab**: Uses `gem_labs` table (characterId, data JSONB) — NOT character.gemLab JSONB
 - **Gear upgrades**: Safe = 300*(upgrade+1)*rarityMult gold, +5%; Star = ceil(5*1.5^star*rarityMult) gems, +15%/destroy, max 7; Awaken = 50 gems (star 7), +50%
 - **Fight**: regionKey from char.currentRegion, isBoss/isElite from ENEMIES definition
-- **Auth**: Session-based with cookie + Bearer token fallback
+- **Auth**: Custom bcrypt email/password auth (NOT Supabase Auth). Passwords hashed with bcrypt (12 rounds). Sessions stored in `sessions` table, cookie `sid` set httpOnly. Frontend calls backend via `fetch` with `credentials: 'include'`. Cookie `secure` flag is env-aware (true in production only). Routes: `POST /api/auth/register`, `POST /api/auth/login`, `GET /api/auth/user`, `POST /api/auth/logout`.
+- **Users table**: has `password_hash` and `username` columns
 - **Admin**: requireAdmin checks userRolesTable (role "admin" or "moderator")
 
 ## Environment Variables

@@ -1,78 +1,141 @@
-import * as oidc from "openid-client";
 import { Router, type IRouter, type Request, type Response } from "express";
+import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 import {
   clearSession,
-  getOidcConfig,
   getSessionId,
   createSession,
   SESSION_COOKIE,
   SESSION_TTL,
   type SessionData,
+  type AuthUser,
 } from "../lib/auth";
 
-const OIDC_COOKIE_TTL = 10 * 60 * 1000;
-
+const SALT_ROUNDS = 12;
 const router: IRouter = Router();
 
-function getOrigin(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || "https";
-  const host =
-    req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
-  return `${proto}://${host}`;
-}
+const isProduction = process.env.NODE_ENV === "production";
 
 function setSessionCookie(res: Response, sid: string) {
   res.cookie(SESSION_COOKIE, sid, {
     httpOnly: true,
-    secure: true,
-    sameSite: "lax",
+    secure: isProduction,
+    sameSite: isProduction ? "lax" : "none",
     path: "/",
     maxAge: SESSION_TTL,
   });
 }
 
-function setOidcCookie(res: Response, name: string, value: string) {
-  res.cookie(name, value, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    path: "/",
-    maxAge: OIDC_COOKIE_TTL,
-  });
-}
-
-function getSafeReturnTo(value: unknown): string {
-  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
-    return "/";
-  }
-  return value;
-}
-
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: claims.sub as string,
-    email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
+function sanitizeUser(row: typeof usersTable.$inferSelect): AuthUser {
+  return {
+    id: row.id,
+    email: row.email,
+    username: row.username ?? null,
+    firstName: row.firstName ?? null,
+    lastName: row.lastName ?? null,
+    profileImageUrl: row.profileImageUrl ?? null,
   };
-
-  const [user] = await db
-    .insert(usersTable)
-    .values(userData)
-    .onConflictDoUpdate({
-      target: usersTable.id,
-      set: {
-        ...userData,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-  return user;
 }
+
+function isValidEmail(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+router.post("/auth/register", async (req: Request, res: Response) => {
+  try {
+    const { email, password, username } = req.body ?? {};
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "A valid email address is required." });
+      return;
+    }
+
+    if (typeof password !== "string" || password.length < 6) {
+      res.status(400).json({ error: "Password must be at least 6 characters." });
+      return;
+    }
+
+    if (username !== undefined && username !== null && typeof username !== "string") {
+      res.status(400).json({ error: "Username must be a string." });
+      return;
+    }
+
+    const normalizedEmail = email.toLowerCase().trim();
+    const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
+
+    let newUser;
+    try {
+      [newUser] = await db
+        .insert(usersTable)
+        .values({
+          email: normalizedEmail,
+          passwordHash,
+          username: typeof username === "string" ? username.trim() || null : null,
+        })
+        .returning();
+    } catch (dbErr: any) {
+      if (dbErr?.code === "23505" || dbErr?.constraint?.includes("email")) {
+        res.status(409).json({ error: "An account with this email already exists." });
+        return;
+      }
+      throw dbErr;
+    }
+
+    const authUser = sanitizeUser(newUser);
+    const sessionData: SessionData = { user: authUser };
+    const sid = await createSession(sessionData);
+    setSessionCookie(res, sid);
+
+    res.status(201).json({ user: authUser });
+  } catch (err: any) {
+    console.error("Register error:", err);
+    res.status(500).json({ error: "Registration failed. Please try again." });
+  }
+});
+
+router.post("/auth/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body ?? {};
+
+    if (!isValidEmail(email)) {
+      res.status(400).json({ error: "A valid email address is required." });
+      return;
+    }
+
+    if (typeof password !== "string" || !password) {
+      res.status(400).json({ error: "Password is required." });
+      return;
+    }
+
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.email, email.toLowerCase().trim()));
+
+    if (!user) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    const valid = await bcrypt.compare(password, user.passwordHash);
+    if (!valid) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    const authUser = sanitizeUser(user);
+    const sessionData: SessionData = { user: authUser };
+    const sid = await createSession(sessionData);
+    setSessionCookie(res, sid);
+
+    res.json({ user: authUser });
+  } catch (err: any) {
+    console.error("Login error:", err);
+    res.status(500).json({ error: "Login failed. Please try again." });
+  }
+});
 
 router.get("/auth/user", (req: Request, res: Response) => {
   res.json({
@@ -80,114 +143,10 @@ router.get("/auth/user", (req: Request, res: Response) => {
   });
 });
 
-router.get("/login", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const returnTo = getSafeReturnTo(req.query.returnTo);
-
-  const state = oidc.randomState();
-  const nonce = oidc.randomNonce();
-  const codeVerifier = oidc.randomPKCECodeVerifier();
-  const codeChallenge = await oidc.calculatePKCECodeChallenge(codeVerifier);
-
-  const redirectTo = oidc.buildAuthorizationUrl(config, {
-    redirect_uri: callbackUrl,
-    scope: "openid email profile offline_access",
-    code_challenge: codeChallenge,
-    code_challenge_method: "S256",
-    prompt: "login consent",
-    state,
-    nonce,
-  });
-
-  setOidcCookie(res, "code_verifier", codeVerifier);
-  setOidcCookie(res, "nonce", nonce);
-  setOidcCookie(res, "state", state);
-  setOidcCookie(res, "return_to", returnTo);
-
-  res.redirect(redirectTo.href);
-});
-
-router.get("/callback", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const callbackUrl = `${getOrigin(req)}/api/callback`;
-
-  const codeVerifier = req.cookies?.code_verifier;
-  const nonce = req.cookies?.nonce;
-  const expectedState = req.cookies?.state;
-
-  if (!codeVerifier || !expectedState) {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const currentUrl = new URL(
-    `${callbackUrl}?${new URL(req.url, `http://${req.headers.host}`).searchParams}`,
-  );
-
-  let tokens: oidc.TokenEndpointResponse & oidc.TokenEndpointResponseHelpers;
-  try {
-    tokens = await oidc.authorizationCodeGrant(config, currentUrl, {
-      pkceCodeVerifier: codeVerifier,
-      expectedNonce: nonce,
-      expectedState,
-      idTokenExpected: true,
-    });
-  } catch {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const returnTo = getSafeReturnTo(req.cookies?.return_to);
-
-  res.clearCookie("code_verifier", { path: "/" });
-  res.clearCookie("nonce", { path: "/" });
-  res.clearCookie("state", { path: "/" });
-  res.clearCookie("return_to", { path: "/" });
-
-  const claims = tokens.claims();
-  if (!claims) {
-    res.redirect("/api/login");
-    return;
-  }
-
-  const dbUser = await upsertUser(
-    claims as unknown as Record<string, unknown>,
-  );
-
-  const now = Math.floor(Date.now() / 1000);
-  const sessionData: SessionData = {
-    user: {
-      id: dbUser.id,
-      email: dbUser.email,
-      firstName: dbUser.firstName,
-      lastName: dbUser.lastName,
-      profileImageUrl: dbUser.profileImageUrl,
-    },
-    access_token: tokens.access_token,
-    refresh_token: tokens.refresh_token,
-    expires_at: tokens.expiresIn() ? now + tokens.expiresIn()! : claims.exp,
-  };
-
-  const sid = await createSession(sessionData);
-  setSessionCookie(res, sid);
-  res.redirect(returnTo);
-});
-
-router.get("/logout", async (req: Request, res: Response) => {
-  const config = await getOidcConfig();
-  const origin = getOrigin(req);
-
+router.post("/auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   await clearSession(res, sid);
-
-  const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
-    post_logout_redirect_uri: origin,
-  });
-
-  res.redirect(endSessionUrl.href);
+  res.json({ success: true });
 });
 
 export default router;

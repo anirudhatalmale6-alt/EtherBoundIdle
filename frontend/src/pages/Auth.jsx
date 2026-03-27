@@ -52,10 +52,6 @@ export default function Auth() {
       const result = await register(email, password, username.trim());
       if (!result.success) {
         setError(result.error || "Registration failed.");
-      } else if (result.needsConfirmation) {
-        setSuccess("Account created! Check your email to confirm, then log in.");
-        setMode("login");
-        setPassword("");
       }
     } catch (err) {
       setError("Registration failed. Please try again.");
