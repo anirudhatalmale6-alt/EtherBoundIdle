@@ -1,0 +1,215 @@
+import React, { useState, useEffect } from "react";
+import { Outlet, Link, useLocation } from "react-router-dom";
+import { 
+  Swords, Shield, Backpack, Map, Users, ShoppingBag, 
+  Trophy, ScrollText, Menu, X, Coins, Gem, MessageCircle,
+  LogOut, RotateCcw, Leaf, ChevronDown, BarChart3, Wrench, Skull, Zap, Settings
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { base44 } from "@/api/base44Client";
+import RoleBadge from "@/components/game/RoleBadge";
+import CharacterProfileModal from "@/components/game/CharacterProfileModal";
+import IdleStatusBar from "@/components/game/IdleStatusBar";
+
+const NAV_ITEMS = [
+  { path: "/", icon: Swords, label: "Battle" },
+  { path: "/inventory", icon: Backpack, label: "Inventory" },
+  { path: "/world", icon: Map, label: "World" },
+  { path: "/guild", icon: Users, label: "Guild" },
+  { path: "/shop", icon: ShoppingBag, label: "Shop" },
+  { path: "/quests", icon: ScrollText, label: "Quests" },
+  { path: "/leaderboard", icon: Trophy, label: "Ranking" },
+  { path: "/dashboard", icon: BarChart3, label: "Dashboard" },
+  { path: "/social", icon: MessageCircle, label: "Social" },
+  { path: "/lifeskills", icon: Leaf, label: "Life Skills" },
+  { path: "/gearupgrading", icon: Wrench, label: "Gear Upgrading" },
+  { path: "/dungeons", icon: Skull, label: "Dungeons" },
+  { path: "/skilltree", icon: Zap, label: "Skill Tree" },
+  { path: "/admin", icon: Shield, label: "Admin", admin: true },
+  { path: "/gameconfig", icon: Settings, label: "Game Config", admin: true },
+];
+
+export default function GameLayout({ character, onCharacterUpdate, onBackToSelection }) {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [currentUserRole, setCurrentUserRole] = useState(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const location = useLocation();
+
+  React.useEffect(() => {
+    const loadUserRole = async () => {
+      try {
+        const response = await base44.functions.invoke("getCurrentUser", {});
+        setCurrentUserRole(response.data?.role);
+      } catch (e) {
+        console.log("Could not fetch user role");
+      }
+    };
+    loadUserRole();
+  }, []);
+
+  return (
+    <div className="flex h-screen overflow-hidden bg-background">
+      {/* Sidebar - Desktop */}
+      <aside className="hidden md:flex flex-col w-64 border-r border-border bg-card/50 backdrop-blur-sm">
+        <div className="p-4 border-b border-border">
+          <h1 className="font-orbitron text-xl font-bold text-primary tracking-wider">
+            IDLE REALM
+          </h1>
+          <p className="text-xs text-muted-foreground mt-1">Online MMORPG</p>
+        </div>
+
+        {character && (
+          <div className="p-4 border-b border-border">
+            <button
+              onClick={() => setProfileOpen(true)}
+              className="flex items-center gap-3 w-full hover:bg-muted/50 rounded-lg p-1 -m-1 transition-colors group"
+            >
+              <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center group-hover:border-primary/60 transition-colors">
+                <Shield className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0 text-left">
+                <div className="flex items-center gap-1.5">
+                  <p className="font-semibold text-sm truncate">{character.name}</p>
+                  <RoleBadge role={currentUserRole} />
+                </div>
+                <p className="text-xs text-muted-foreground">Lv.{character.level} {character.class}</p>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
+            </button>
+            <div className="flex gap-3 mt-3 text-xs">
+              <span className="flex items-center gap-1 text-accent">
+                <Coins className="w-3 h-3" /> {(character.gold || 0).toLocaleString()}
+              </span>
+              <span className="flex items-center gap-1 text-secondary">
+                <Gem className="w-3 h-3" /> {character.gems || 0}
+              </span>
+            </div>
+          </div>
+        )}
+
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+           {NAV_ITEMS.map(({ path, icon: Icon, label, admin }) => {
+              // Hide admin link if user is not admin
+              if (admin && currentUserRole !== "admin" && currentUserRole !== "superadmin") return null;
+
+              const active = location.pathname === path;
+              return (
+                <Link
+                  key={path}
+                  to={path}
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                    active
+                      ? "bg-primary/15 text-primary glow-cyan"
+                      : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  {label}
+                </Link>
+              );
+            })}
+          </nav>
+
+        <div className="p-3 border-t border-border space-y-2">
+          <Button
+            variant="outline"
+            className="w-full gap-2 text-xs justify-start"
+            onClick={onBackToSelection}
+          >
+            <RotateCcw className="w-3.5 h-3.5" /> Character Selection
+          </Button>
+          <Button
+            variant="ghost"
+            className="w-full gap-2 text-xs justify-start text-destructive hover:text-destructive"
+            onClick={() => base44.auth.logout()}
+          >
+            <LogOut className="w-3.5 h-3.5" /> Logout
+          </Button>
+        </div>
+      </aside>
+
+      {/* Mobile Header */}
+      <div className="flex flex-col flex-1 overflow-hidden">
+        <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-card/50">
+          <h1 className="font-orbitron text-lg font-bold text-primary">IDLE REALM</h1>
+          <div className="flex items-center gap-2">
+            {character && (
+              <>
+                <span className="flex items-center gap-1 text-xs text-accent">
+                  <Coins className="w-3 h-3" /> {(character.gold || 0).toLocaleString()}
+                </span>
+                <span className="flex items-center gap-1 text-xs text-secondary">
+                  <Gem className="w-3 h-3" /> {character.gems || 0}
+                </span>
+              </>
+            )}
+            <Button variant="ghost" size="icon" onClick={() => setMobileOpen(!mobileOpen)}>
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </Button>
+          </div>
+        </header>
+
+        {/* Mobile Nav Overlay */}
+         {mobileOpen && (
+            <div className="md:hidden absolute inset-0 z-50 bg-background/95 backdrop-blur-sm pt-16">
+              <nav className="p-4 space-y-2">
+                {NAV_ITEMS.map(({ path, icon: Icon, label, admin }) => {
+                  if (admin && currentUserRole !== "admin" && currentUserRole !== "superadmin") return null;
+                  return (
+                  <Link
+                    key={path}
+                    to={path}
+                    onClick={() => setMobileOpen(false)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-lg text-base font-medium transition-all ${
+                      location.pathname === path
+                        ? "bg-primary/15 text-primary"
+                        : "text-muted-foreground hover:text-foreground hover:bg-muted"
+                    }`}
+                  >
+                    <Icon className="w-5 h-5" />
+                    {label}
+                  </Link>
+                );
+                })}
+               <div className="border-t border-border mt-4 pt-4 space-y-2">
+                 <Button
+                   variant="outline"
+                   className="w-full gap-2 justify-start"
+                   onClick={() => {
+                     setMobileOpen(false);
+                     onBackToSelection();
+                   }}
+                 >
+                   <RotateCcw className="w-4 h-4" /> Character Selection
+                 </Button>
+                 <Button
+                   variant="ghost"
+                   className="w-full gap-2 justify-start text-destructive hover:text-destructive"
+                   onClick={() => base44.auth.logout()}
+                 >
+                   <LogOut className="w-4 h-4" /> Logout
+                 </Button>
+               </div>
+             </nav>
+           </div>
+         )}
+
+        {character && <IdleStatusBar character={character} />}
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
+
+      {/* Character Profile Modal */}
+      {profileOpen && character && (
+        <CharacterProfileModal
+          character={character}
+          onCharacterUpdate={onCharacterUpdate}
+          onClose={() => setProfileOpen(false)}
+        />
+      )}
+    </div>
+  );
+}
