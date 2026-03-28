@@ -6,6 +6,7 @@ import { logger } from "./lib/logger";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import cors from "cors";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -44,10 +45,16 @@ app.use(authMiddleware);
 app.use("/api", router);
 
 const publicDir = path.resolve(__dirname, "public");
+const indexPath = path.join(publicDir, "index.html");
+logger.info({ publicDir, indexExists: fs.existsSync(indexPath) }, "Static file serving configured");
 app.use(express.static(publicDir));
 app.get("/{*splat}", (req: Request, res: Response) => {
   if (req.path.startsWith("/api")) return;
-  res.sendFile(path.join(publicDir, "index.html"));
+  if (fs.existsSync(indexPath)) {
+    res.sendFile(indexPath);
+  } else {
+    res.status(500).send("Frontend not built. Run: cd artifacts/game && npx vite build && cd ../api-server && node build.mjs");
+  }
 });
 
 export default app;
