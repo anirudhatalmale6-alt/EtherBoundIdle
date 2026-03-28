@@ -1,11 +1,5 @@
-const DEFAULT_API_URL = 'http://46.224.121.242:3000';
-
 function detectApiUrl() {
-  const host = window.location.hostname;
-  if (host.includes('replit.dev') || host.includes('replit.app') || host === 'localhost' || host === '127.0.0.1') {
-    return window.location.origin;
-  }
-  return DEFAULT_API_URL;
+  return window.location.origin;
 }
 
 function getApiUrl() {
@@ -13,7 +7,7 @@ function getApiUrl() {
     const stored = localStorage.getItem('eb_api_url');
     if (stored) return stored;
     return detectApiUrl();
-  } catch { return DEFAULT_API_URL; }
+  } catch { return detectApiUrl(); }
 }
 
 async function apiFetch(path, options = {}) {
