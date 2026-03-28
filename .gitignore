@@ -50,3 +50,7 @@ Thumbs.db
 EbIdle
 EbIdle.pub
 *.pem
+
+# Environment files with secrets
+.env
+artifacts/api-server/.env
