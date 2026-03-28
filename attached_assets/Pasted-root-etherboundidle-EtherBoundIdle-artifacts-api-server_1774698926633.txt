@@ -1,0 +1,51 @@
+root@etherboundidle:~/EtherBoundIdle/artifacts/api-server# pm2 logs
+[TAILING] Tailing last 15 lines for [all] processes (change the value with --lines option)
+/root/.pm2/pm2.log last 15 lines:
+PM2        | 2026-03-28T11:50:44: PM2 log: Stopping app:etherbound id:0
+PM2        | 2026-03-28T11:50:44: PM2 log: App [etherbound:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-03-28T11:50:44: PM2 log: pid=47686 msg=process killed
+PM2        | 2026-03-28T11:51:46: PM2 log: App [etherbound:0] starting in -fork mode-
+PM2        | 2026-03-28T11:51:46: PM2 log: App [etherbound:0] online
+PM2        | 2026-03-28T11:53:11: PM2 log: Stopping app:etherbound id:0
+PM2        | 2026-03-28T11:53:11: PM2 log: App [etherbound:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-03-28T11:53:11: PM2 log: pid=47833 msg=process killed
+PM2        | 2026-03-28T11:53:11: PM2 log: App [etherbound:0] starting in -fork mode-
+PM2        | 2026-03-28T11:53:11: PM2 log: App [etherbound:0] online
+PM2        | 2026-03-28T11:54:37: PM2 log: Stopping app:etherbound id:0
+PM2        | 2026-03-28T11:54:37: PM2 log: App [etherbound:0] exited with code [0] via signal [SIGINT]
+PM2        | 2026-03-28T11:54:37: PM2 log: pid=47916 msg=process killed
+PM2        | 2026-03-28T11:54:45: PM2 log: App [etherbound:0] starting in -fork mode-
+PM2        | 2026-03-28T11:54:45: PM2 log: App [etherbound:0] online
+
+/root/.pm2/logs/etherbound-error.log last 15 lines:
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+0|etherbou | /usr/bin/node: .env: not found
+
+/root/.pm2/logs/etherbound-out.log last 15 lines:
+0|etherbou | r (node:net:1965:12)\n    at Server.listen (node:net:2067:7)\n    at Function.listen (file:///root/EtherBoundIdle/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/application.js:605:24)\n    at file:///root/EtherBoundIdle/artifacts/api-server/src/index.ts:18:5\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at ModuleLoader.import (node:internal/modules/esm/loader:606:24)","code":"EADDRINUSE","errno":-98,"syscall":"listen","address":"::","port":3000},"msg":"Error listening on port"}
+0|etherbou | {"level":50,"time":1774698253220,"pid":47366,"hostname":"etherboundidle","err":{"type":"Error","message":"listen EADDRINUSE: address already in use :::3000","stack":"Error: listen EADDRINUSE: address already in use :::3000\n    at Server.setupListenHandle [as _listen2] (node:net:1908:16)\n    at listenInCluster (node:net:1965:12)\n    at Server.listen (node:net:2067:7)\n    at Function.listen (file:///root/EtherBoundIdle/node_modules/.pnpm/express@5.2.1/node_modules/express/lib/application.js:605:24)\n    at file:///root/EtherBoundIdle/artifacts/api-server/src/index.ts:18:5\n    at ModuleJob.run (node:internal/modules/esm/module_job:325:25)\n    at ModuleLoader.import (node:internal/modules/esm/loader:606:24)","code":"EADDRINUSE","errno":-98,"syscall":"listen","address":"::","port":3000},"msg":"Error listening on port"}
+0|etherbou | {"level":30,"time":1774698305936,"pid":47421,"hostname":"etherboundidle","port":3000,"msg":"Server listening"}
+0|etherbou | {"level":30,"time":1774698633650,"pid":47686,"hostname":"etherboundidle","port":3000,"msg":"Server listening"}
+0|etherbou | {"level":30,"time":1774698706660,"pid":47833,"hostname":"etherboundidle","port":3000,"msg":"Server listening"}
+0|etherbou | {"level":30,"time":1774698791694,"pid":47916,"hostname":"etherboundidle","port":3000,"msg":"Server listening"}
+0|etherbou | {"level":30,"time":1774698803283,"pid":47916,"hostname":"etherboundidle","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":4,"msg":"request completed"}
+0|etherbou | {"level":30,"time":1774698803410,"pid":47916,"hostname":"etherboundidle","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|etherbou | {"level":30,"time":1774698824078,"pid":47916,"hostname":"etherboundidle","req":{"id":3,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|etherbou | {"level":30,"time":1774698835774,"pid":47916,"hostname":"etherboundidle","req":{"id":4,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+0|etherbou | {"level":30,"time":1774698886040,"pid":48063,"hostname":"etherboundidle","port":3000,"msg":"Server listening"}
+0|etherbou | {"level":30,"time":1774698892965,"pid":48063,"hostname":"etherboundidle","req":{"id":1,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":3,"msg":"request completed"}
+0|etherbou | {"level":30,"time":1774698894337,"pid":48063,"hostname":"etherboundidle","req":{"id":2,"method":"GET","url":"/"},"res":{"statusCode":404},"responseTime":1,"msg":"request completed"}
+
