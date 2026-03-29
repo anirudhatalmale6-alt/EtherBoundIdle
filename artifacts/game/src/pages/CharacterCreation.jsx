@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
+import { apiFetch } from "../api/client";
 import { useMutation } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -20,7 +20,9 @@ export default function CharacterCreation({ onCreated }) {
         const cls = CLASSES[selectedClass];
         const baseHp = (CLASS_BASE_HP[selectedClass] || 100) + cls.baseStats.vitality * VIT_TO_HP;
         const baseMp = (CLASS_BASE_MP[selectedClass] || 50) + cls.baseStats.intelligence * INT_TO_MP;
-        const char = await base44.entities.Character.create({
+	const char = await apiFetch("/entities/Character", {
+    	method: "POST",
+  	body: JSON.stringify({
           name,
           class: selectedClass,
           level: 1,
@@ -46,7 +48,8 @@ export default function CharacterCreation({ onCreated }) {
           daily_quests_completed: 0,
           weekly_quests_completed: 0,
           last_idle_claim: new Date().toISOString(),
-        });
+ 	}),
+       });
         return char;
       } catch (err) {
         console.error("Failed to create character:", err);

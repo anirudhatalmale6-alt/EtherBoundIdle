@@ -1,131 +1,77 @@
-function detectApiUrl() {
-  return window.location.origin;
-}
-
-function getApiUrl() {
-  try {
-    const stored = localStorage.getItem('eb_api_url');
-    if (stored) return stored;
-    return detectApiUrl();
-  } catch { return detectApiUrl(); }
-}
-
-async function apiFetch(path, options = {}) {
-  const baseUrl = getApiUrl();
-  const url = `${baseUrl}/api${path}`;
-
-  const headers = {
-    'Content-Type': 'application/json',
-    ...(options.headers || {}),
-  };
-
-  const sid = localStorage.getItem('eb_session_id');
-  if (sid) {
-    headers['Authorization'] = `Bearer ${sid}`;
-  }
-
-  const res = await fetch(url, {
-    credentials: 'include',
-    headers,
-    ...options,
-  });
-
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok || data.success === false) {
-    throw new Error(data.error || `API error: ${res.status}`);
-  }
-
-  return data.data !== undefined ? data.data : data;
-}
-
-function createEntityProxy(entityName) {
-  return {
-    async create(body) {
-      return apiFetch(`/entities/${entityName}`, { method: 'POST', body: JSON.stringify(body) });
-    },
-    async get(id) {
-      return apiFetch(`/entities/${entityName}/${id}`);
-    },
-    async filter(query = {}, sort, limit) {
-      const params = new URLSearchParams();
-      if (query && Object.keys(query).length) params.set('filter', JSON.stringify(query));
-      if (sort) params.set('sort', sort);
-      if (limit) params.set('limit', String(limit));
-      const qs = params.toString();
-      return apiFetch(`/entities/${entityName}${qs ? '?' + qs : ''}`);
-    },
-    async list(sort, limit) {
-      return this.filter({}, sort, limit);
-    },
-    async update(id, body) {
-      return apiFetch(`/entities/${entityName}/${id}`, { method: 'PATCH', body: JSON.stringify(body) });
-    },
-    async delete(id) {
-      return apiFetch(`/entities/${entityName}/${id}`, { method: 'DELETE' });
-    },
-    subscribe(callback) {
-      let active = true;
-      let timeout;
-      const poll = () => {
-        if (!active) return;
-        try { callback({ type: 'poll' }); } catch {}
-        timeout = setTimeout(poll, 15000);
-      };
-      timeout = setTimeout(poll, 15000);
-      return () => {
-        active = false;
-        if (timeout) clearTimeout(timeout);
-      };
-    },
-  };
-}
-
-const entityNames = [
-  'Character', 'Item', 'Guild', 'Quest', 'Trade',
-  'Party', 'PartyActivity', 'PartyInvite', 'Presence',
-  'PlayerSession', 'ChatMessage', 'Mail', 'Resource',
-  'FriendRequest', 'Friendship', 'TradeSession',
-  'DungeonSession', 'GemLab', 'PrivateMessage',
-];
-
-const entities = {};
-entityNames.forEach(name => {
-  entities[name] = createEntityProxy(name);
-});
+import { apiFetch } from "./client";
 
 export const base44 = {
-  entities,
+  getApiUrl() {
+    return "";
+  },
 
-  functions: {
-    async invoke(functionName, params = {}) {
-      return apiFetch(`/functions/${functionName}`, {
-        method: 'POST',
-        body: JSON.stringify(params),
+  entities: new Proxy({}, {
+    get(_, entity) {
+      return {
+        async create(data) {
+          return apiFetch(`/entities/${entity}`, {
+            method: "POST",
+            body: JSON.stringify(data),
+          });
+        },
+        async update(id, data) {
+          return apiFetch(`/entities/${entity}/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(data),
+          });
+        },
+        async delete(id) {
+          return apiFetch(`/entities/${entity}/${id}`, {
+            method: "DELETE",
+          });
+        },
+        async list() {
+          return apiFetch(`/entities/${entity}`);
+        },
+        async filter() {
+          return apiFetch(`/entities/${entity}`);
+        },
+        async get(id) {
+          return apiFetch(`/entities/${entity}/${id}`);
+        },
+        subscribe() {
+          return () => {}; // dummy
+        }
+      };
+    }
+  }),
+
+  auth: {
+    async me() {
+      return apiFetch("/auth/user");
+    },
+    async login(email, password) {
+      return apiFetch("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+    },
+    async register(email, password) {
+      return apiFetch("/auth/register", {
+        method: "POST",
+        body: JSON.stringify({ email, password }),
+      });
+    },
+    async logout() {
+      return apiFetch("/auth/logout", {
+        method: "POST",
       });
     },
   },
 
-  auth: {
-    async me() {
-      try {
-        const result = await apiFetch('/auth/user');
-        return result?.user || null;
-      } catch {
-        return null;
-      }
-    },
-    async logout() {
-      try {
-        await apiFetch('/auth/logout', { method: 'POST' });
-      } catch {}
-      try { localStorage.removeItem('eb_session_id'); } catch {}
-      try { sessionStorage.removeItem('activeCharacter'); } catch {}
-      window.location.reload();
+  functions: {
+    async invoke(name, data) {
+      return apiFetch(`/functions/${name}`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      });
     },
   },
-
-  getApiUrl,
 };
 
 export default base44;

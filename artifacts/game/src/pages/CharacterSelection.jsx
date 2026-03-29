@@ -1,5 +1,5 @@
+import { apiFetch } from "../api/client";
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
@@ -25,13 +25,9 @@ export default function CharacterSelection({ onCharacterSelected }) {
     queryFn: async () => {
       try {
         // Always fetch from the authenticated user's session
-        const me = await base44.auth.me();
-        if (!me) {
-          console.error("No authenticated user found");
-          return [];
-        }
+
         // Query characters created by the authenticated user (bound to server via created_by email)
-        const chars = await base44.entities.Character.filter({ created_by: me.email }, "-updated_date", 100);
+	const chars = await apiFetch("/entities/Character");
         return chars || [];
       } catch (err) {
         console.error("Failed to fetch characters:", err);
@@ -53,7 +49,10 @@ export default function CharacterSelection({ onCharacterSelected }) {
 
   const deleteMutation = useMutation({
     mutationFn: async (characterId) => {
-      await base44.entities.Character.delete(characterId);
+    await apiFetch(`/entities/Character/${characterId}`, {
+    method: "DELETE"
+});
+
       queryClient.invalidateQueries({ queryKey: ["characters"] });
       setDeleteConfirm(null);
     },

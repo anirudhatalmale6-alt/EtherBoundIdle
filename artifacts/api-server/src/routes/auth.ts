@@ -1,4 +1,5 @@
-import { Router, type IRouter, type Request, type Response } from "express";
+import { getSession, getSessionId } from "../lib/session";
+import { Router, type Request, type Response } from "express";
 import bcrypt from "bcryptjs";
 import { db, usersTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -8,18 +9,16 @@ import {
   createSession,
   SESSION_COOKIE,
   SESSION_TTL,
-  type SessionData,
-  type AuthUser,
 } from "../lib/auth";
 import { sendSuccess, sendError } from "../lib/response";
 
+const router = Router();
 const SALT_ROUNDS = 12;
-const router: IRouter = Router();
 
 const isProduction = process.env.NODE_ENV === "production";
 
 function setSessionCookie(res: Response, sid: string) {
-  res.cookie(SESSION_COOKIE, sid, {
+  res.cookie("sid", sid, {
     httpOnly: true,
     secure: isProduction,
     sameSite: "lax",
@@ -28,88 +27,51 @@ function setSessionCookie(res: Response, sid: string) {
   });
 }
 
-function sanitizeUser(row: typeof usersTable.$inferSelect): AuthUser {
-  return {
-    id: row.id,
-    email: row.email,
-    username: row.username ?? null,
-    firstName: row.firstName ?? null,
-    lastName: row.lastName ?? null,
-    profileImageUrl: row.profileImageUrl ?? null,
-  };
+function isValidEmail(email: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function isValidEmail(value: unknown): value is string {
-  if (typeof value !== "string") return false;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
+// ================= REGISTER =================
 router.post("/auth/register", async (req: Request, res: Response) => {
   try {
     const { email, password, username } = req.body ?? {};
 
-    if (!isValidEmail(email)) {
-      sendError(res, 400, "A valid email address is required.");
-      return;
+    if (!email || !isValidEmail(email)) {
+      return sendError(res, 400, "Invalid email");
     }
 
-    if (typeof password !== "string" || password.length < 6) {
-      sendError(res, 400, "Password must be at least 6 characters.");
-      return;
+    if (!password || password.length < 6) {
+      return sendError(res, 400, "Password too short");
     }
 
-    if (username !== undefined && username !== null && typeof username !== "string") {
-      sendError(res, 400, "Username must be a string.");
-      return;
-    }
-
-    const normalizedEmail = email.toLowerCase().trim();
     const passwordHash = await bcrypt.hash(password, SALT_ROUNDS);
 
-    let newUser;
-    try {
-      [newUser] = await db
-        .insert(usersTable)
-        .values({
-          email: normalizedEmail,
-          passwordHash,
-          username: typeof username === "string" ? username.trim() || null : null,
-        })
-        .returning();
-    } catch (dbErr: any) {
-      const pgCode = dbErr?.code || dbErr?.cause?.code;
-      const pgConstraint = dbErr?.constraint || dbErr?.cause?.constraint || "";
-      if (pgCode === "23505" || pgConstraint.includes("email")) {
-        sendError(res, 409, "An account with this email already exists.");
-        return;
-      }
-      throw dbErr;
-    }
+    const [user] = await db
+      .insert(usersTable)
+      .values({
+        email: email.toLowerCase().trim(),
+        passwordHash,
+        username: username ?? null,
+      })
+      .returning();
 
-    const authUser = sanitizeUser(newUser);
-    const sessionData: SessionData = { user: authUser };
-    const sid = await createSession(sessionData);
-    setSessionCookie(res, sid);
+    const session = await createSession({ user });
+    setSessionCookie(res, session);
 
-    sendSuccess(res, { user: authUser, sessionId: sid }, 201);
+    return sendSuccess(res, { user });
   } catch (err: any) {
-    req.log.error({ err }, "Register error");
-    sendError(res, 500, "Registration failed. Please try again.");
+    console.error("REGISTER ERROR:", err);
+    return sendError(res, 500, "Register failed");
   }
 });
 
+// ================= LOGIN =================
 router.post("/auth/login", async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body ?? {};
 
-    if (!isValidEmail(email)) {
-      sendError(res, 400, "A valid email address is required.");
-      return;
-    }
-
-    if (typeof password !== "string" || !password) {
-      sendError(res, 400, "Password is required.");
-      return;
+    if (!email || !password) {
+      return sendError(res, 400, "Missing credentials");
     }
 
     const [user] = await db
@@ -118,36 +80,51 @@ router.post("/auth/login", async (req: Request, res: Response) => {
       .where(eq(usersTable.email, email.toLowerCase().trim()));
 
     if (!user) {
-      sendError(res, 401, "Invalid email or password.");
-      return;
+      return sendError(res, 401, "Invalid login");
     }
 
     const valid = await bcrypt.compare(password, user.passwordHash);
+
     if (!valid) {
-      sendError(res, 401, "Invalid email or password.");
-      return;
+      return sendError(res, 401, "Invalid login");
     }
 
-    const authUser = sanitizeUser(user);
-    const sessionData: SessionData = { user: authUser };
-    const sid = await createSession(sessionData);
-    setSessionCookie(res, sid);
+    const session = await createSession({ user });
+    setSessionCookie(res, session);
 
-    sendSuccess(res, { user: authUser, sessionId: sid });
-  } catch (err: any) {
-    req.log.error({ err }, "Login error");
-    sendError(res, 500, "Login failed. Please try again.");
+    return sendSuccess(res, { user });
+  } catch (err) {
+    console.error("LOGIN ERROR:", err);
+    return sendError(res, 500, "Login failed");
   }
 });
 
-router.get("/auth/user", (req: Request, res: Response) => {
-  sendSuccess(res, { user: req.user ?? null });
-});
+// ================= USER =================
+router.get("/auth/user", async (req: any, res: Response) => {
+  try {
+    const sid = getSessionId(req);
 
+    if (!sid) {
+      return res.status(401).json({ success: false, error: "Not authenticated" });
+    }
+
+    const session = await getSession(sid);
+
+    if (!session || !session.user) {
+      return res.status(401).json({ success: false, error: "Not authenticated" });
+    }
+
+    return res.json({ success: true, user: session.user });
+  } catch (err) {
+    console.error("AUTH USER ERROR:", err);
+    return res.status(500).json({ success: false, error: "Server error" });
+  }
+});
+// ================= LOGOUT =================
 router.post("/auth/logout", async (req: Request, res: Response) => {
   const sid = getSessionId(req);
   await clearSession(res, sid);
-  sendSuccess(res, null);
+  return sendSuccess(res, null);
 });
 
 export default router;

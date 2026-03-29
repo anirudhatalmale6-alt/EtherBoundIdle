@@ -54,3 +54,10 @@ EbIdle.pub
 # Environment files with secrets
 .env
 artifacts/api-server/.env
+# optional tweaks
+*.log
+coverage/
+
+# falls du sicher gehen willst
+.env.local
+.env.production

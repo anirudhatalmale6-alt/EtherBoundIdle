@@ -56,13 +56,26 @@ router.post("/auth/register", async (req: Request, res: Response) => {
 
 router.post("/auth/login", async (req: Request, res: Response) => {
   try {
-    const { id, email } = req.body;
-    if (!id) { res.status(400).json({ error: "id is required" }); return; }
+    const { email, password } = req.body;
 
-    const sessionData: SessionData = {
-      user: { id, email: email || null, firstName: null, lastName: null, profileImageUrl: null },
-      access_token: "",
-    };
+if (!email || !password) {
+  res.status(400).json({ error: "email and password required" });
+  return;
+}
+
+// 🔥 TEMP USER (bis echte DB dran ist)
+const user = {
+  id: email, // simple ID
+  email: email,
+  firstName: "Player",
+  lastName: "",
+  profileImageUrl: null,
+};
+
+const sessionData: SessionData = {
+  user,
+  access_token: "",
+};
 
     const sid = await createSession(sessionData);
     setSessionCookie(res, sid);
