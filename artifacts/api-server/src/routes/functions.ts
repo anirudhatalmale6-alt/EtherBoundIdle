@@ -593,11 +593,27 @@ router.post("/functions/manageDailyQuests", async (req: Request, res: Response) 
   if (!requireAuth(req, res)) return;
   try {
     const { characterId } = req.body;
+    const now = new Date();
+
+    // Expire old daily quests that have passed their expiry
     const existing = await db.select().from(questsTable).where(eq(questsTable.characterId, characterId));
+    for (const q of existing) {
+      if (q.status === "active" && q.expiresAt && new Date(q.expiresAt) < now) {
+        await db.update(questsTable).set({ status: "expired" }).where(eq(questsTable.id, q.id));
+        q.status = "expired";
+      }
+    }
+
     const activeQuests = existing.filter(q => q.status === "active");
     if (activeQuests.length >= 3) {
       sendSuccess(res, { quests: existing }); return;
     }
+
+    // Calculate next midnight UTC for daily expiry
+    const tomorrow = new Date(now);
+    tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
+    tomorrow.setUTCHours(0, 0, 0, 0);
+
     const questTemplates = [
       { title: "Monster Slayer", description: "Kill 10 enemies", type: "daily", objectiveType: "combat_kills", target: 10, reward: { gold: 200, exp: 100 } },
       { title: "Gold Hoarder", description: "Earn 500 gold", type: "daily", objectiveType: "gold_earned", target: 500, reward: { gold: 300, gems: 1 } },
@@ -617,10 +633,11 @@ router.post("/functions/manageDailyQuests", async (req: Request, res: Response) 
         target: template.target,
         reward: template.reward,
         status: "active",
+        expiresAt: tomorrow,
       }).returning();
       newQuests.push(quest);
     }
-    sendSuccess(res, { quests: [...existing, ...newQuests] });
+    sendSuccess(res, { quests: [...existing.filter(q => q.status !== "expired"), ...newQuests] });
   } catch (err: any) {
     req.log.error({ err }, "manageDailyQuests error");
     sendError(res, 500, err.message);
@@ -1059,6 +1076,8 @@ router.post("/functions/manageParty", async (req: Request, res: Response) => {
       }
       if (!resolvedTargetId) { sendSuccess(res, { success: false, message: "No target specified" }); return; }
       if (resolvedTargetId === characterId) { sendSuccess(res, { success: false, message: "Cannot invite yourself" }); return; }
+      const [targetChar] = await db.select().from(charactersTable).where(eq(charactersTable.id, resolvedTargetId));
+      if (!targetChar) { sendSuccess(res, { success: false, message: "Player not found" }); return; }
       const [invite] = await db.insert(partyInvitesTable).values({
         partyId,
         fromCharacterId: characterId,
@@ -1239,9 +1258,13 @@ router.post("/functions/getLeaderboard", async (req: Request, res: Response) => 
       name: c.name,
       class: c.class,
       level: c.level,
+      gold: c.gold,
+      gems: c.gems,
+      title: c.title,
       total_kills: c.totalKills,
       prestige_level: c.prestigeLevel,
       guild_id: c.guildId,
+      created_by: c.createdBy,
     }));
     sendSuccess(res, { leaderboard });
   } catch (err: any) {

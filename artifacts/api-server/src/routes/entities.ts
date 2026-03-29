@@ -160,8 +160,10 @@ const fieldMappings: Record<string, Record<string, string>> = {
   ChatMessage: {
     sender_id: "senderId",
     sender_name: "senderName",
+    content: "message",
     extra_data: "extraData",
     created_at: "createdAt",
+    created_date: "createdAt",
   },
   Mail: {
     from_character_id: "fromCharacterId",
@@ -392,6 +394,9 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
 
     if (entity === "Character") {
       dbData.createdBy = req.user!.id;
+    }
+    if (entity === "ChatMessage" && !dbData.senderId) {
+      dbData.senderId = req.user!.id;
     }
 
     if (entity === "Presence" && dbData.characterId) {

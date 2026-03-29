@@ -10,6 +10,23 @@ import {
   ScrollText, CheckCircle, Coins, Star, Gem, Clock, Calendar, Sparkles
 } from "lucide-react";
 
+function DailyTimer({ expiresAt }) {
+  const [timeLeft, setTimeLeft] = useState("");
+  useEffect(() => {
+    const tick = () => {
+      const diff = new Date(expiresAt) - Date.now();
+      if (diff <= 0) { setTimeLeft("Expired"); return; }
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      setTimeLeft(`${h}h ${m}m`);
+    };
+    tick();
+    const id = setInterval(tick, 60000);
+    return () => clearInterval(id);
+  }, [expiresAt]);
+  return <span className="text-xs text-muted-foreground ml-1">{timeLeft}</span>;
+}
+
 export default function Quests({ character, onCharacterUpdate }) {
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("daily");
@@ -96,6 +113,9 @@ export default function Quests({ character, onCharacterUpdate }) {
                 <Badge variant="secondary" className="text-xs gap-1 flex items-center">
                   <Clock className="w-3 h-3" /> Daily
                 </Badge>
+              )}
+              {quest.expires_at && (
+                <DailyTimer expiresAt={quest.expires_at} />
               )}
               {quest.type === "weekly" && (
                 <Badge variant="outline" className="text-xs gap-1 flex items-center">

@@ -96,6 +96,11 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem('eb_session_id', data.sessionId);
       }
       const u = data.user;
+      // Fetch role after login
+      try {
+        const roleData = await base44.functions.invoke("getCurrentUser", {});
+        if (roleData?.role) u.role = roleData.role;
+      } catch {}
       setUser(u);
       setIsAuthenticated(true);
       return { success: true };
