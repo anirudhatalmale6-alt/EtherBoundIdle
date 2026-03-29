@@ -23,15 +23,31 @@ export default function AdminPanel() {
   const [deleteConfirmGuild, setDeleteConfirmGuild] = useState(null);
   const queryClient = useQueryClient();
 
-  // Use auth user directly — no extra function call needed
-  const currentUser = authUser ? {
-    id: authUser.id,
-    email: authUser.email,
-    username: authUser.full_name || authUser.email?.split('@')[0],
-    role: authUser.role || 'user',
-  } : null;
-
+  const [currentUser, setCurrentUser] = useState(null);
   const isAdmin = currentUser?.role === "admin" || currentUser?.role === "superadmin";
+
+  React.useEffect(() => {
+    if (!authUser) return;
+    const fetchRole = async () => {
+      try {
+        const roleData = await base44.functions.invoke("getCurrentUser", {});
+        setCurrentUser({
+          id: authUser.id,
+          email: authUser.email,
+          username: authUser.full_name || authUser.email?.split('@')[0],
+          role: roleData?.role || authUser.role || 'user',
+        });
+      } catch {
+        setCurrentUser({
+          id: authUser.id,
+          email: authUser.email,
+          username: authUser.full_name || authUser.email?.split('@')[0],
+          role: authUser.role || 'user',
+        });
+      }
+    };
+    fetchRole();
+  }, [authUser]);
 
   // Fetch all users for management via backend function (service role)
   const { data: allUsers = [] } = useQuery({
