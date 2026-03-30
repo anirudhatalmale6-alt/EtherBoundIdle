@@ -184,15 +184,15 @@ export default function GuildPage({ character, onCharacterUpdate }) {
     },
   });
 
-  const [bossCooldown, setBossCooldown] = useState(() => idleEngine.getBossAttackStatus(character?.id));
+  const [bossCooldown, setBossCooldown] = useState(() => character?.guild_id ? idleEngine.getBossAttackStatus(character?.id) : null);
 
   useEffect(() => {
-    if (!character?.id) return;
+    if (!character?.id || !character?.guild_id) return;
     const unsub = idleEngine.on('guildBossStatus', (status) => {
       setBossCooldown(status);
     });
     return unsub;
-  }, [character?.id]);
+  }, [character?.id, character?.guild_id]);
 
   const attackBossMutation = useMutation({
     mutationFn: async () => {

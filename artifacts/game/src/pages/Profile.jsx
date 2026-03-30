@@ -151,8 +151,8 @@ export default function Profile({ character, onCharacterUpdate }) {
         </div>
 
         <div className="space-y-2">
-          <HealthBar current={character.hp || character.max_hp} max={character.max_hp} color="bg-red-500" label="HP" />
-          <HealthBar current={character.mp || character.max_mp} max={character.max_mp} color="bg-blue-500" label="MP" />
+          <HealthBar current={derived.maxHp} max={derived.maxHp} color="bg-red-500" label="HP" />
+          <HealthBar current={derived.maxMp} max={derived.maxMp} color="bg-blue-500" label="MP" />
           <HealthBar current={character.exp} max={character.exp_to_next} color="bg-primary" label="EXP" />
         </div>
       </div>
