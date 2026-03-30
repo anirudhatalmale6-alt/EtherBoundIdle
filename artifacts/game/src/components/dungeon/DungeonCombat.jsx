@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Swords, Zap, LogOut, Crown, Skull, Clock, User } from "lucide-react";
 import { SKILLS, CLASSES } from "@/lib/gameData";
+import { CLASS_SKILLS } from "@/lib/skillData";
 import PlayerProfileModal from "@/components/game/PlayerProfileModal";
 
 const CLASS_COLORS = {
@@ -128,13 +129,15 @@ export default function DungeonCombat({ session: initialSession, character, onLe
     if (isMyTurn && !loading) doAction('attack');
   };
 
-  // Use learned skills from character data; fall back to first 2 class defaults
-  const classData = CLASSES[character.class];
-  const learnedSkills = character?.skills || [];
-  const charSkillIds = learnedSkills.length > 0
-    ? learnedSkills
-    : (classData?.skills?.slice(0, 2) || []);
-  const charSkills = charSkillIds.map(id => ({ id, ...SKILLS[id] })).filter(s => s.name);
+  // Use learned skills from CLASS_SKILLS (same as Battle.jsx)
+  const allClassSkills = CLASS_SKILLS[character?.class || "warrior"] || [];
+  const hotbarIds = character?.hotbar_skills?.length > 0
+    ? character.hotbar_skills
+    : (character?.skills || []);
+  const charSkills = hotbarIds
+    .map(sid => allClassSkills.find(s => s.id === sid))
+    .filter(Boolean)
+    .slice(0, 6);
   const bossHpPct = session.boss_max_hp > 0 ? (session.boss_hp / session.boss_max_hp) * 100 : 0;
 
   return (

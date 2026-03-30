@@ -27,15 +27,13 @@ export default function Leaderboard() {
     refetchInterval: 30000,
   });
 
-  const { data: userRoles = {} } = useQuery({
-    queryKey: ["userRolesMap"],
+  const { data: playerRoles = {} } = useQuery({
+    queryKey: ["playerRolesMap"],
     queryFn: async () => {
-      const res = await base44.functions.invoke("getAllUsers", {});
-      const users = Array.isArray(res) ? res : res?.users || [];
-      const map = {};
-      users.forEach(u => { if (u.id) map[u.id] = u.role; });
-      return map;
+      const res = await base44.functions.invoke("getPlayerRoles", {});
+      return res || {};
     },
+    refetchInterval: 60000,
   });
 
   useQuery({
@@ -77,7 +75,7 @@ export default function Leaderboard() {
     <div className="space-y-2 mt-3">
       {list.slice(0, 20).map((char, idx) => {
         const cls = CLASSES[char.class];
-        const charRole = userRoles[char.created_by];
+        const charRole = playerRoles[char.created_by]?.role;
         const medals = [
           <Crown key="g" className="w-5 h-5 text-yellow-400" />,
           <Medal key="s" className="w-5 h-5 text-gray-300" />,

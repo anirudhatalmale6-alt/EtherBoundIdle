@@ -214,6 +214,32 @@ router.post("/functions/getCurrentUser", async (req: Request, res: Response) => 
   }
 });
 
+// Public endpoint for role/title data (used by leaderboard, chat)
+router.post("/functions/getPlayerRoles", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const roles = await db.select().from(userRolesTable);
+    const chars = await db.select({
+      id: charactersTable.id,
+      createdBy: charactersTable.createdBy,
+      title: charactersTable.title,
+    }).from(charactersTable);
+
+    const roleMap: Record<string, string> = {};
+    for (const r of roles) { roleMap[r.userId] = r.role; }
+
+    const result: Record<string, { role: string; title: string | null }> = {};
+    for (const c of chars) {
+      result[c.createdBy] = { role: roleMap[c.createdBy] || "player", title: c.title || null };
+    }
+
+    sendSuccess(res, result);
+  } catch (err: any) {
+    req.log.error({ err }, "getPlayerRoles error");
+    sendError(res, 500, err.message);
+  }
+});
+
 router.post("/functions/getAllUsers", async (req: Request, res: Response) => {
   if (!(await requireAdmin(req, res))) return;
   try {
@@ -1169,7 +1195,7 @@ router.post("/functions/manageParty", async (req: Request, res: Response) => {
       const [fromChar] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
       let resolvedTargetId = targetCharacterId;
       if (targetName) {
-        const matches = await db.select().from(charactersTable).where(eq(charactersTable.name, targetName));
+        const matches = await db.select().from(charactersTable).where(sql`LOWER(${charactersTable.name}) = LOWER(${targetName})`);
         if (matches.length > 0) resolvedTargetId = matches[0].id;
         else { sendError(res, 404, `Player "${targetName}" not found`); return; }
       }
@@ -1864,7 +1890,31 @@ router.post("/functions/gameConfigManager", async (req: Request, res: Response) 
     }
 
     const [configRow] = await db.select().from(gameConfigTable).where(eq(gameConfigTable.id, "global"));
-    sendSuccess(res, { success: true, id: configRow?.id || "global", config: configRow?.config || {} });
+    let config = configRow?.config || {};
+
+    // Initialize with defaults if empty
+    if (Object.keys(config as Record<string, any>).length === 0) {
+      config = {
+        PROGRESSION: { BASE_EXP: 100, EXP_GROWTH: 1.18, STAT_POINTS_PER_LEVEL: 3, SKILL_POINTS_PER_LEVEL: 1, HP_PER_LEVEL: 5, MP_PER_LEVEL: 3, MAX_LEVEL: 100 },
+        COMBAT: { BASE_ATTACK_INTERVAL_MS: 1000, BASE_CRIT_CHANCE: 0.05, CRIT_DAMAGE_MULTIPLIER: 1.5, BASE_EVASION: 0.05, BASE_BLOCK: 0.05, BLOCK_REDUCTION: 0.5, DEFENSE_TO_REDUCTION: 0.002, MAX_DAMAGE_REDUCTION: 0.6, MAX_LIFESTEAL: 50, ENEMY_DMG_VARIANCE: 0.4, IDLE_REWARD_MULTIPLIER: 0.5, AUTO_POTION_THRESHOLD: 0.4, EXP_GAIN_MULTIPLIER: 1.0, GOLD_GAIN_MULTIPLIER: 1.0, MONSTER_DMG_MULTIPLIER: 1.0 },
+        ECONOMY: { STARTING_GOLD: 100, STARTING_GEMS: 10, MAX_OFFLINE_HOURS: 168, TRANSMUTE_COST_BASE: 1000, TRANSMUTE_COST_SCALING: 1.5, TRANSMUTE_GEMS_REWARD: 1, GEM_LAB_BASE_RATE: 0.1, GEM_LAB_PRODUCTION_BONUS: 0.05, GEM_LAB_SPEED_REDUCTION: 0.1, GEM_LAB_EFFICIENCY_BONUS: 0.1, SHOP_ROTATION_HOURS: 4 },
+        LOOT: { BASE_DROP_CHANCE: 0.01, MAX_DROP_CHANCE: 0.04, LUCK_DROP_BONUS: 0.0003, BOSS_DROP_CHANCE: 0.25, SMART_LOOT_CHANCE: 0.65, SMART_LOOT_WEAPON_CHANCE: 0.40, SMART_LOOT_ARMOR_CHANCE: 0.35, LUCK_RARITY_BONUS_PER_POINT: 0.1 },
+        UPGRADES: { SAFE_GOLD_BASE: 500, SAFE_GOLD_SCALING: 1, SAFE_ORE_BASE: 5, SAFE_ORE_SCALING: 2, SAFE_STAT_BONUS_PER_LEVEL: 0.02, SAFE_MAX_LEVEL: 20, STAR_SUCCESS_CHANCES: [90, 75, 50, 35, 12, 8, 2], STAR_GEM_BASE: 5, STAR_GEM_GROWTH: 1.5, STAR_STAT_BONUS_PER_STAR: 0.05, STAR_MAX_LEVEL: 7, AWAKEN_GEM_COST: 50, AWAKEN_STAT_BONUS: 0.5 },
+        GUILDS: { MAX_MEMBERS: 20, MAX_LEVEL: 30, BASE_EXP_TO_NEXT: 1000, EXP_GROWTH: 1.3, PERK_BONUS_PER_LEVEL: 0.05, MAX_PERK_LEVEL: 10, BOSS_RESPAWN_HOURS: 24, BOSS_HP_BASE: 10000, BOSS_HP_PER_GUILD_LEVEL: 5000, TOKEN_REWARD_PER_BOSS_DAMAGE: 0.01 },
+        PARTIES: { MAX_SIZE: 6, EXP_BONUS_PER_MEMBER: 0.05, GOLD_BONUS_PER_MEMBER: 0.05, INVITE_EXPIRY_MINUTES: 5 },
+        DAILY_LOGIN: { BASE_GOLD: 100, BASE_GEMS: 2, STREAK_GOLD_MULTIPLIER: 1.1, MAX_STREAK_BONUS_DAYS: 30 },
+        LIFE_SKILLS: { BASE_GATHER_TICKS_PER_ITEM: 5, SPEED_REDUCTION_PER_LEVEL: 0.1, LUCK_RARE_BONUS_PER_LEVEL: 0.05, MAX_GATHER_LEVEL: 99, EXP_GROWTH: 1.12 },
+        RARITY_MULTIPLIERS: { common: 1.0, uncommon: 1.3, rare: 1.7, epic: 2.2, legendary: 3.0, mythic: 4.0, set: 3.5, shiny: 5.0 },
+        SELL_PRICES: { common: 5, uncommon: 20, rare: 60, epic: 200, legendary: 600, mythic: 2000, set: 800, shiny: 3000 },
+      };
+      // Persist the defaults
+      await db.insert(gameConfigTable).values({ id: "global", config }).onConflictDoUpdate({
+        target: gameConfigTable.id,
+        set: { config, updatedAt: new Date() },
+      });
+    }
+
+    sendSuccess(res, { success: true, id: configRow?.id || "global", config });
   } catch (err: any) {
     req.log.error({ err }, "gameConfigManager error");
     sendError(res, 500, err.message);

@@ -252,10 +252,11 @@ function toDb(entityName: string, data: Record<string, any>): Record<string, any
       result[mappedKey] = value;
     }
   }
-  // Merge unknown fields into extraData
+  // Merge unknown fields into the entity's JSONB overflow column (extraData or data)
   if (Object.keys(extraFields).length > 0) {
-    const existing = (result.extraData && typeof result.extraData === "object") ? result.extraData : {};
-    result.extraData = { ...existing, ...extraFields };
+    const overflowKey = columns?.has("extraData") ? "extraData" : columns?.has("data") ? "data" : "extraData";
+    const existing = (result[overflowKey] && typeof result[overflowKey] === "object") ? result[overflowKey] : {};
+    result[overflowKey] = { ...existing, ...extraFields };
   }
   delete result.createdAt;
   delete result.updatedAt;
@@ -273,13 +274,15 @@ function toClient(entityName: string, row: Record<string, any>): Record<string, 
     const clientKey = reverseMappings[key] || key;
     result[clientKey] = value;
   }
-  // Spread extraData fields onto the top-level object so the frontend can access them directly
-  // After reverse-mapping, the key may be "extraData" or "extra_data" depending on entity mappings
-  const extraDataObj = result.extraData ?? result.extra_data;
-  if (extraDataObj && typeof extraDataObj === "object") {
-    for (const [key, value] of Object.entries(extraDataObj)) {
-      if (!(key in result)) {
-        result[key] = value;
+  // Spread overflow JSONB fields onto the top-level object so the frontend can access them directly
+  // Check both extraData and data columns (Friendship/FriendRequest use data, Character uses extraData)
+  for (const overflowKey of ["extraData", "extra_data", "data"]) {
+    const obj = result[overflowKey];
+    if (obj && typeof obj === "object" && !Array.isArray(obj)) {
+      for (const [key, value] of Object.entries(obj)) {
+        if (!(key in result)) {
+          result[key] = value;
+        }
       }
     }
   }
@@ -330,6 +333,10 @@ router.get("/entities/:entity", async (req: Request, res: Response) => {
         const dbKey = (fieldMappings[entity] || {})[key] || key;
         const col = (table as any)[dbKey];
         if (!col) return null;
+        // Case-insensitive name search for Character entity
+        if (entity === "Character" && dbKey === "name" && typeof value === "string") {
+          return sql`LOWER(${col}) = LOWER(${value})`;
+        }
         return eq(col, value as any);
       }).filter(Boolean);
 
@@ -398,6 +405,16 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
 
     if (entity === "Character") {
       dbData.createdBy = req.user!.id;
+      // Prevent duplicate character names
+      if (dbData.name) {
+        const [existing] = await db.select({ id: charactersTable.id })
+          .from(charactersTable)
+          .where(sql`LOWER(${charactersTable.name}) = LOWER(${dbData.name})`);
+        if (existing) {
+          sendError(res, 400, "A character with this name already exists. Please choose a different name.");
+          return;
+        }
+      }
     }
     if (entity === "ChatMessage" && !dbData.senderId) {
       dbData.senderId = req.user!.id;
