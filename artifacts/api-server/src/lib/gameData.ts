@@ -81,7 +81,11 @@ export const ENEMIES: Record<string, { name: string; expReward: number; goldRewa
 };
 
 export function calculateExpToLevel(level: number): number {
-  return Math.floor(100 * Math.pow(1.15, level - 1));
+  // Steeper curve: base growth 1.18 per level + quadratic scaling at higher levels
+  // Lv1=100, Lv10=~430, Lv20=~2750, Lv37=~45000, Lv50=~350000, Lv100=~45M
+  const base = 100 * Math.pow(1.18, level - 1);
+  const quadratic = level > 10 ? Math.pow(level - 10, 2) * 15 : 0;
+  return Math.floor(base + quadratic);
 }
 
 const RARITY_STAT_MULTIPLIERS: Record<string, number> = {

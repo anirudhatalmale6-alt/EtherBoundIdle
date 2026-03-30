@@ -1369,15 +1369,20 @@ router.post("/functions/getLeaderboard", async (req: Request, res: Response) => 
   }
 });
 
-// Dungeon boss data keyed by dungeon ID
-const DUNGEON_BOSSES: Record<string, { name: string; hpBase: number; hpPerLevel: number; dmgBase: number; dmgPerLevel: number; dungeonName: string }> = {
-  inferno_keep: { name: "Flame Tyrant", hpBase: 800, hpPerLevel: 40, dmgBase: 15, dmgPerLevel: 3, dungeonName: "Inferno Keep" },
-  frost_citadel: { name: "Frost Warden", hpBase: 1500, hpPerLevel: 60, dmgBase: 25, dmgPerLevel: 5, dungeonName: "Frost Citadel" },
-  void_sanctum: { name: "Void Reaper", hpBase: 3000, hpPerLevel: 100, dmgBase: 40, dmgPerLevel: 8, dungeonName: "Void Sanctum" },
-  storm_peak: { name: "Storm Colossus", hpBase: 5000, hpPerLevel: 150, dmgBase: 60, dmgPerLevel: 12, dungeonName: "Storm Peak" },
-  poison_swamp: { name: "Plague Matriarch", hpBase: 2000, hpPerLevel: 80, dmgBase: 30, dmgPerLevel: 6, dungeonName: "Plague Swamp" },
-  sand_tomb: { name: "Sand King", hpBase: 4000, hpPerLevel: 120, dmgBase: 50, dmgPerLevel: 10, dungeonName: "Sand Tomb of Kings" },
+// Dungeon boss data keyed by dungeon ID — bosses have meaningful HP pools
+// and armor/resistance to make fights last longer at higher levels
+const DUNGEON_BOSSES: Record<string, { name: string; hpBase: number; hpPerLevel: number; dmgBase: number; dmgPerLevel: number; armor: number; armorPerLevel: number; dungeonName: string }> = {
+  inferno_keep: { name: "Flame Tyrant", hpBase: 5000, hpPerLevel: 300, dmgBase: 25, dmgPerLevel: 5, armor: 5, armorPerLevel: 2, dungeonName: "Inferno Keep" },
+  frost_citadel: { name: "Frost Warden", hpBase: 10000, hpPerLevel: 500, dmgBase: 40, dmgPerLevel: 8, armor: 10, armorPerLevel: 3, dungeonName: "Frost Citadel" },
+  void_sanctum: { name: "Void Reaper", hpBase: 20000, hpPerLevel: 800, dmgBase: 60, dmgPerLevel: 12, armor: 15, armorPerLevel: 4, dungeonName: "Void Sanctum" },
+  storm_peak: { name: "Storm Colossus", hpBase: 35000, hpPerLevel: 1200, dmgBase: 80, dmgPerLevel: 16, armor: 20, armorPerLevel: 5, dungeonName: "Storm Peak" },
+  poison_swamp: { name: "Plague Matriarch", hpBase: 15000, hpPerLevel: 600, dmgBase: 50, dmgPerLevel: 10, armor: 12, armorPerLevel: 3, dungeonName: "Plague Swamp" },
+  sand_tomb: { name: "Sand King", hpBase: 28000, hpPerLevel: 1000, dmgBase: 70, dmgPerLevel: 14, armor: 18, armorPerLevel: 4, dungeonName: "Sand Tomb of Kings" },
 };
+
+// Dungeon entry limits: 5 entries per 8 hours
+const DUNGEON_MAX_ENTRIES = 5;
+const DUNGEON_WINDOW_MS = 8 * 60 * 60 * 1000;
 
 // Skill data for damage multipliers (mirrored from frontend gameData)
 const SKILL_DATA: Record<string, { damage: number; mp: number }> = {
@@ -1399,6 +1404,7 @@ function buildSessionResponse(session: any): any {
     boss_name: d.boss_name || "Boss",
     boss_hp: d.boss_hp ?? 0,
     boss_max_hp: d.boss_max_hp ?? 0,
+    boss_armor: d.boss_armor ?? 0,
     status: d.status || session.status || "waiting",
     members: d.members || [],
     current_turn_index: d.current_turn_index ?? 0,
@@ -1426,6 +1432,24 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
         sendSuccess(res, { success: true, session: buildSessionResponse(existing[0]) }); return;
       }
 
+      // Enforce dungeon entry limit: 5 entries per 8 hours
+      const dungeonConfigKey = `dungeon_entries_${characterId}`;
+      const [dungeonEntry] = await db.select().from(gameConfigTable).where(eq(gameConfigTable.id, dungeonConfigKey));
+      let entryData: any = dungeonEntry?.config || { entries: [], windowStart: 0 };
+      const now = Date.now();
+      if (now - (entryData.windowStart || 0) >= DUNGEON_WINDOW_MS) {
+        entryData = { entries: [], windowStart: now };
+      }
+      if (entryData.entries.length >= DUNGEON_MAX_ENTRIES) {
+        const windowRemaining = Math.max(0, DUNGEON_WINDOW_MS - (now - (entryData.windowStart || 0)));
+        const minutesLeft = Math.ceil(windowRemaining / 60000);
+        sendError(res, 400, `Dungeon limit reached (${DUNGEON_MAX_ENTRIES} per 8 hours). Resets in ${minutesLeft} minutes.`);
+        return;
+      }
+      entryData.entries.push(now);
+      await db.insert(gameConfigTable).values({ id: dungeonConfigKey, config: entryData })
+        .onConflictDoUpdate({ target: gameConfigTable.id, set: { config: entryData } });
+
       const boss = DUNGEON_BOSSES[dungeonId] || DUNGEON_BOSSES.inferno_keep;
       const bossHp = boss.hpBase + (char.level || 1) * boss.hpPerLevel;
       const memberHp = 100 + (char.vitality || 8) * 10 + (char.level || 1) * 5;
@@ -1436,6 +1460,7 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
         boss_max_hp: bossHp,
         boss_dmg_base: boss.dmgBase,
         boss_dmg_per_level: boss.dmgPerLevel,
+        boss_armor: boss.armor + (char.level || 1) * boss.armorPerLevel,
         status: "waiting",
         leader_id: characterId,
         members: [{
@@ -1558,14 +1583,27 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       };
       const scaling = classScaling[char.class || "warrior"] || classScaling.warrior;
       const primaryStat = scaling.primary === "strength" ? totalStr : scaling.primary === "intelligence" ? totalInt : totalDex;
-      const baseDmg = primaryStat * scaling.mult + equipBonusDmg;
+      let baseDmg = primaryStat * scaling.mult + equipBonusDmg;
+      // Apply guild damage bonus
+      if (char.guildId) {
+        try {
+          const [g] = await db.select({ buffs: guildsTable.buffs }).from(guildsTable).where(eq(guildsTable.id, char.guildId));
+          if (g?.buffs && typeof g.buffs === "object") {
+            const dmgBonus = ((g.buffs as any).damage_bonus || 0) / 100;
+            baseDmg *= (1 + dmgBonus);
+          }
+        } catch {}
+      }
       let dmgMult = 1.0;
       let skillName = "Basic Attack";
       if (action === "skill" && skillId && SKILL_DATA[skillId]) {
         dmgMult = SKILL_DATA[skillId].damage || 1.0;
         skillName = skillId.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
       }
-      const playerDmg = Math.max(1, Math.floor(baseDmg * dmgMult * (0.85 + Math.random() * 0.3)));
+      const rawDmg = Math.max(1, Math.floor(baseDmg * dmgMult * (0.85 + Math.random() * 0.3)));
+      // Boss armor reduces incoming damage
+      const bossArmor = d.boss_armor || 0;
+      const playerDmg = Math.max(1, rawDmg - Math.floor(bossArmor * 0.4));
       const isCrit = Math.random() < (char.luck || 5) * 0.02;
       const finalDmg = isCrit ? Math.floor(playerDmg * 1.5) : playerDmg;
       d.boss_hp = Math.max(0, d.boss_hp - finalDmg);
@@ -1578,9 +1616,21 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       if (d.boss_hp <= 0) {
         d.status = "victory";
         d.combat_log.push({ type: "victory", text: `${d.boss_name} has been defeated! Victory!` });
-        // Reward all members
-        const goldReward = 100 + (char.level || 1) * 20;
-        const expReward = 80 + (char.level || 1) * 15;
+        // Reward all members — dungeon bosses give substantial rewards
+        const lvl = char.level || 1;
+        // Apply guild exp/gold bonuses
+        let dGuildExpBonus = 0, dGuildGoldBonus = 0;
+        if (char.guildId) {
+          try {
+            const [dg] = await db.select({ buffs: guildsTable.buffs }).from(guildsTable).where(eq(guildsTable.id, char.guildId));
+            if (dg?.buffs && typeof dg.buffs === "object") {
+              dGuildExpBonus = ((dg.buffs as any).exp_bonus || 0) / 100;
+              dGuildGoldBonus = ((dg.buffs as any).gold_bonus || 0) / 100;
+            }
+          } catch {}
+        }
+        const goldReward = Math.floor((500 + lvl * 80 + Math.pow(lvl, 1.3) * 10) * (1 + dGuildGoldBonus));
+        const expReward = Math.floor((400 + lvl * 60 + Math.pow(lvl, 1.3) * 8) * (1 + dGuildExpBonus));
         for (const m of members) {
           try {
             await db.update(charactersTable).set({
@@ -1838,8 +1888,35 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
     const partyMembers = Math.max(0, (partySize || 1) - 1);
     const partyExpBonus = partyMembers * 0.05;
     const partyGoldBonus = partyMembers * 0.10;
-    const expGain = Math.round(enemyData.expReward * empoweredMult * (1 + partyExpBonus));
-    const goldGain = Math.round(enemyData.goldReward * empoweredMult * (1 + partyGoldBonus));
+
+    // Apply guild perk bonuses (exp_bonus, gold_bonus as percentages)
+    let guildExpBonus = 0;
+    let guildGoldBonus = 0;
+    if (char.guildId) {
+      try {
+        const [guild] = await db.select({ buffs: guildsTable.buffs }).from(guildsTable).where(eq(guildsTable.id, char.guildId));
+        if (guild?.buffs && typeof guild.buffs === "object") {
+          guildExpBonus = ((guild.buffs as any).exp_bonus || 0) / 100;
+          guildGoldBonus = ((guild.buffs as any).gold_bonus || 0) / 100;
+        }
+      } catch {}
+    }
+
+    // Apply active character buffs (from guild shop scrolls/runes)
+    let buffExpBonus = 0;
+    let buffGoldBonus = 0;
+    const charExtra = (char.extraData as any) || {};
+    const activeBuffs = charExtra.active_buffs || [];
+    const nowMs = Date.now();
+    for (const buff of activeBuffs) {
+      if (new Date(buff.expires_at).getTime() > nowMs) {
+        if (buff.type === "exp_bonus") buffExpBonus += (buff.value || 0) / 100;
+        if (buff.type === "gold_bonus") buffGoldBonus += (buff.value || 0) / 100;
+      }
+    }
+
+    const expGain = Math.round(enemyData.expReward * empoweredMult * (1 + partyExpBonus + guildExpBonus + buffExpBonus));
+    const goldGain = Math.round(enemyData.goldReward * empoweredMult * (1 + partyGoldBonus + guildGoldBonus + buffGoldBonus));
 
     let newExp = (char.exp || 0) + expGain;
     let newLevel = char.level || 1;
@@ -2012,6 +2089,28 @@ router.post("/functions/getPlayer", async (req: Request, res: Response) => {
       });
   } catch (err: any) {
     req.log.error({ err }, "getPlayer error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// Dungeon entry status — how many entries remain for this character
+router.post("/functions/dungeonEntryStatus", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId } = req.body;
+    if (!characterId) return sendError(res, 400, "characterId required");
+    const dungeonConfigKey = `dungeon_entries_${characterId}`;
+    const [entry] = await db.select().from(gameConfigTable).where(eq(gameConfigTable.id, dungeonConfigKey));
+    let data: any = entry?.config || { entries: [], windowStart: 0 };
+    const now = Date.now();
+    if (now - (data.windowStart || 0) >= DUNGEON_WINDOW_MS) {
+      data = { entries: [], windowStart: now };
+    }
+    const entriesUsed = data.entries.length;
+    const entriesLeft = Math.max(0, DUNGEON_MAX_ENTRIES - entriesUsed);
+    const windowRemaining = Math.max(0, DUNGEON_WINDOW_MS - (now - (data.windowStart || 0)));
+    sendSuccess(res, { entriesUsed, entriesLeft, maxEntries: DUNGEON_MAX_ENTRIES, windowRemaining });
+  } catch (err: any) {
     sendError(res, 500, err.message);
   }
 });
