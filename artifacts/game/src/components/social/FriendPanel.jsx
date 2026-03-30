@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { UserPlus, UserMinus, Star, StarOff, Ban, Check, X, Search, Wifi, WifiOff } from "lucide-react";
+import { UserPlus, UserMinus, Star, StarOff, Ban, Check, X, Search, Wifi, WifiOff, MessageCircle, Users } from "lucide-react";
+import { useToast } from "@/components/ui/use-toast";
 import { CLASSES } from "@/lib/gameData";
 
 const STATUS_COLOR = {
@@ -22,7 +23,8 @@ const STATUS_LABEL = {
   offline: "Offline",
 };
 
-export default function FriendPanel({ character }) {
+export default function FriendPanel({ character, onWhisper }) {
+  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [searchResults, setSearchResults] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -233,6 +235,19 @@ export default function FriendPanel({ character }) {
                   </div>
                 </div>
                 <div className="flex gap-1">
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => onWhisper?.(f.friend_name)} title="Whisper">
+                    <MessageCircle className="w-3.5 h-3.5" />
+                  </Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={async () => {
+                    try {
+                      const result = await base44.functions.invoke("manageParty", { action: "invite", characterId: character.id, targetCharacterId: f.friend_id });
+                      toast({ title: "Party Invite", description: result?.message || `Invited ${f.friend_name} to your party.` });
+                    } catch (err) {
+                      toast({ title: "Party Invite Failed", description: err.message || "Could not send invite.", variant: "destructive" });
+                    }
+                  }} title="Party Invite">
+                    <Users className="w-3.5 h-3.5" />
+                  </Button>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => toggleFavMutation.mutate(f)} title="Toggle Favorite">
                     {f.is_favorite ? <StarOff className="w-3.5 h-3.5 text-yellow-400" /> : <Star className="w-3.5 h-3.5" />}
                   </Button>

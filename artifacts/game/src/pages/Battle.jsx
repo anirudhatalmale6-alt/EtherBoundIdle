@@ -152,20 +152,30 @@ export default function Battle({ character, onCharacterUpdate }) {
     }
     const enemyData = ENEMIES[key];
     if (!enemyData) return;
-    const lvlScale = 1 + (character.level - 1) * 0.1;
+    // Randomize enemy level within region's level range (+-3 from character level, clamped)
+    const regionMin = region?.levelRange?.[0] || 1;
+    const regionMax = region?.levelRange?.[1] || character.level;
+    const baseEnemyLevel = Math.max(regionMin, Math.min(regionMax, character.level + Math.floor(Math.random() * 7) - 3));
+    const enemyLevel = Math.max(1, baseEnemyLevel);
+    const lvlScale = 1 + (enemyLevel - 1) * 0.1;
     const hpMult = isEmpowered ? 3 : 1;
     const dmgMult = isEmpowered ? 1.5 : 1;
     const hp = Math.floor(enemyData.baseHp * lvlScale * hpMult);
+    // Scale rewards slightly based on enemy level relative to player
+    const levelDiff = enemyLevel - character.level;
+    const rewardScale = Math.max(0.5, 1 + levelDiff * 0.05);
     const spawnData = {
       ...enemyData,
       key,
+      level: enemyLevel,
       maxHp: hp,
       dmg: Math.floor(enemyData.baseDmg * lvlScale * dmgMult),
+      defense: Math.floor((enemyData.defense || 0) * lvlScale),
       isElite: enemyData.isElite || false,
       isEmpowered,
       name: isEmpowered ? `⚡ ${enemyData.name}` : enemyData.name,
-      expReward: isEmpowered ? enemyData.expReward * 3 : enemyData.expReward,
-      goldReward: isEmpowered ? enemyData.goldReward * 3 : enemyData.goldReward,
+      expReward: Math.floor((isEmpowered ? enemyData.expReward * 3 : enemyData.expReward) * rewardScale),
+      goldReward: Math.floor((isEmpowered ? enemyData.goldReward * 3 : enemyData.goldReward) * rewardScale),
     };
     setEnemy(spawnData);
     setEnemyHp(hp);
@@ -616,15 +626,13 @@ export default function Battle({ character, onCharacterUpdate }) {
         const response = await base44.functions.invoke('catchUpOfflineProgress', { characterId: character.id });
         if (response?.success && response.hours_offline > 0) {
           const results = response.results || {};
-          let totalGems = 0;
-          if (results.gemLab) {
-            totalGems = results.gemLab.gems_gained || 0;
-          }
+          // Gem lab gains stay in pending_gems (claimed via Gem Lab UI), not added to balance
+          const gemLabPending = results.gemLab?.gems_gained || 0;
           const goldGained = results.gold || 0;
           const expGained = results.exp || 0;
           setWelcomeBackRewards({
             gold: goldGained,
-            gems: totalGems,
+            gemLabPending,
             lifeSkills: results.lifeSkills,
           });
           setWelcomeBackHours(parseFloat(response.hours_offline));
@@ -633,7 +641,7 @@ export default function Battle({ character, onCharacterUpdate }) {
           const updates = {};
           if (goldGained > 0) updates.gold = (character.gold || 0) + goldGained;
           if (expGained > 0) updates.exp = (character.exp || 0) + expGained;
-          if (totalGems > 0) updates.gems = (character.gems || 0) + totalGems;
+          // Don't add gem lab gems to balance — they go to pending and must be claimed
           if (Object.keys(updates).length > 0) {
             onCharacterUpdate(updates);
           }
@@ -820,7 +828,8 @@ export default function Battle({ character, onCharacterUpdate }) {
                   <p className="font-bold">{enemy.name}</p>
                   <p className="text-xs text-muted-foreground">
                     {enemy.isBoss && <Badge variant="destructive" className="mr-1 text-xs">BOSS</Badge>}
-                    DMG: {enemy.dmg}
+                    {enemy.isEmpowered && <Badge className="mr-1 text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Empowered</Badge>}
+                    Lv.{enemy.level || "?"} · DMG: {enemy.dmg}
                   </p>
                 </div>
               </div>

@@ -352,7 +352,10 @@ router.post("/functions/managePlayer", async (req: Request, res: Response) => {
       const updateData: Record<string, any> = {};
       for (const [key, val] of Object.entries(statsData)) {
         const dbField = allowedFields[key];
-        if (dbField && typeof val === "number") updateData[dbField] = val;
+        if (dbField) {
+          const numVal = typeof val === "number" ? val : Number(val);
+          if (!isNaN(numVal)) updateData[dbField] = numVal;
+        }
       }
       // When admin changes level, auto-recalculate expToNext and add stat/skill points
       if (updateData.level) {
@@ -1103,7 +1106,8 @@ router.post("/functions/claimGemLabGems", async (req: Request, res: Response) =>
 router.post("/functions/upgradeGemLab", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   try {
-    const { characterId, upgradeType } = req.body;
+    const { characterId, upgradeType, count: rawCount } = req.body;
+    const count = Math.min(Math.max(1, rawCount || 1), 100);
     if (!(await requireCharacterOwner(req, res, characterId))) return;
     let [lab] = await db.select().from(gemLabsTable).where(eq(gemLabsTable.characterId, characterId));
     if (!lab) {
@@ -1115,17 +1119,61 @@ router.post("/functions/upgradeGemLab", async (req: Request, res: Response) => {
     const labData = (lab.data as any) || {};
     const levelKey = upgradeType === "production" ? "production_level" : upgradeType === "speed" ? "speed_level" : "efficiency_level";
     const currentLevel = labData[levelKey] || 0;
-    const cost = Math.floor(1000 * Math.pow(1.15, currentLevel));
+    // Calculate total cost for buying `count` levels
+    let totalCost = 0;
+    for (let i = 0; i < count; i++) {
+      totalCost += Math.floor(1000 * Math.pow(1.15, currentLevel + i));
+    }
     const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
-    if (!char || (char.gold || 0) < cost) {
+    if (!char || (char.gold || 0) < totalCost) {
       sendSuccess(res, { success: false, error: "Not enough gold" }); return;
     }
-    labData[levelKey] = currentLevel + 1;
+    labData[levelKey] = currentLevel + count;
     await db.update(gemLabsTable).set({ data: labData }).where(eq(gemLabsTable.id, lab.id));
-    await db.update(charactersTable).set({ gold: (char.gold || 0) - cost }).where(eq(charactersTable.id, char.id));
-    sendSuccess(res, { success: true, upgradeType, goldRemaining: (char.gold || 0) - cost });
+    await db.update(charactersTable).set({ gold: (char.gold || 0) - totalCost }).where(eq(charactersTable.id, char.id));
+    sendSuccess(res, { success: true, upgradeType, levelsGained: count, goldRemaining: (char.gold || 0) - totalCost });
   } catch (err: any) {
     req.log.error({ err }, "upgradeGemLab error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// Reset stat/skill points for gems
+router.post("/functions/resetStatPoints", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId, resetType } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { sendError(res, 404, "Character not found"); return; }
+    const cost = resetType === "skills" ? 50 : 100;
+    if ((char.gems || 0) < cost) {
+      sendSuccess(res, { success: false, error: `Not enough gems (need ${cost})` }); return;
+    }
+    const updates: any = { gems: (char.gems || 0) - cost };
+    if (resetType === "skills") {
+      // Refund all skill points — reset skills array and restore skill points
+      const totalSkillPoints = 3 * ((char.level || 1) - 1);
+      updates.skillPoints = totalSkillPoints;
+      updates.skills = [];
+    } else {
+      // Reset stat points — return all allocated stat points
+      const totalStatPoints = 3 * ((char.level || 1) - 1);
+      updates.statPoints = totalStatPoints;
+      updates.strength = 10;
+      updates.dexterity = 10;
+      updates.intelligence = 10;
+      updates.vitality = 10;
+      updates.luck = 10;
+      // Recalculate maxHp/maxMp with base stats
+      updates.maxHp = Math.floor(100 + 10 * 8);
+      updates.maxMp = Math.floor(50 + 10 * 3);
+    }
+    await db.update(charactersTable).set(updates).where(eq(charactersTable.id, characterId));
+    const [updated] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    sendSuccess(res, { success: true, character: updated, gemsRemaining: (char.gems || 0) - cost });
+  } catch (err: any) {
+    req.log.error({ err }, "resetStatPoints error");
     sendError(res, 500, err.message);
   }
 });

@@ -8,6 +8,7 @@ import CombatStatsChart from "@/components/dashboard/CombatStatsChart";
 import SkillBreakdownChart from "@/components/dashboard/SkillBreakdownChart";
 import GoldTransmutation from "@/components/game/GoldTransmutation";
 import GemLabPanel from "@/components/game/GemLabPanel";
+import { formatGold } from "@/lib/formatGold";
 
 export default function Dashboard({ character, onCharacterUpdate }) {
   const [chartVisibility, setChartVisibility] = useState({
@@ -46,7 +47,7 @@ export default function Dashboard({ character, onCharacterUpdate }) {
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
           <p className="text-xs text-muted-foreground">Gold</p>
-          <p className="font-bold text-lg text-accent">{(character.gold || 0).toLocaleString()}</p>
+          <p className="font-bold text-lg text-accent">{formatGold(character.gold || 0)}</p>
         </div>
         <div className="bg-card border border-border rounded-lg p-3">
           <p className="text-xs text-muted-foreground">EXP to Next</p>
