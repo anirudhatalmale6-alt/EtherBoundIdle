@@ -572,7 +572,7 @@ router.post("/functions/getShopRotation", async (req: Request, res: Response) =>
     }
 
     const RARITY_MULTS: Record<string, number> = {
-      common: 1, uncommon: 1.5, rare: 2, epic: 3, legendary: 5, mythic: 8,
+      common: 1, uncommon: 1.3, rare: 1.7, epic: 2.2, legendary: 3, mythic: 4,
     };
     const RARITY_STAT_COUNT: Record<string, number> = {
       common: 1, uncommon: 2, rare: 2, epic: 3, legendary: 4, mythic: 5,
@@ -610,7 +610,10 @@ router.post("/functions/getShopRotation", async (req: Request, res: Response) =>
       const numStats = RARITY_STAT_COUNT[rarity] || 1;
       const shuffled = [...STAT_KEYS].sort(() => rng() - 0.5);
       for (let s = 0; s < numStats; s++) {
-        stats[shuffled[s]] = Math.floor((3 + itemLevel * 0.8) * rarityMult * (0.8 + rng() * 0.4));
+        // Stats scale moderately: base 2 + 0.15 per level, capped by rarity
+        // Lv10 common: ~4, Lv45 epic: ~30, Lv45 mythic: ~50 per stat
+        const statVal = Math.floor((2 + itemLevel * 0.15) * rarityMult * (0.85 + rng() * 0.3));
+        stats[shuffled[s]] = Math.max(1, statVal);
       }
       // Price scales quadratically with level and rarity
       const buyPrice = Math.floor((50 + itemLevel * 20 + Math.pow(itemLevel, 1.5) * 5) * rarityMult);
@@ -1884,7 +1887,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
     const serverIsElite = !!enemyData.isElite;
     const serverRegionKey = char.currentRegion || regionKey || null;
 
-    const empoweredMult = isEmpowered ? 3 : 1;
+    const empoweredMult = isEmpowered ? 2 : 1;
     const partyMembers = Math.max(0, (partySize || 1) - 1);
     const partyExpBonus = partyMembers * 0.05;
     const partyGoldBonus = partyMembers * 0.10;
