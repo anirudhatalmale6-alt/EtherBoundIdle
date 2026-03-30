@@ -424,8 +424,25 @@ router.post("/entities/:entity", async (req: Request, res: Response) => {
         }
       }
     }
-    if (entity === "ChatMessage" && !dbData.senderId) {
-      dbData.senderId = req.user!.id;
+    if (entity === "ChatMessage") {
+      if (!dbData.senderId) dbData.senderId = req.user!.id;
+      // Check if sender is muted or banned
+      const senderName = dbData.senderName || req.body.sender_name;
+      if (senderName) {
+        const [senderChar] = await db.select().from(charactersTable)
+          .where(sql`LOWER(${charactersTable.name}) = LOWER(${senderName})`);
+        if (senderChar) {
+          const extra = (senderChar.extraData as any) || {};
+          if (senderChar.isBanned || (extra.ban_until && new Date(extra.ban_until) > new Date())) {
+            sendError(res, 403, "You are banned and cannot send messages.");
+            return;
+          }
+          if (senderChar.isMuted || (extra.mute_until && new Date(extra.mute_until) > new Date())) {
+            sendError(res, 403, "You are muted and cannot send messages.");
+            return;
+          }
+        }
+      }
     }
 
     if (entity === "Presence" && dbData.characterId) {

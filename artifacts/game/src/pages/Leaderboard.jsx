@@ -40,7 +40,9 @@ export default function Leaderboard({ character }) {
   const { data: characters = [], isLoading } = useQuery({
     queryKey: ["leaderboard"],
     queryFn: async () => {
-      return base44.entities.Character.list("-level", 50);
+      // Use dedicated leaderboard endpoint (Character.list only returns own chars)
+      const res = await base44.functions.invoke("getLeaderboard", { type: "level" });
+      return res?.leaderboard || [];
     },
     refetchInterval: 30000,
   });

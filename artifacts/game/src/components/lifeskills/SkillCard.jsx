@@ -31,10 +31,28 @@ export default function SkillCard({ skill, onStart, onStop, onTick, onUpgrade, l
   const speedCost  = skill.speed_upgrade_cost || 50;
   const xpBoostCost = skill.xp_boost_upgrade_cost || skill.luck_upgrade_cost || 80;
 
-  // Sync from server whenever skill data refreshes
+  // Sync from server whenever skill data refreshes — but only reset gather bar
+  // when the skill was just started or when the server reports a lower value
+  // (level-up reset). This prevents the bar from jumping back on tab switch.
+  const prevSkillId = useRef(skill.id);
   useEffect(() => {
-    setLiveGather(skill.gather_progress || 0);
-    setLiveExp(skill.exp || 0);
+    if (prevSkillId.current !== skill.id) {
+      // Different skill, hard sync
+      setLiveGather(skill.gather_progress || 0);
+      setLiveExp(skill.exp || 0);
+      prevSkillId.current = skill.id;
+    } else {
+      // Same skill — only update exp (server authoritative for level-ups)
+      // and reset gather bar only if server reports it below current local value
+      // (meaning a cycle completed server-side and bar was reset)
+      setLiveExp(skill.exp || 0);
+      setLiveGather(prev => {
+        const serverVal = skill.gather_progress || 0;
+        // If server progress is less than local, a cycle completed — sync to server
+        if (serverVal < prev - 10) return serverVal;
+        return prev;
+      });
+    }
     lastTickTime.current = Date.now();
     tickPending.current  = false;
   }, [skill.id, skill.gather_progress, skill.exp]);

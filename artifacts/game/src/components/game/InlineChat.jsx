@@ -5,8 +5,11 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Send } from "lucide-react";
 import { CLASSES } from "@/lib/gameData";
+import RoleBadge from "@/components/game/RoleBadge";
+import { useAuth } from "@/lib/AuthContext";
 
 export default function InlineChat({ character, channel = "global", guildId = null }) {
+  const { user } = useAuth();
   const [message, setMessage] = useState("");
   const scrollRef = useRef(null);
   const queryClient = useQueryClient();
@@ -29,6 +32,7 @@ export default function InlineChat({ character, channel = "global", guildId = nu
         sender_name: character?.name || "Unknown",
         sender_class: character?.class || "warrior",
         sender_level: character?.level || 1,
+        sender_role: user?.role || null,
         content,
         ...(guildId ? { guild_id: guildId } : {}),
       }),
@@ -61,8 +65,10 @@ export default function InlineChat({ character, channel = "global", guildId = nu
           return (
             <div key={msg.id} className="text-xs">
               <span className={`font-semibold ${cls?.color || "text-foreground"}`}>
-                [{msg.sender_level}] {msg.sender_name}:
-              </span>{" "}
+                [{msg.sender_level}] {msg.sender_name}
+              </span>
+              {msg.sender_role && <RoleBadge role={msg.sender_role} size="xs" />}
+              <span className="text-foreground/70">: </span>
               <span className="text-foreground/80">{msg.content}</span>
             </div>
           );

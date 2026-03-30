@@ -11,6 +11,7 @@ import GemLabProgressBar from "./GemLabProgressBar";
 
 export default function GemLabPanel({ character, onCharacterUpdate }) {
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [buyCount, setBuyCount] = useState(1);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -22,7 +23,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
       return labs[0] || null;
     },
     enabled: !!character?.id,
-    refetchInterval: 30000, // Auto-refresh every 30s
+    refetchInterval: 30000,
   });
 
   // Process gem generation (calculate pending gems)
@@ -55,13 +56,13 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
 
   const upgradeMutation = useMutation({
     mutationFn: (upgradeType) =>
-      base44.functions.invoke("upgradeGemLab", { characterId: character.id, upgradeType }),
+      base44.functions.invoke("upgradeGemLab", { characterId: character.id, upgradeType, count: buyCount }),
     onSuccess: (response) => {
       if (response?.goldRemaining !== undefined) {
         onCharacterUpdate({ ...character, gold: response.goldRemaining });
         queryClient.invalidateQueries({ queryKey: ["gemlab"] });
         toast({
-          title: `Upgraded ${response.upgradeType}!`,
+          title: `Upgraded ${response.upgradeType} x${response.levelsGained || 1}!`,
           duration: 1500,
         });
       }
@@ -95,9 +96,14 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
     const gemsPerCycle = BASE_PRODUCTION * prodMult * effMult;
     const cycleTime = 10 / speedMult;
 
-    const nextProdCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, prodLevel));
-    const nextSpeedCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, speedLevel));
-    const nextEffCost = Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, effLevel));
+    // Calculate cost for buyCount levels
+    const calcBatchCost = (currentLevel) => {
+      let total = 0;
+      for (let i = 0; i < buyCount; i++) {
+        total += Math.floor(BASE_COST * Math.pow(COST_MULTIPLIER, currentLevel + i));
+      }
+      return total;
+    };
 
     return {
       production: gemsPerCycle,
@@ -106,10 +112,11 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
       prodLevel,
       speedLevel,
       effLevel,
-      nextProdCost,
-      nextSpeedCost,
-      nextEffCost,
+      nextProdCost: calcBatchCost(prodLevel),
+      nextSpeedCost: calcBatchCost(speedLevel),
+      nextEffCost: calcBatchCost(effLevel),
       pendingGems: Math.floor(labData.pending_gems || 0),
+      totalProduced: labData.total_gems_generated || 0,
     };
   };
 
@@ -118,7 +125,6 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   // Bootstrap GemLab on first load + process offline gems (silent, no toast)
   useEffect(() => {
     if (!character?.id) return;
-    // Process silently - just calculate pending gems, don't show toast
     base44.functions.invoke("processGemLab", { characterId: character.id })
       .then(() => setRefreshTrigger(t => t + 1))
       .catch(() => {});
@@ -138,6 +144,8 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
   }, [character?.id, gemLab?.data?.last_collection_time, gemLab?.data?.pending_gems]);
 
   if (!character) return null;
+
+  const BUY_OPTIONS = [1, 10, 100];
 
   return (
     <div className="space-y-4">
@@ -171,8 +179,8 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
           </Button>
         </div>
         <div className="bg-card/50 border border-border rounded-lg p-3">
-          <p className="text-xs text-muted-foreground">Total</p>
-          <p className="font-bold text-lg text-accent">{(gemLab?.data?.total_gems_generated ?? 0).toFixed(0)}</p>
+          <p className="text-xs text-muted-foreground">Total Produced</p>
+          <p className="font-bold text-lg text-accent">{Math.floor(metrics.totalProduced).toLocaleString()}</p>
           <p className="text-xs text-muted-foreground mt-1">all-time</p>
         </div>
       </div>
@@ -180,6 +188,23 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
       {/* Progress Bar */}
       <GemLabProgressBar gemLab={gemLab} metrics={metrics} />
 
+      {/* Buy Count Selector */}
+      <div className="flex items-center gap-2 justify-center">
+        <span className="text-xs text-muted-foreground">Buy:</span>
+        {BUY_OPTIONS.map(n => (
+          <button
+            key={n}
+            onClick={() => setBuyCount(n)}
+            className={`px-3 py-1 rounded text-xs font-semibold transition-colors ${
+              buyCount === n
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+            }`}
+          >
+            x{n}
+          </button>
+        ))}
+      </div>
 
       {/* Upgrade Cards */}
       <div className="grid grid-cols-3 gap-2">
@@ -193,7 +218,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            +{((metrics.production ?? 0) * 0.05).toFixed(4)} per level
+            +5% gems/cycle per level
           </p>
           <Button
             size="sm"
@@ -204,10 +229,10 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
           >
             <Coins className="w-3 h-3" />
             {(metrics.nextProdCost ?? 0).toLocaleString()}
-            </Button>
-            </motion.div>
+          </Button>
+        </motion.div>
 
-            {/* Speed */}
+        {/* Speed */}
         <motion.div className="bg-card border border-border/50 rounded-lg p-3 space-y-2 hover:border-secondary/30 transition-colors">
           <div className="flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-secondary" />
@@ -217,7 +242,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            -{((metrics.cycleTime ?? 0) * 0.02).toFixed(1)}m per level
+            -2% cycle time per level
           </p>
           <Button
             size="sm"
@@ -228,10 +253,10 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
           >
             <Coins className="w-3 h-3" />
             {(metrics.nextSpeedCost ?? 0).toLocaleString()}
-            </Button>
-            </motion.div>
+          </Button>
+        </motion.div>
 
-            {/* Efficiency */}
+        {/* Efficiency */}
         <motion.div className="bg-card border border-border/50 rounded-lg p-3 space-y-2 hover:border-accent/30 transition-colors">
           <div className="flex items-center gap-1.5">
             <TrendingUp className="w-3.5 h-3.5 text-accent" />
@@ -241,7 +266,7 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground">
-            +{((metrics.production ?? 0) * 0.03).toFixed(4)} per level
+            +3% gem multiplier per level
           </p>
           <Button
             size="sm"
@@ -252,13 +277,13 @@ export default function GemLabPanel({ character, onCharacterUpdate }) {
           >
             <Coins className="w-3 h-3" />
             {(metrics.nextEffCost ?? 0).toLocaleString()}
-            </Button>
-            </motion.div>
-            </div>
+          </Button>
+        </motion.div>
+      </div>
 
       {/* Info */}
       <div className="text-xs text-muted-foreground p-2 bg-muted/20 rounded-lg border border-border/30">
-        <p>💡 Gem Lab generates gems passively. Early progression is slow—invest heavily for exponential growth!</p>
+        <p>Gem Lab generates gems passively. Gems go to Pending -- click Claim to collect them. Invest heavily for exponential growth!</p>
       </div>
     </div>
   );

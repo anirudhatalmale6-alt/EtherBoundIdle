@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, uuid, varchar, boolean } from "drizzle-orm/pg-core";
+import { index, integer, jsonb, pgTable, text, timestamp, uuid, varchar, boolean, bigint } from "drizzle-orm/pg-core";
 
 export const sessionsTable = pgTable(
   "sessions",
@@ -40,7 +40,7 @@ export const charactersTable = pgTable("characters", {
   luck: integer("luck").notNull().default(5),
   statPoints: integer("stat_points").notNull().default(0),
   skillPoints: integer("skill_points").notNull().default(0),
-  gold: integer("gold").notNull().default(100),
+  gold: bigint("gold", { mode: "number" }).notNull().default(100),
   gems: integer("gems").notNull().default(10),
   currentRegion: varchar("current_region").notNull().default("verdant_forest"),
   equipment: jsonb("equipment").notNull().default({}),

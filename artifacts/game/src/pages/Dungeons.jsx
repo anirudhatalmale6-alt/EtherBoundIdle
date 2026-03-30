@@ -146,15 +146,7 @@ export default function Dungeons({ character, onCharacterUpdate }) {
   const [resetting, setResetting] = useState(false);
   const { toast } = useToast();
 
-  // Dungeon entry limit status
-  const { data: entryStatus, refetch: refetchEntryStatus } = useQuery({
-    queryKey: ["dungeonEntries", character?.id],
-    queryFn: () => base44.functions.invoke("dungeonEntryStatus", { characterId: character.id }),
-    enabled: !!character?.id,
-    refetchInterval: 60000,
-  });
-
-  // Fetch dungeon entry info
+  // Fetch dungeon entry info (entries remaining, reset cost)
   const { data: entryInfo, refetch: refetchEntries } = useQuery({
     queryKey: ["dungeonEntries", character?.id],
     queryFn: async () => {
@@ -167,6 +159,13 @@ export default function Dungeons({ character, onCharacterUpdate }) {
     enabled: !!character?.id,
     refetchInterval: 60000,
   });
+  // Alias for compatibility
+  const entryStatus = entryInfo ? {
+    entriesLeft: entryInfo.entries_remaining,
+    maxEntries: entryInfo.max_entries,
+    windowRemaining: entryInfo.window_resets_at ? Math.max(0, new Date(entryInfo.window_resets_at).getTime() - Date.now()) : 0,
+  } : null;
+  const refetchEntryStatus = refetchEntries;
 
   const handleResetEntries = async () => {
     setResetting(true);

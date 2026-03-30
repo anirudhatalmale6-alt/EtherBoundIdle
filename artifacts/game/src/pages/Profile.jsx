@@ -7,12 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   User, Shield, Swords, Heart, Zap,
-  Clover, Star, Plus, Minus, TrendingUp, Coins, Gem, ShieldCheck
+  Clover, Star, Plus, Minus, TrendingUp, Coins, Gem, ShieldCheck, RotateCcw
 } from "lucide-react";
 import HealthBar from "@/components/game/HealthBar";
 import CombatStatsPanel from "@/components/game/CombatStatsPanel";
 import { CLASSES, calculateIdleRewards, SKILLS } from "@/lib/gameData";
 import { calculateFinalStats } from "@/lib/statSystem";
+import { formatGold } from "@/lib/formatGold";
 
 const STAT_CONFIG = [
   { key: "strength", label: "Strength", icon: Swords, color: "text-red-400" },
@@ -70,9 +71,11 @@ export default function Profile({ character, onCharacterUpdate }) {
   const totalSkillsPending = Object.values(pendingSkills).reduce((s, v) => s + v, 0);
   const availableSkillPoints = (character?.skill_points || 0) - totalSkillsPending;
 
-  const addStat = (key) => {
-    if (availablePoints <= 0) return;
-    setPendingStats(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }));
+  const addStat = (key, amount = 1) => {
+    const toAdd = Math.min(amount, availablePoints - (pendingStats[key] ? 0 : 0));
+    const actualAdd = Math.min(amount, availablePoints);
+    if (actualAdd <= 0) return;
+    setPendingStats(prev => ({ ...prev, [key]: (prev[key] || 0) + actualAdd }));
   };
 
   const removeStat = (key) => {
@@ -89,6 +92,18 @@ export default function Profile({ character, onCharacterUpdate }) {
     if (!pendingSkills[skillId] || pendingSkills[skillId] <= 0) return;
     setPendingSkills(prev => ({ ...prev, [skillId]: prev[skillId] - 1 }));
   };
+
+  const resetStatsMutation = useMutation({
+    mutationFn: async (resetType) => {
+      const res = await base44.functions.invoke("resetStatPoints", { characterId: character.id, resetType });
+      if (res?.success) {
+        onCharacterUpdate({ ...character, ...res.character, gems: res.gemsRemaining });
+        setPendingStats({});
+        setPendingSkills({});
+      }
+      return res;
+    },
+  });
 
   const { data: equippedItems = [] } = useQuery({
     queryKey: ["items", character?.id],
@@ -144,7 +159,7 @@ export default function Profile({ character, onCharacterUpdate }) {
           </div>
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">Gold</p>
-            <p className="font-bold text-lg text-accent">{(character.gold || 0).toLocaleString()}</p>
+            <p className="font-bold text-lg text-accent">{formatGold(character.gold || 0)}</p>
           </div>
           <div className="text-center p-3 bg-muted/50 rounded-lg">
             <p className="text-xs text-muted-foreground">Gems</p>
@@ -232,8 +247,11 @@ export default function Profile({ character, onCharacterUpdate }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeStat(key)} disabled={!pendingStats[key]}>
                       <Minus className="w-3 h-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => addStat(key)} disabled={availablePoints <= 0}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => addStat(key, 1)} disabled={availablePoints <= 0}>
                       <Plus className="w-3 h-3" />
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[10px]" onClick={() => addStat(key, 10)} disabled={availablePoints <= 0}>
+                      +10
                     </Button>
                   </div>
                 )}
@@ -252,6 +270,16 @@ export default function Profile({ character, onCharacterUpdate }) {
             Confirm Stat Allocation ({totalPending} points)
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full mt-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+          onClick={() => resetStatsMutation.mutate("stats")}
+          disabled={resetStatsMutation.isPending}
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset Stats (100 <Gem className="w-3 h-3 inline" />)
+        </Button>
       </div>
 
       {/* Skills */}
@@ -309,6 +337,16 @@ export default function Profile({ character, onCharacterUpdate }) {
             Confirm Skill Allocation ({totalSkillsPending} points)
           </Button>
         )}
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full mt-2 gap-1.5 text-xs text-destructive border-destructive/30 hover:bg-destructive/10"
+          onClick={() => resetStatsMutation.mutate("skills")}
+          disabled={resetStatsMutation.isPending}
+        >
+          <RotateCcw className="w-3 h-3" />
+          Reset Skills (50 <Gem className="w-3 h-3 inline" />)
+        </Button>
       </div>
 
       {/* Logout */}

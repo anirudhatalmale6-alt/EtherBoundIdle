@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -67,7 +67,7 @@ function HoverTooltip({ item, character, equipped, triggerRef }) {
   );
 }
 
-function ItemCard({ item, character, equipped, onSelect, rarity, canEquip }) {
+function ItemCard({ item, character, equipped, onSelect, rarity, canEquip, isNew, onMarkSeen }) {
   const [hovered, setHovered] = useState(false);
   const ref = useRef(null);
   const Icon = getItemIcon(item);
@@ -83,7 +83,7 @@ function ItemCard({ item, character, equipped, onSelect, rarity, canEquip }) {
         ref={ref}
         whileHover={{ scale: 1.02 }}
         onClick={() => onSelect(item)}
-        onMouseEnter={() => setHovered(true)}
+        onMouseEnter={() => { setHovered(true); if (isNew && onMarkSeen) onMarkSeen(item.id); }}
         onMouseLeave={() => setHovered(false)}
         className={`relative bg-card border rounded-lg p-3 text-left transition-all hover:bg-muted/50 ${
           item.equipped ? `${rarity.border} ${rarity.bg}` : !canEquip ? "border-destructive/30 opacity-60" : "border-border"
@@ -92,6 +92,11 @@ function ItemCard({ item, character, equipped, onSelect, rarity, canEquip }) {
         {isStack && (
           <span className="absolute top-1.5 right-1.5 bg-green-600 text-white text-[10px] font-bold rounded-full min-w-[18px] h-[18px] flex items-center justify-center px-1">
             x{item.stackCount}
+          </span>
+        )}
+        {isNew && (
+          <span className="absolute top-1.5 left-1.5 bg-red-500 text-white text-[9px] font-bold rounded px-1 py-0.5 leading-none animate-pulse">
+            NEW
           </span>
         )}
         <div className="flex items-center gap-2 mb-1">
@@ -180,8 +185,33 @@ function CharacterStatsPanel({ character, equippedItems }) {
 export default function Inventory({ character, onCharacterUpdate }) {
   const [filter, setFilter] = useState("all");
   const [selectedItem, setSelectedItem] = useState(null);
+  const [seenItems, setSeenItems] = useState(() => {
+    if (!character?.id) return new Set();
+    try {
+      const stored = localStorage.getItem(`seen_items_${character.id}`);
+      return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch { return new Set(); }
+  });
   const { toast } = useToast();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!character?.id) return;
+    try {
+      const stored = localStorage.getItem(`seen_items_${character.id}`);
+      setSeenItems(stored ? new Set(JSON.parse(stored)) : new Set());
+    } catch { setSeenItems(new Set()); }
+  }, [character?.id]);
+
+  const markSeen = useCallback((itemId) => {
+    setSeenItems(prev => {
+      if (prev.has(itemId)) return prev;
+      const next = new Set(prev);
+      next.add(itemId);
+      try { localStorage.setItem(`seen_items_${character.id}`, JSON.stringify([...next])); } catch {}
+      return next;
+    });
+  }, [character?.id]);
 
   const { data: items = [], isLoading } = useQuery({
     queryKey: ["items", character?.id],
@@ -413,6 +443,8 @@ export default function Inventory({ character, onCharacterUpdate }) {
                   onSelect={setSelectedItem}
                   rarity={rarity}
                   canEquip={canEquip}
+                  isNew={!seenItems.has(item.id)}
+                  onMarkSeen={markSeen}
                 />
               );
             })}
