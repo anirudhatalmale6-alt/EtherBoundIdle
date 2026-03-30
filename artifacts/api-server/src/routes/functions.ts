@@ -168,7 +168,7 @@ function buildSkillResponse(lifeSkills: any, skillType: string, charId: string) 
   const baseCycle = 20;
   const speedReduction = 1 - ((s.speed_level || 1) - 1) * 0.08;
   const cycleDuration = Math.max(5, baseCycle * speedReduction);
-  const expToNext = s.level * 100;
+  const expToNext = s.level * 100; // life skill EXP is separate from character EXP
   return {
     id: `${skillType}_${charId}`,
     skill_type: skillType,
@@ -572,7 +572,7 @@ router.post("/functions/getShopRotation", async (req: Request, res: Response) =>
     }
 
     const RARITY_MULTS: Record<string, number> = {
-      common: 1, uncommon: 1.3, rare: 1.7, epic: 2.2, legendary: 3, mythic: 4,
+      common: 1, uncommon: 1.15, rare: 1.4, epic: 1.8, legendary: 2.3, mythic: 3,
     };
     const RARITY_STAT_COUNT: Record<string, number> = {
       common: 1, uncommon: 2, rare: 2, epic: 3, legendary: 4, mythic: 5,
@@ -610,9 +610,9 @@ router.post("/functions/getShopRotation", async (req: Request, res: Response) =>
       const numStats = RARITY_STAT_COUNT[rarity] || 1;
       const shuffled = [...STAT_KEYS].sort(() => rng() - 0.5);
       for (let s = 0; s < numStats; s++) {
-        // Stats scale moderately: base 2 + 0.15 per level, capped by rarity
-        // Lv10 common: ~4, Lv45 epic: ~30, Lv45 mythic: ~50 per stat
-        const statVal = Math.floor((2 + itemLevel * 0.15) * rarityMult * (0.85 + rng() * 0.3));
+        // Stats scale conservatively: base 1 + 0.08 per level, capped by rarity
+        // Lv10 common: ~2, Lv45 epic: ~8, Lv45 mythic: ~14 per stat
+        const statVal = Math.floor((1 + itemLevel * 0.08) * rarityMult * (0.85 + rng() * 0.3));
         stats[shuffled[s]] = Math.max(1, statVal);
       }
       // Price scales quadratically with level and rarity
@@ -1740,7 +1740,7 @@ router.post("/functions/processServerProgression", async (req: Request, res: Res
       let newExp = (char.exp || 0) + expGain;
       let newLevel = char.level;
       let newStatPoints = char.statPoints || 0;
-      const expToNext = char.expToNext || (char.level || 1) * 100;
+      const expToNext = char.expToNext || calculateExpToLevel(char.level || 1);
       if (newExp >= expToNext) {
         newLevel += 1;
         newExp -= expToNext;
@@ -1751,7 +1751,7 @@ router.post("/functions/processServerProgression", async (req: Request, res: Res
         exp: newExp,
         level: newLevel,
         statPoints: newStatPoints,
-        expToNext: newLevel * 100,
+        expToNext: calculateExpToLevel(newLevel),
       }).where(eq(charactersTable.id, characterId)).returning();
       sendSuccess(res, { success: true, gold_gained: goldGain, exp_gained: expGain, character: toClientCharacter(updated) });
       return;
@@ -1827,13 +1827,13 @@ router.post("/functions/unifiedPlayerProgression", async (req: Request, res: Res
     if (!characterId) { sendSuccess(res, { success: true }); return; }
     const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
     if (!char) { sendSuccess(res, { success: true }); return; }
-    const expToNext = char.expToNext || (char.level || 1) * 100;
+    const expToNext = char.expToNext || calculateExpToLevel(char.level || 1);
     if ((char.exp || 0) >= expToNext) {
       const newLevel = (char.level || 1) + 1;
       const [updated] = await db.update(charactersTable).set({
         level: newLevel,
         exp: (char.exp || 0) - expToNext,
-        expToNext: newLevel * 100,
+        expToNext: calculateExpToLevel(newLevel),
         statPoints: (char.statPoints || 0) + 3,
         skillPoints: (char.skillPoints || 0) + 1,
       }).where(eq(charactersTable.id, characterId)).returning();
