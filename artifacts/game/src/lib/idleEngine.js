@@ -207,12 +207,14 @@ async function saveTick() {
     if (char?.id) {
       try {
         const data = {};
-        // Do NOT include life_skills or equipment here — they are managed
-        // by their own API handlers and saving stale cached values overwrites upgrades
+        // MINIMAL save — only fields that the client controls directly.
+        // Combat stats (gold, exp, gems, level, hp, mp, strength, etc.) are
+        // updated server-side by fight/lifeSkills/shop handlers and synced back
+        // via their responses.  Saving stale cached copies here overwrites
+        // server-side changes (e.g. offline progression rewards, life-skill
+        // upgrades, shop purchases).
         const fields = [
-          'level', 'exp', 'gold', 'gems', 'hp', 'mp', 'max_hp', 'max_mp',
-          'strength', 'dexterity', 'intelligence', 'vitality', 'luck',
-          'stat_points', 'skill_points', 'current_region', 'idle_mode',
+          'current_region', 'idle_mode',
           'total_kills', 'total_damage',
         ];
         fields.forEach(f => { if (char[f] !== undefined) data[f] = char[f]; });

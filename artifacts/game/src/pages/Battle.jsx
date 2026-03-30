@@ -599,20 +599,27 @@ export default function Battle({ character, onCharacterUpdate }) {
       try {
         const response = await base44.functions.invoke('catchUpOfflineProgress', { characterId: character.id });
         if (response?.success && response.hours_offline > 0) {
-          const results = response.results;
+          const results = response.results || {};
           let totalGems = 0;
           if (results.gemLab) {
             totalGems = results.gemLab.gems_gained || 0;
           }
+          const goldGained = results.gold || 0;
+          const expGained = results.exp || 0;
           setWelcomeBackRewards({
-            gold: 0,
+            gold: goldGained,
             gems: totalGems,
             lifeSkills: results.lifeSkills,
           });
           setWelcomeBackHours(parseFloat(response.hours_offline));
           setShowWelcomeBack(true);
-          if (totalGems > 0) {
-            onCharacterUpdate({ gems: (character.gems || 0) + totalGems });
+          // Update client cache with offline rewards so save tick doesn't overwrite
+          const updates = {};
+          if (goldGained > 0) updates.gold = (character.gold || 0) + goldGained;
+          if (expGained > 0) updates.exp = (character.exp || 0) + expGained;
+          if (totalGems > 0) updates.gems = (character.gems || 0) + totalGems;
+          if (Object.keys(updates).length > 0) {
+            onCharacterUpdate(updates);
           }
         }
       } catch (error) {

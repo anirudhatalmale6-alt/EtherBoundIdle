@@ -1598,18 +1598,46 @@ router.post("/functions/catchUpOfflineProgress", async (req: Request, res: Respo
     const offlineMs = Date.now() - lastClaim;
     const offlineHours = Math.min(offlineMs / (1000 * 60 * 60), 8);
     if (offlineHours < 0.1) {
-      sendSuccess(res, { rewards: null, hours: 0 }); return;
+      sendSuccess(res, { success: true, hours_offline: 0, results: {} }); return;
     }
-    const goldReward = Math.floor(offlineHours * char.level * 50);
-    const expReward = Math.floor(offlineHours * char.level * 20);
+    const goldReward = Math.floor(offlineHours * (char.level || 1) * 50);
+    const expReward = Math.floor(offlineHours * (char.level || 1) * 20);
+
+    // Process gem lab offline gains
+    let gemLabGains = 0;
+    try {
+      const [lab] = await db.select().from(gemLabsTable).where(eq(gemLabsTable.characterId, characterId));
+      if (lab) {
+        const labData = (lab.data as any) || {};
+        const prodMult = 1 + (labData.production_level || 0) * 0.05;
+        const speedMult = 1 + (labData.speed_level || 0) * 0.02;
+        const effMult = 1 + (labData.efficiency_level || 0) * 0.03;
+        const gemsPerCycle = 0.001 * prodMult * effMult;
+        const cycleSeconds = (10 / speedMult) * 60;
+        const completedCycles = Math.floor((offlineHours * 3600) / cycleSeconds);
+        gemLabGains = gemsPerCycle * completedCycles;
+        if (gemLabGains > 0) {
+          labData.pending_gems = (labData.pending_gems || 0) + gemLabGains;
+          labData.total_gems_generated = (labData.total_gems_generated || 0) + gemLabGains;
+          labData.last_collection_time = new Date().toISOString();
+          await db.update(gemLabsTable).set({ data: labData }).where(eq(gemLabsTable.id, lab.id));
+        }
+      }
+    } catch {}
+
     await db.update(charactersTable).set({
       gold: (char.gold || 0) + goldReward,
       exp: (char.exp || 0) + expReward,
       lastIdleClaim: new Date(),
     }).where(eq(charactersTable.id, characterId));
     sendSuccess(res, {
-        rewards: { gold: goldReward, exp: expReward },
-        hours: Math.round(offlineHours * 10) / 10,
+        success: true,
+        hours_offline: (Math.round(offlineHours * 10) / 10).toString(),
+        results: {
+          gold: goldReward,
+          exp: expReward,
+          gemLab: { gems_gained: gemLabGains },
+        },
       });
   } catch (err: any) {
     req.log.error({ err }, "catchUpOfflineProgress error");
