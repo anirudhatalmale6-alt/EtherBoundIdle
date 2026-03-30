@@ -2169,6 +2169,52 @@ router.post("/functions/guildBossAttack", async (req: Request, res: Response) =>
   }
 });
 
+// Rebalance all items for a character — caps overpowered stats from old shop formula
+router.post("/functions/rebalanceItems", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId } = req.body;
+    if (!characterId) { sendError(res, 400, "characterId required"); return; }
+    if (!(await verifyCharacterOwner(req, characterId))) { sendError(res, 403, "Not your character"); return; }
+
+    const items = await db.select().from(itemsTable).where(eq(itemsTable.ownerId, characterId));
+    let rebalanced = 0;
+
+    // New balanced formula caps: (1 + itemLevel * 0.08) * rarityMult
+    const RARITY_CAPS: Record<string, number> = {
+      common: 1, uncommon: 1.15, rare: 1.4, epic: 1.8, legendary: 2.3, mythic: 3, set: 3.2, shiny: 4,
+    };
+
+    for (const item of items) {
+      if (!item.stats || typeof item.stats !== "object") continue;
+      const itemLevel = item.itemLevel || item.levelReq || 1;
+      const rarityMult = RARITY_CAPS[item.rarity] || 1;
+      const maxStatValue = Math.max(1, Math.floor((1 + itemLevel * 0.12) * rarityMult * 1.3));
+
+      let changed = false;
+      const newStats: Record<string, number> = {};
+      for (const [k, v] of Object.entries(item.stats as Record<string, number>)) {
+        if (typeof v === "number" && v > maxStatValue) {
+          newStats[k] = maxStatValue;
+          changed = true;
+        } else {
+          newStats[k] = v;
+        }
+      }
+
+      if (changed) {
+        await db.update(itemsTable).set({ stats: newStats }).where(eq(itemsTable.id, item.id));
+        rebalanced++;
+      }
+    }
+
+    sendSuccess(res, { success: true, rebalanced, total: items.length });
+  } catch (err: any) {
+    req.log.error({ err }, "rebalanceItems error");
+    sendError(res, 500, err.message);
+  }
+});
+
 router.post("/functions/:name", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   req.log.warn({ functionName: req.params.name }, "Unhandled function call");

@@ -184,11 +184,13 @@ export default function Battle({ character, onCharacterUpdate }) {
     const rawEnemyDmg = Math.floor(currentEnemyData.dmg * (0.8 + Math.random() * 0.4));
     const { finalDamage: actualDmg, evaded, blocked } = calculateDamageTaken(rawEnemyDmg, d, currentEnemyData.level || 1, character.level);
 
-    const newPlayerHp = Math.max(0, currentPlayerHp - actualDmg);
+    const safeDmg = Number.isFinite(actualDmg) ? actualDmg : 0;
+    const safeHp = Number.isFinite(currentPlayerHp) ? currentPlayerHp : character.max_hp || 100;
+    const newPlayerHp = Math.max(0, safeHp - safeDmg);
     setPlayerHp(newPlayerHp);
 
     const prefix = evaded ? "🌀 Evaded! " : blocked ? "🛡️ Blocked! " : "";
-    addLog(`${prefix}${currentEnemyData.name} attacks for ${actualDmg} damage!`);
+    addLog(`${prefix}${currentEnemyData.name} attacks for ${safeDmg} damage!`);
 
     // Enemy nudges, player shakes on hit
     setEnemyAttackNudge(true);
@@ -567,10 +569,22 @@ export default function Battle({ character, onCharacterUpdate }) {
     updatePresence();
   }, [character?.id, character?.level, character.current_region, isIdle, combatPhase]);
 
-  // Sync from props
+  // Sync HP/MP from props — only use max values (DB hp/mp field is stale)
+  // During combat, playerHp is managed entirely by React state
   useEffect(() => {
-    setPlayerHp(character?.hp || character?.max_hp || 100);
-    setPlayerMp(character?.mp || character?.max_mp || 50);
+    if (combatPhase === "idle" || combatPhase === "player_turn") {
+      setPlayerHp(prev => {
+        // Only reset to max if current value is invalid or exceeds max
+        const maxHp = character?.max_hp || 100;
+        if (!Number.isFinite(prev) || prev <= 0 || prev > maxHp) return maxHp;
+        return prev;
+      });
+    }
+    setPlayerMp(prev => {
+      const maxMp = character?.max_mp || 50;
+      if (!Number.isFinite(prev) || prev > maxMp) return maxMp;
+      return prev;
+    });
   }, [character?.max_hp, character?.max_mp]);
 
   // Load party data
