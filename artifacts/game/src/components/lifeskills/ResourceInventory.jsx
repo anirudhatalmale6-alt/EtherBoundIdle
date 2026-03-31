@@ -93,8 +93,9 @@ const ORE_SELL_PRICE = {
 };
 
 const RARITY_ORDER = ["shiny","mythic","legendary","epic","rare","uncommon","common"];
-const CATEGORIES = ["ores", "bars", "forged", "fish", "food", "herbs", "potions", "crafted"];
+const CATEGORIES = ["all", "ores", "bars", "forged", "fish", "food", "herbs", "potions", "crafted"];
 const CATEGORY_LABELS = {
+  all:     "📦 All",
   ores:    "⛏️ Ores",
   bars:    "🔩 Bars",
   forged:  "⚔️ Forged",
@@ -106,7 +107,7 @@ const CATEGORY_LABELS = {
 };
 
 export default function ResourceInventory({ resources, character, onCharacterUpdate, onResourcesChange }) {
-  const [activeCategory, setActiveCategory] = useState("ores");
+  const [activeCategory, setActiveCategory] = useState("all");
   const [selling, setSelling] = useState(null); // resource id being sold
   const { toast } = useToast();
 
@@ -118,6 +119,7 @@ export default function ResourceInventory({ resources, character, onCharacterUpd
     const meta = RESOURCE_META[r.resource_type];
     const cat = meta?.category || "crafted";
     if (byCategory[cat]) byCategory[cat].push(r);
+    byCategory["all"].push(r);
   });
 
   CATEGORIES.forEach(c => {
