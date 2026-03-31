@@ -27,6 +27,9 @@ import { useFloatingNumbers } from "@/components/game/FloatingNumbers";
 import { REGIONS, ENEMIES, SKILLS, CLASSES, calculateExpToLevel, generateLoot, RARITY_CONFIG } from "@/lib/gameData";
 import { CLASS_SKILLS, ELEMENT_CONFIG } from "@/lib/skillData";
 import { rollDamage, calculateDamageTaken, calculateFinalStats } from "@/lib/statSystem";
+import { collectEquippedProcs, ProcEngine, SET_PROC_EFFECTS } from "@/lib/procSystem";
+import { collectSetProcEffects } from "@/lib/setSystem";
+import { getElementalMultiplier, getEnemyElementInfo, ELEMENT_DISPLAY } from "@/lib/elementalSystem";
 import hybridPersistence from "@/lib/hybridPersistence";
 import { idleEngine } from "@/lib/idleEngine";
 
@@ -73,6 +76,7 @@ export default function Battle({ character, onCharacterUpdate }) {
   const autoAttackTimerRef = useRef(null);
   const attackSpeedAccRef = useRef(0);
   const [attackSpeedBonusHits, setAttackSpeedBonusHits] = useState(0);
+  const procEngineRef = useRef(null);
   const offlineProcessedRef = useRef(false);
 
   const queryClient = useQueryClient();
@@ -99,6 +103,19 @@ export default function Battle({ character, onCharacterUpdate }) {
     queryFn: () => base44.entities.Item.filter({ owner_id: character?.id }),
     enabled: !!character?.id,
   });
+
+  // Initialize ProcEngine when equipped items change
+  const equippedItems = allItems.filter(i => i.equipped);
+  useEffect(() => {
+    if (equippedItems.length === 0) return;
+    const itemProcs = collectEquippedProcs(equippedItems);
+    const setProcIds = collectSetProcEffects(equippedItems);
+    const setProcs = setProcIds.map(({ procId, source }) => {
+      const def = SET_PROC_EFFECTS[procId];
+      return def ? { ...def, source } : null;
+    }).filter(Boolean);
+    procEngineRef.current = new ProcEngine(itemProcs, setProcs);
+  }, [allItems.length, equippedItems.length]);
 
   const potionStacks = allItems
     .filter(i => i.type === "consumable" && i.name.toLowerCase().includes("health"))
@@ -185,6 +202,7 @@ export default function Battle({ character, onCharacterUpdate }) {
     setIsPlayerTurn(true);
     attackSpeedAccRef.current = 0;
     setAttackSpeedBonusHits(0);
+    if (procEngineRef.current) procEngineRef.current.reset();
     if (isEliteSpawn) addLog(`⚡ ELITE appeared: ${enemyData.name}! Rare loot bonus!`);
     if (isEmpowered) addLog(`⚡ Empowered ${enemyData.name} appeared! 3x HP, 3x rewards!`);
   }, [region, character?.level]);
@@ -197,8 +215,34 @@ export default function Battle({ character, onCharacterUpdate }) {
     const rawEnemyDmg = Math.floor(currentEnemyData.dmg * (0.8 + Math.random() * 0.4));
     const { finalDamage: actualDmg, evaded, blocked } = calculateDamageTaken(rawEnemyDmg, d, currentEnemyData.level || 1, character.level);
 
-    const safeDmg = Number.isFinite(actualDmg) ? actualDmg : 0;
+    let safeDmg = Number.isFinite(actualDmg) ? actualDmg : 0;
     const safeHp = Number.isFinite(currentPlayerHp) ? currentPlayerHp : character.max_hp || 100;
+
+    // Defensive procs (reflect, absorb, counter)
+    let reflectDmg = 0;
+    if (procEngineRef.current && !evaded) {
+      const { finalDamage: modDmg, results: defResults } = procEngineRef.current.onDamageTaken(safeDmg, 0);
+      safeDmg = modDmg;
+      for (const dr of defResults) {
+        if (dr.type === "reflect") {
+          reflectDmg += dr.damage;
+          addLog(`${dr.icon} ${dr.name}! Reflected ${dr.damage} damage!`);
+          spawnEnemyNum(dr.damage, "proc");
+        } else if (dr.type === "absorb") {
+          addLog(`${dr.icon} ${dr.name}! Absorbed ${dr.absorbed} damage!`);
+        } else if (dr.type === "counter") {
+          reflectDmg += dr.damage;
+          addLog(`${dr.icon} ${dr.name}! Counter-attacked for ${dr.damage}!`);
+          spawnEnemyNum(dr.damage, "proc");
+        }
+      }
+    }
+
+    // Apply reflect damage to enemy
+    if (reflectDmg > 0 && currentEnemyData) {
+      setEnemyHp(prev => Math.max(0, prev - reflectDmg));
+    }
+
     const newPlayerHp = Math.max(0, safeHp - safeDmg);
     setPlayerHp(newPlayerHp);
 
@@ -276,13 +320,58 @@ export default function Battle({ character, onCharacterUpdate }) {
       setCooldowns(prev => ({ ...prev, [skill.id]: skill.cooldown || 3 }));
     }
 
+    // Elemental weakness/resistance multiplier
+    const attackElement = skill?.element || "physical";
+    if (enemy?.key && attackElement !== "physical") {
+      const elemMult = getElementalMultiplier(attackElement, enemy.key);
+      if (elemMult !== 1.0) {
+        finalDmg = Math.floor(finalDmg * elemMult);
+        if (elemMult > 1) addLog(`${ELEMENT_DISPLAY[attackElement]?.icon || ""} Weakness! ${attackElement} deals extra damage!`);
+        else addLog(`${ELEMENT_DISPLAY[attackElement]?.icon || ""} Resisted! ${attackElement} deals reduced damage.`);
+      }
+    }
+
+    // Proc effects
+    let totalProcDmg = 0;
+    let procHeal = 0;
+    if (procEngineRef.current && enemy) {
+      const procResults = procEngineRef.current.onPlayerAttack(finalDmg, isCrit, enemy.maxHp, total, character.class);
+      for (const pr of procResults) {
+        if (pr.type === "damage") {
+          totalProcDmg += pr.damage;
+          addLog(`${pr.icon} ${pr.name}! +${pr.damage} ${pr.element || ""} damage`);
+          spawnEnemyNum(pr.damage, "proc");
+        } else if (pr.type === "dot") {
+          addLog(`${pr.icon} ${pr.name}! ${pr.dmgPerTurn}/turn for ${pr.duration} turns`);
+        } else if (pr.type === "lifesteal_burst") {
+          totalProcDmg += pr.damage;
+          procHeal += pr.heal;
+          addLog(`${pr.icon} ${pr.name}! ${pr.damage} dmg + healed ${pr.heal}`);
+          spawnEnemyNum(pr.damage, "proc");
+          spawnPlayerNum(pr.heal, "heal");
+        } else if (pr.type === "extra_hits") {
+          setAttackSpeedBonusHits(prev => prev + (pr.extraHits || 2));
+          addLog(`${pr.icon} ${pr.name}! ${pr.extraHits} bonus attacks!`);
+        }
+      }
+      // Tick DoTs
+      const dotDmg = procEngineRef.current.tickDoTs();
+      if (dotDmg > 0) {
+        totalProcDmg += dotDmg;
+        addLog(`☠️ Poison tick: ${dotDmg} damage`);
+        spawnEnemyNum(dotDmg, "dot");
+      }
+    }
+
+    const totalDamageDealt = finalDmg + totalProcDmg;
+
     // Lifesteal
-    const lifestealAmount = Math.max(0, Math.round(finalDmg * (derived.lifesteal / 100)));
+    const lifestealAmount = Math.max(0, Math.round(finalDmg * (derived.lifesteal / 100))) + procHeal;
     const regenHp = Math.floor(character.max_hp * HP_REGEN_PER_TURN);
     const newPlayerHp = Math.min(character.max_hp, playerHp + lifestealAmount + regenHp);
     setPlayerHp(newPlayerHp);
 
-    const newEnemyHp = Math.max(0, enemyHp - finalDmg);
+    const newEnemyHp = Math.max(0, enemyHp - totalDamageDealt);
     setEnemyHp(newEnemyHp);
 
     setLastDamage(finalDmg);
@@ -392,6 +481,16 @@ export default function Battle({ character, onCharacterUpdate }) {
   const handleEnemyDefeat = useCallback(async () => {
     if (!enemy || !character) return;
     setCombatPhase("enemy_dead");
+
+    // Trigger on_kill procs (gold_rush, exp_surge, soul_reap)
+    if (procEngineRef.current) {
+      const killResults = procEngineRef.current.onEnemyKill();
+      for (const r of killResults) {
+        if (r.type === "bonus_gold") addLog(`💰 ${r.name}: +${r.value} bonus gold!`);
+        else if (r.type === "bonus_exp") addLog(`📚 ${r.name}: +${r.value} bonus EXP!`);
+        else if (r.type === "heal") addLog(`💚 ${r.name}: healed ${r.value} HP!`);
+      }
+    }
 
     try {
       const result = await base44.functions.invoke('fight', {
@@ -869,6 +968,25 @@ export default function Battle({ character, onCharacterUpdate }) {
                     {enemy.isEmpowered && <Badge className="mr-1 text-xs bg-yellow-500/20 text-yellow-400 border-yellow-500/30">Empowered</Badge>}
                     Lv.{enemy.level || "?"} · DMG: {enemy.dmg}
                   </p>
+                  {/* Elemental Info */}
+                  {enemy.key && (() => {
+                    const elemInfo = getEnemyElementInfo(enemy.key);
+                    if (!elemInfo.weakness.length && !elemInfo.resistance.length) return null;
+                    return (
+                      <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                        {elemInfo.weakness.map(e => (
+                          <span key={`w-${e}`} className={`text-[10px] px-1.5 py-0.5 rounded ${ELEMENT_DISPLAY[e]?.bg || ""} ${ELEMENT_DISPLAY[e]?.color || ""}`}>
+                            {ELEMENT_DISPLAY[e]?.icon} Weak
+                          </span>
+                        ))}
+                        {elemInfo.resistance.map(e => (
+                          <span key={`r-${e}`} className="text-[10px] px-1.5 py-0.5 rounded bg-gray-500/20 text-gray-400">
+                            {ELEMENT_DISPLAY[e]?.icon} Resist
+                          </span>
+                        ))}
+                      </div>
+                    );
+                  })()}
                 </div>
               </div>
               <HealthBar current={enemyHp} max={enemy.maxHp} color="bg-destructive" label="HP" />

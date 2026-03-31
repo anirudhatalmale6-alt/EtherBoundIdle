@@ -1,7 +1,7 @@
 import { Router, type IRouter, type Request, type Response } from "express";
 import { requireAuth } from "../middlewares/authMiddleware";
 import { sendSuccess, sendError } from "../lib/response";
-import { ENEMIES, calculateExpToLevel, generateLoot, RARITY_SELL_PRICES, RARITY_MULTIPLIER } from "../lib/gameData";
+import { ENEMIES, calculateExpToLevel, generateLoot, RARITY_SELL_PRICES, RARITY_MULTIPLIER, rollUniqueDrop as rollUnique, rollStoneDrop as rollStone } from "../lib/gameData";
 import { db } from "@workspace/db";
 import {
   charactersTable,
@@ -2219,13 +2219,34 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
     let lootItem = null;
     try {
       const charLuck = char.luck || 0;
-      const loot = generateLoot(
-        char.level || 1,
-        charLuck,
-        serverIsBoss,
-        serverRegionKey,
-        char.class || null
-      );
+      const enemyKeyStr = req.body.enemyKey || "";
+
+      // 1. Try unique item drop first (from boss/elite kills)
+      let loot = null;
+      if (serverIsBoss || serverIsElite) {
+        const uniqueDrop = rollUnique(enemyKeyStr, char.class || null, charLuck);
+        if (uniqueDrop) {
+          loot = uniqueDrop;
+        }
+      }
+
+      // 2. Try celestial stone drop (from bosses only)
+      let stoneLoot = null;
+      if (serverIsBoss) {
+        stoneLoot = rollStone(enemyKeyStr, charLuck);
+      }
+
+      // 3. Normal loot generation
+      if (!loot) {
+        loot = generateLoot(
+          char.level || 1,
+          charLuck,
+          serverIsBoss,
+          serverRegionKey,
+          char.class || null
+        );
+      }
+
       if (loot) {
         const [inserted] = await db.insert(itemsTable).values({
           ownerId: characterId,
@@ -2241,9 +2262,30 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
             sell_price: loot.sell_price || 0,
             set_name: loot.set_name || null,
             class_restriction: loot.class_restriction || null,
+            proc_effects: loot.proc_effects || null,
+            is_unique: loot.is_unique || false,
+            lore: loot.lore || null,
+            uniqueEffect: loot.uniqueEffect || null,
           },
         }).returning();
         lootItem = inserted;
+      }
+
+      // Insert celestial stone as separate item
+      if (stoneLoot) {
+        await db.insert(itemsTable).values({
+          ownerId: characterId,
+          name: stoneLoot.name,
+          type: stoneLoot.type,
+          rarity: stoneLoot.rarity,
+          level: 1,
+          stats: {},
+          extraData: {
+            is_unique: true,
+            sell_price: 0,
+            level_req: 1,
+          },
+        });
       }
     } catch (lootErr: any) {
       req.log.error({ err: lootErr }, "fight loot generation error");
