@@ -2023,11 +2023,12 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       }
       me.hp = Math.max(0, me.hp - actualBossDmg);
       if (evaded) {
-        d.combat_log.push({ type: "boss_attack", text: `${me.name} evaded ${d.boss_name}'s attack!` });
+        d.combat_log.push({ type: "boss_attack", target: me.name, text: `🛡️ ${me.name} evaded ${d.boss_name}'s attack!` });
       } else {
         d.combat_log.push({
           type: "boss_attack",
-          text: `${d.boss_name} strikes ${me.name} for ${actualBossDmg} damage${blocked ? " (BLOCKED!)" : ""}!`,
+          target: me.name,
+          text: `⚔️ ${d.boss_name} → ${me.name}: ${actualBossDmg} damage${blocked ? " (BLOCKED!)" : ""}`,
         });
       }
       if (me.hp <= 0) {
