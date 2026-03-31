@@ -334,17 +334,22 @@ export default function DungeonCombat({ session: initialSession, character, onLe
           <div className="bg-card border border-border rounded-xl p-3 flex-1 min-h-0">
             <p className="text-xs font-semibold text-muted-foreground mb-2">COMBAT LOG</p>
             <div ref={logRef} className="space-y-0.5 max-h-64 md:max-h-full overflow-y-auto">
-              {(session.combat_log || []).slice().reverse().map((entry, i) => (
-                <p key={i} className={`text-xs ${
-                  entry.type === 'victory' ? "text-yellow-400 font-semibold" :
-                  entry.type === 'defeat' ? "text-destructive font-semibold" :
-                  entry.type === 'player_attack' ? "text-foreground" :
-                  entry.type === 'boss_attack' ? "text-orange-400" :
-                  "text-muted-foreground"
-                }`}>
-                  {entry.text}
-                </p>
-              ))}
+              {(session.combat_log || []).slice().reverse().map((entry, i) => {
+                const isMyBossHit = entry.type === 'boss_attack' && entry.target === character?.name;
+                return (
+                  <p key={i} className={`text-xs ${
+                    entry.type === 'victory' ? "text-yellow-400 font-semibold" :
+                    entry.type === 'defeat' ? "text-destructive font-semibold" :
+                    entry.type === 'player_attack' ? "text-foreground" :
+                    isMyBossHit ? "text-red-400 font-semibold" :
+                    entry.type === 'boss_attack' ? "text-orange-400" :
+                    entry.type === 'heal' ? "text-green-400" :
+                    "text-muted-foreground"
+                  }`}>
+                    {entry.text}
+                  </p>
+                );
+              })}
             </div>
           </div>
         </div>

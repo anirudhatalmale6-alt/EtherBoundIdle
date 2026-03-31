@@ -243,7 +243,16 @@ export default function Battle({ character, onCharacterUpdate }) {
 
     // Apply reflect damage to enemy
     if (reflectDmg > 0 && currentEnemyData) {
-      setEnemyHp(prev => Math.max(0, prev - reflectDmg));
+      setEnemyHp(prev => {
+        const newHp = Math.max(0, prev - reflectDmg);
+        if (newHp <= 0) {
+          // Enemy killed by reflect — schedule respawn
+          addLog(`💥 ${currentEnemyData.name} was killed by reflected damage!`);
+          setCombatPhase("enemy_dead");
+          setTimeout(() => spawnEnemy(), 2000);
+        }
+        return newHp;
+      });
     }
 
     const newPlayerHp = Math.max(0, safeHp - safeDmg);
@@ -298,6 +307,7 @@ export default function Battle({ character, onCharacterUpdate }) {
   }, [allItems, character, spawnEnemy]);
 
   // ── PLAYER ATTACK ─────────────────────────────────────────────────────────
+  const doPlayerAttackRef = useRef(null);
   const doPlayerAttack = useCallback((skill = null) => {
     if (combatPhase !== "player_turn" || !enemy || enemyHp <= 0) return;
     if (skill && (cooldowns[skill.id] > 0 || playerMp < skill.mp)) return;
@@ -450,12 +460,19 @@ export default function Battle({ character, onCharacterUpdate }) {
     const atkSpeed = derived.attackSpeed || 1;
     // Check for bonus hits already queued from previous attack
     if (attackSpeedBonusHits > 0) {
-      setAttackSpeedBonusHits(prev => prev - 1);
+      const remaining = attackSpeedBonusHits - 1;
+      setAttackSpeedBonusHits(remaining);
       addLog("⚡ Quick strike!");
-      setTimeout(() => {
-        setCombatPhase("player_turn");
-        setIsPlayerTurn(true);
-      }, 500);
+      if (remaining > 0) {
+        // More bonus hits queued — continue player attacks
+        setTimeout(() => {
+          setCombatPhase("player_turn");
+          setIsPlayerTurn(true);
+        }, 500);
+      } else {
+        // Last bonus hit done — now enemy gets a turn
+        setTimeout(() => doEnemyTurn(newPlayerHp, enemy), 1000);
+      }
       return;
     }
     // Calculate new bonus hits for this turn
@@ -470,16 +487,22 @@ export default function Battle({ character, onCharacterUpdate }) {
     if (bonusHits > 0) {
       addLog(`⚡ ${bonusHits > 1 ? `${bonusHits}x ` : ""}Quick strike!`);
       setAttackSpeedBonusHits(bonusHits - 1);
-      setTimeout(() => {
-        setCombatPhase("player_turn");
-        setIsPlayerTurn(true);
-      }, 500);
+      if (bonusHits - 1 > 0) {
+        setTimeout(() => {
+          setCombatPhase("player_turn");
+          setIsPlayerTurn(true);
+        }, 500);
+      } else {
+        // Last bonus hit — enemy turn next
+        setTimeout(() => doEnemyTurn(newPlayerHp, enemy), 1000);
+      }
       return;
     }
 
     // Enemy acts after short delay
     setTimeout(() => doEnemyTurn(newPlayerHp, enemy), 1500);
   }, [combatPhase, enemy, enemyHp, playerHp, playerMp, allItems, character, cooldowns, doEnemyTurn]);
+  doPlayerAttackRef.current = doPlayerAttack;
 
   const handleEnemyDefeat = useCallback(async () => {
     if (!enemy || !character) return;
@@ -557,7 +580,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         autoAttackTimerRef.current = null;
         autoAttackStartRef.current = null;
         setAutoAttackCountdown(null);
-        doPlayerAttack(null); // auto basic attack
+        doPlayerAttackRef.current?.(null); // auto basic attack via ref (avoids stale closure)
       } else {
         setAutoAttackCountdown(remaining);
       }
@@ -571,7 +594,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         if (autoAttackTimerRef.current) { clearInterval(autoAttackTimerRef.current); autoAttackTimerRef.current = null; }
         autoAttackStartRef.current = null;
         setAutoAttackCountdown(null);
-        doPlayerAttack(null);
+        doPlayerAttackRef.current?.(null);
       } else {
         setAutoAttackCountdown(Math.max(0, 5 - elapsed));
       }

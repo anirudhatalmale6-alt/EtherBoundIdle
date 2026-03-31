@@ -8,7 +8,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Backpack, Swords, ShieldCheck, Crown, Footprints, CircleDot,
   Gem, Coins, ArrowUpRight, FlaskConical, Package, Hand,
-  Heart, Zap, Shield, Crosshair, Wind, Flame
+  Heart, Zap, Shield, Crosshair, Wind, Flame,
+  Droplet, Snowflake, Skull
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
 import { getItemIcon } from "@/lib/itemIcons";
@@ -165,12 +166,22 @@ function CharacterStatsPanel({ character, equippedItems }) {
     { icon: Zap, label: "MP/s", value: derived.mpRegen, color: "text-indigo-400" },
     { icon: Swords, label: "SPD", value: `${derived.attackSpeed}x`, color: "text-violet-400" },
     { icon: Shield, label: "DMG Red", value: `${derived.damageReduction}%`, color: "text-stone-400" },
+    { icon: Droplet, label: "Lifesteal", value: `${derived.lifesteal || 0}%`, color: "text-rose-400", hide: !derived.lifesteal },
   ];
+
+  const elementalStats = [
+    { icon: Flame, label: "Fire DMG", value: `${derived.fireDmg || 0}%`, color: "text-orange-500" },
+    { icon: Snowflake, label: "Ice DMG", value: `${derived.iceDmg || 0}%`, color: "text-sky-400" },
+    { icon: Zap, label: "Lightning", value: `${derived.lightningDmg || 0}%`, color: "text-yellow-300" },
+    { icon: Skull, label: "Poison", value: `${derived.poisonDmg || 0}%`, color: "text-green-500" },
+    { icon: Droplet, label: "Blood", value: `${derived.bloodDmg || 0}%`, color: "text-red-600" },
+    { icon: Wind, label: "Sand", value: `${derived.sandDmg || 0}%`, color: "text-amber-500" },
+  ].filter(s => parseInt(s.value) > 0);
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-1">
       <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Character Stats</h3>
-      {stats.map(({ icon: Icon, label, value, color }) => (
+      {stats.filter(s => !s.hide).map(({ icon: Icon, label, value, color }) => (
         <div key={label} className="flex items-center justify-between py-0.5">
           <div className="flex items-center gap-1.5">
             <Icon className={`w-3 h-3 ${color}`} />
@@ -179,6 +190,21 @@ function CharacterStatsPanel({ character, equippedItems }) {
           <span className={`text-xs font-mono font-semibold ${color}`}>{value}</span>
         </div>
       ))}
+      {elementalStats.length > 0 && (
+        <>
+          <div className="border-t border-border my-1.5" />
+          <h3 className="text-xs font-semibold text-muted-foreground mb-1 uppercase tracking-wider">Elemental Bonuses</h3>
+          {elementalStats.map(({ icon: Icon, label, value, color }) => (
+            <div key={label} className="flex items-center justify-between py-0.5">
+              <div className="flex items-center gap-1.5">
+                <Icon className={`w-3 h-3 ${color}`} />
+                <span className="text-xs text-muted-foreground">{label}</span>
+              </div>
+              <span className={`text-xs font-mono font-semibold ${color}`}>{value}</span>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
