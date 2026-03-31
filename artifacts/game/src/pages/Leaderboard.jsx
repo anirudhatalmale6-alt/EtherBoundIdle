@@ -12,13 +12,26 @@ import {
 import { CLASSES } from "@/lib/gameData";
 import RoleBadge from "@/components/game/RoleBadge";
 
+import { useEffect } from "react";
+import { RARITY_CONFIG } from "@/lib/gameData";
+import { SLOT_LABELS } from "@/lib/equipmentSystem";
+
 export default function Leaderboard({ character }) {
   const [selectedChar, setSelectedChar] = useState(null);
+  const [selectedCharItems, setSelectedCharItems] = useState([]);
   const [editStats, setEditStats] = useState(null);
   const [tempStats, setTempStats] = useState({});
   const [currentUser, setCurrentUser] = useState(null);
   const [friendRequestSent, setFriendRequestSent] = useState({});
   const queryClient = useQueryClient();
+
+  // Fetch equipped items when a character is selected
+  useEffect(() => {
+    if (!selectedChar?.id) { setSelectedCharItems([]); return; }
+    base44.entities.Item.filter({ owner_id: selectedChar.id, equipped: true })
+      .then(items => setSelectedCharItems(items))
+      .catch(() => setSelectedCharItems([]));
+  }, [selectedChar?.id]);
 
   const sendFriendRequestMutation = useMutation({
     mutationFn: async (targetChar) => {
@@ -246,6 +259,28 @@ export default function Leaderboard({ character }) {
                 </div>
               )}
 
+              {/* Equipment — visible to all */}
+              {selectedCharItems.length > 0 && (
+                <div className="mb-4 p-3 bg-muted/50 rounded-lg">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Equipped Items</p>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {selectedCharItems.map(item => {
+                      const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
+                      const slotLabel = SLOT_LABELS[item.slot] || item.slot || "";
+                      return (
+                        <div key={item.id} className={`flex items-center gap-1.5 p-1.5 rounded ${rarity?.bg || "bg-muted/30"} ${rarity?.border || "border-border"} border`}>
+                          <span className="text-sm">{item.icon || "⚔️"}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-medium truncate ${rarity?.color || "text-foreground"}`}>{item.name}</p>
+                            <p className="text-[10px] text-muted-foreground">{slotLabel}</p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {/* Admin Tools — superadmin only */}
               {currentUser?.role !== "superadmin" ? null : editStats ? (
                 <div className="mb-6 p-4 bg-primary/10 border border-primary/30 rounded-lg space-y-3">
@@ -305,18 +340,25 @@ export default function Leaderboard({ character }) {
                 <details className="group">
                   <summary className="flex items-center justify-between p-2 rounded-lg border border-border hover:bg-muted cursor-pointer">
                     <span className="flex items-center gap-2 text-sm font-medium">
-                      <Backpack className="w-3.5 h-3.5" /> Inventory
+                      <Backpack className="w-3.5 h-3.5" /> Equipment ({selectedCharItems.length} items)
                     </span>
                     <span className="group-open:rotate-180 transition-transform">▼</span>
                   </summary>
-                  <div className="mt-2 max-h-40 overflow-y-auto space-y-1 text-xs text-muted-foreground">
-                    {selectedChar.equipment ? (
-                      <div className="p-2 bg-muted/50 rounded">
-                        <p className="font-semibold mb-1">Equipment:</p>
-                        <p>{JSON.stringify(selectedChar.equipment)}</p>
-                      </div>
-                    ) : (
-                      <p className="p-2 text-center">No inventory data</p>
+                  <div className="mt-2 max-h-60 overflow-y-auto space-y-1 text-xs">
+                    {selectedCharItems.length > 0 ? selectedCharItems.map(item => {
+                      const rarity = RARITY_CONFIG[item.rarity] || RARITY_CONFIG.common;
+                      const slotLabel = SLOT_LABELS[item.slot] || item.slot || "?";
+                      return (
+                        <div key={item.id} className={`p-2 rounded flex items-center gap-2 ${rarity?.bg || "bg-muted/50"} border ${rarity?.border || "border-border"}`}>
+                          <span className="text-sm flex-shrink-0">{item.icon || "⚔️"}</span>
+                          <div className="flex-1 min-w-0">
+                            <p className={`font-semibold truncate ${rarity?.color || "text-foreground"}`}>{item.name}</p>
+                            <p className="text-muted-foreground">{slotLabel} {item.level ? `Lv.${item.level}` : ""}</p>
+                          </div>
+                        </div>
+                      );
+                    }) : (
+                      <p className="p-2 text-center text-muted-foreground">No equipment data</p>
                     )}
                   </div>
                 </details>
