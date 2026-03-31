@@ -33,7 +33,7 @@ export default function FriendPanel({ character, onWhisper }) {
   const { data: friends = [] } = useQuery({
     queryKey: ["friends", character.id],
     queryFn: () => base44.entities.Friendship.filter({ character_id: character.id }),
-    refetchInterval: 30000,
+    refetchInterval: 10000,
   });
 
   const { data: presences = [] } = useQuery({
@@ -45,13 +45,13 @@ export default function FriendPanel({ character, onWhisper }) {
   const { data: incomingRequests = [] } = useQuery({
     queryKey: ["friend_requests_in", character.id],
     queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character.id, status: "pending" }),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   const { data: outgoingRequests = [] } = useQuery({
     queryKey: ["friend_requests_out", character.id],
     queryFn: () => base44.entities.FriendRequest.filter({ from_character_id: character.id, status: "pending" }),
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   // Polling already handles friend requests (15s) and friends (30s) — no-op subscribe removed
