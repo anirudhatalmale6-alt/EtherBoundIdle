@@ -279,7 +279,13 @@ export default function Profile({ character, onCharacterUpdate }) {
                     <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => addStat(key, 1)} disabled={availablePoints <= 0}>
                       <Plus className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-primary" onClick={() => addStat(key, availablePoints)} disabled={availablePoints <= 0}>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[10px] min-w-0 text-primary" onClick={() => addStat(key, 5)} disabled={availablePoints <= 0}>
+                      x5
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[10px] min-w-0 text-primary" onClick={() => addStat(key, 10)} disabled={availablePoints <= 0}>
+                      x10
+                    </Button>
+                    <Button variant="ghost" size="sm" className="h-7 px-1.5 text-[10px] min-w-0 text-primary" onClick={() => addStat(key, availablePoints)} disabled={availablePoints <= 0}>
                       Max
                     </Button>
                   </div>
