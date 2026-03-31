@@ -150,7 +150,15 @@ function CharacterStatsPanel({ character, equippedItems }) {
   if (!character) return null;
 
   const setStats = aggregateSetStats(equippedItems);
-  const { derived } = calculateFinalStats(character, equippedItems, setStats);
+  const { total, derived } = calculateFinalStats(character, equippedItems, setStats);
+
+  const baseStats = [
+    { icon: Swords, label: "STR", value: total.strength, color: "text-red-400" },
+    { icon: Crosshair, label: "DEX", value: total.dexterity, color: "text-green-400" },
+    { icon: Zap, label: "INT", value: total.intelligence, color: "text-blue-400" },
+    { icon: Heart, label: "VIT", value: total.vitality, color: "text-orange-400" },
+    { icon: Gem, label: "LUK", value: total.luck, color: "text-yellow-400" },
+  ];
 
   const stats = [
     { icon: Swords, label: "ATK", value: derived.attackPower, color: "text-red-400" },
@@ -167,6 +175,8 @@ function CharacterStatsPanel({ character, equippedItems }) {
     { icon: Swords, label: "SPD", value: `${derived.attackSpeed}x`, color: "text-violet-400" },
     { icon: Shield, label: "DMG Red", value: `${derived.damageReduction}%`, color: "text-stone-400" },
     { icon: Droplet, label: "Lifesteal", value: `${derived.lifesteal || 0}%`, color: "text-rose-400", hide: !derived.lifesteal },
+    { icon: Coins, label: "Gold+", value: `${derived.goldGainPct || 0}%`, color: "text-yellow-300", hide: !derived.goldGainPct },
+    { icon: Gem, label: "EXP+", value: `${derived.expGainPct || 0}%`, color: "text-cyan-300", hide: !derived.expGainPct },
   ];
 
   const elementalStats = [
@@ -180,7 +190,18 @@ function CharacterStatsPanel({ character, equippedItems }) {
 
   return (
     <div className="bg-card border border-border rounded-xl p-4 space-y-1">
-      <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Character Stats</h3>
+      <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Base Stats</h3>
+      {baseStats.map(({ icon: Icon, label, value, color }) => (
+        <div key={label} className="flex items-center justify-between py-0.5">
+          <div className="flex items-center gap-1.5">
+            <Icon className={`w-3 h-3 ${color}`} />
+            <span className="text-xs text-muted-foreground">{label}</span>
+          </div>
+          <span className={`text-xs font-mono font-semibold ${color}`}>{value}</span>
+        </div>
+      ))}
+      <div className="border-t border-border my-1.5" />
+      <h3 className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Combat Stats</h3>
       {stats.filter(s => !s.hide).map(({ icon: Icon, label, value, color }) => (
         <div key={label} className="flex items-center justify-between py-0.5">
           <div className="flex items-center gap-1.5">
