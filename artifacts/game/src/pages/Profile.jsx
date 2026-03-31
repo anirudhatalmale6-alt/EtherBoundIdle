@@ -261,43 +261,69 @@ export default function Profile({ character, onCharacterUpdate }) {
                   </div>
                 </div>
                 {(character.stat_points || 0) > 0 && (
-                  <div className="flex gap-1">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => removeStat(key)} disabled={!pendingStats[key]}>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <Button variant="ghost" size="icon" className="h-6 w-6"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        if (!pendingStats[key]) return;
+                        removeStat(key);
+                        let speed = 200;
+                        let tid = null;
+                        let stopped = false;
+                        const rep = () => {
+                          if (stopped) return;
+                          removeStat(key);
+                          speed = Math.max(40, Math.floor(speed * 0.82));
+                          tid = setTimeout(rep, speed);
+                        };
+                        tid = setTimeout(rep, 400);
+                        const stop = () => {
+                          stopped = true;
+                          if (tid) clearTimeout(tid);
+                          window.removeEventListener("pointerup", stop);
+                          window.removeEventListener("pointercancel", stop);
+                        };
+                        window.addEventListener("pointerup", stop);
+                        window.addEventListener("pointercancel", stop);
+                      }}
+                      disabled={!pendingStats[key]}>
                       <Minus className="w-3 h-3" />
                     </Button>
-                    <Button variant="ghost" size="icon" className="h-7 w-7"
-                      onClick={() => addStat(key, 1)}
-                      onMouseDown={(e) => {
+                    <Button variant="ghost" size="icon" className="h-6 w-6"
+                      onPointerDown={(e) => {
+                        e.preventDefault();
                         if (availablePoints <= 0) return;
+                        addStat(key, 1);
                         let speed = 200;
                         let tid = null;
                         let stopped = false;
                         const rep = () => {
                           if (stopped) return;
                           addStat(key, 1);
-                          speed = Math.max(30, Math.floor(speed * 0.85));
+                          speed = Math.max(40, Math.floor(speed * 0.82));
                           tid = setTimeout(rep, speed);
                         };
-                        // Start repeating after initial delay (longer than click)
-                        tid = setTimeout(rep, 300);
+                        tid = setTimeout(rep, 400);
                         const stop = () => {
                           stopped = true;
                           if (tid) clearTimeout(tid);
-                          window.removeEventListener("mouseup", stop);
+                          window.removeEventListener("pointerup", stop);
+                          window.removeEventListener("pointercancel", stop);
                         };
-                        window.addEventListener("mouseup", stop);
+                        window.addEventListener("pointerup", stop);
+                        window.addEventListener("pointercancel", stop);
                       }}
                       disabled={availablePoints <= 0}>
                       <Plus className="w-3 h-3" />
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => addStat(key, 5)} disabled={availablePoints <= 0}>
+                    <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] min-w-0" onClick={() => addStat(key, 5)} disabled={availablePoints <= 0}>
                       +5
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => addStat(key, 10)} disabled={availablePoints <= 0}>
+                    <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] min-w-0" onClick={() => addStat(key, 10)} disabled={availablePoints <= 0}>
                       +10
                     </Button>
-                    <Button variant="ghost" size="sm" className="h-7 px-2 text-xs text-primary" onClick={() => addStat(key, availablePoints)} disabled={availablePoints <= 0}>
-                      Max
+                    <Button variant="ghost" size="sm" className="h-6 px-1.5 text-[10px] min-w-0 text-primary" onClick={() => addStat(key, availablePoints)} disabled={availablePoints <= 0}>
+                      All
                     </Button>
                   </div>
                 )}
