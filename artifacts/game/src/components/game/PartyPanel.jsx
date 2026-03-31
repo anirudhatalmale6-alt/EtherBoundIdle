@@ -38,8 +38,8 @@ export default function PartyPanel({ character }) {
       return all.find(p => p.status !== 'disbanded' && p.members?.some(m => m.character_id === character.id)) || null;
     },
     enabled: !!character?.id,
-    staleTime: 30000,
-    refetchInterval: 30000,
+    staleTime: 5000,
+    refetchInterval: 5000,
   });
 
   useEffect(() => {
@@ -61,7 +61,7 @@ export default function PartyPanel({ character }) {
       setMemberDetails(updates);
     };
     fetchDetails();
-    const interval = setInterval(fetchDetails, 60000);
+    const interval = setInterval(fetchDetails, 15000);
     return () => clearInterval(interval);
   }, [partyData?.id, partyData?.members?.map(m => m.character_id).sort().join(',')]);
 
@@ -71,8 +71,8 @@ export default function PartyPanel({ character }) {
       return base44.entities.PartyInvite.filter({ to_character_id: character.id, status: 'pending' });
     },
     enabled: !!character?.id,
-    staleTime: 15000,
-    refetchInterval: 15000,
+    staleTime: 3000,
+    refetchInterval: 3000,
   });
 
   const invalidateParty = () => {

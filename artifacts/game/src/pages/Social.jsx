@@ -96,7 +96,7 @@ export default function Social({ character, onCharacterUpdate }) {
     queryKey: ["trades_pending", character?.id],
     queryFn: () => base44.entities.TradeSession.filter({ receiver_id: character?.id, status: "pending" }),
     enabled: !!character?.id,
-    refetchInterval: 60000,
+    refetchInterval: 5000,
   });
 
   // Friend requests count — reuses same query key as FriendPanel, no duplicate fetch
@@ -104,7 +104,7 @@ export default function Social({ character, onCharacterUpdate }) {
     queryKey: ["friend_requests_in", character?.id],
     queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character?.id, status: "pending" }),
     enabled: !!character?.id,
-    refetchInterval: 15000,
+    refetchInterval: 5000,
   });
 
   if (!character) return null;

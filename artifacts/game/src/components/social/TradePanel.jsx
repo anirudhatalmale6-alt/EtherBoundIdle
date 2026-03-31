@@ -30,7 +30,7 @@ export default function TradePanel({ character, onCharacterUpdate, tradeTarget, 
   const { data: incomingTrades = [] } = useQuery({
     queryKey: ["trades_pending", character.id],
     queryFn: () => base44.entities.TradeSession.filter({ receiver_id: character.id, status: "pending" }),
-    refetchInterval: 10000,
+    refetchInterval: 3000,
   });
 
   const { data: myTrades = [] } = useQuery({
@@ -42,7 +42,7 @@ export default function TradePanel({ character, onCharacterUpdate, tradeTarget, 
       ]);
       return [...asInit, ...asRecv].filter(t => ["pending", "active", "initiator_locked", "receiver_locked"].includes(t.status));
     },
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   // Poll active trade for real-time updates
@@ -54,7 +54,7 @@ export default function TradePanel({ character, onCharacterUpdate, tradeTarget, 
         if (res) setActiveTrade(res);
       } catch {}
     };
-    const interval = setInterval(poll, 5000);
+    const interval = setInterval(poll, 3000);
     return () => clearInterval(interval);
   }, [activeTrade?.id]);
 
