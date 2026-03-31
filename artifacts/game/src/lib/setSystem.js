@@ -23,7 +23,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+15 Vitality, +10 Defense",          stats: { vitality: 15, defense: 10 } },
       3: { label: "+20% HP Regen, +8 Luck",             stats: { hp_bonus: 30, luck: 8 } },
-      5: { label: "FULL: +40% Max HP, +25 All Stats",   stats: { hp_bonus: 80, strength: 25, dexterity: 25, intelligence: 25, vitality: 25 } },
+      5: { label: "FULL: +40% Max HP, +25 All Stats",   stats: { hp_bonus: 80, strength: 25, dexterity: 25, intelligence: 25, vitality: 25 }, procEffect: null },
     },
   },
 
@@ -40,7 +40,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+20 Strength, +15 Defense",           stats: { strength: 20, defense: 15 } },
       3: { label: "+12% Crit Chance, +10 Damage",        stats: { crit_chance: 12, damage: 10 } },
-      5: { label: "FULL: +60 Strength, +25% Crit DMG",   stats: { strength: 60, crit_chance: 20, damage: 25 } },
+      5: { label: "FULL: +60 STR, +25% Crit DMG + Thorn Eruption",   stats: { strength: 60, crit_chance: 20, damage: 25 }, procEffect: "thornblade_vines" },
     },
   },
 
@@ -57,7 +57,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+25 Dexterity, +10 Luck",              stats: { dexterity: 25, luck: 10 } },
       3: { label: "+15% Attack Speed, +8 Crit Chance",    stats: { crit_chance: 15, dexterity: 10 } },
-      5: { label: "FULL: +60 Dexterity, +30% Crit DMG",   stats: { dexterity: 60, crit_chance: 25, luck: 20 } },
+      5: { label: "FULL: +60 DEX, +30% Crit DMG + Nova Barrage",   stats: { dexterity: 60, crit_chance: 25, luck: 20 }, procEffect: null },
     },
   },
 
@@ -75,7 +75,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+30 Strength, +20 Defense",             stats: { strength: 30, defense: 20 } },
       3: { label: "+20 Damage, +20% Max HP",               stats: { damage: 20, hp_bonus: 60 } },
-      5: { label: "FULL: +80 Strength, +40 Damage, Burn",  stats: { strength: 80, damage: 40, crit_chance: 15 } },
+      5: { label: "FULL: +80 STR, +40 DMG + Flamewarden's Fury",  stats: { strength: 80, damage: 40, crit_chance: 15 }, procEffect: "flamewarden_burn" },
     },
   },
 
@@ -92,7 +92,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+30 Intelligence, +40 MP",              stats: { intelligence: 30, mp_bonus: 40 } },
       3: { label: "+20% Spell Damage (dmg), +20 Luck",     stats: { damage: 20, luck: 20 } },
-      5: { label: "FULL: +80 INT, +80 MP, +50 Damage",     stats: { intelligence: 80, mp_bonus: 80, damage: 50 } },
+      5: { label: "FULL: +80 INT, +80 MP, +50 DMG",     stats: { intelligence: 80, mp_bonus: 80, damage: 50 }, procEffect: null },
     },
   },
 
@@ -109,7 +109,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+30 Dexterity, +15% Crit Chance",      stats: { dexterity: 30, crit_chance: 15 } },
       3: { label: "+8% Lifesteal, +25 Luck",              stats: { lifesteal: 8, luck: 25 } },
-      5: { label: "FULL: +70 DEX, +15% Lifesteal, +20 Luck", stats: { dexterity: 70, lifesteal: 15, luck: 20, crit_chance: 20 } },
+      5: { label: "FULL: +70 DEX, +15% Lifesteal, +20 Luck", stats: { dexterity: 70, lifesteal: 15, luck: 20, crit_chance: 20 }, procEffect: null },
     },
   },
 
@@ -127,7 +127,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+25 Vitality, +30 Defense",             stats: { vitality: 25, defense: 30 } },
       3: { label: "+50 HP Bonus, +15 All Stats",           stats: { hp_bonus: 50, strength: 15, dexterity: 15, intelligence: 15 } },
-      5: { label: "FULL: +100 Vitality, +100 Defense",     stats: { vitality: 100, defense: 100, hp_bonus: 150 } },
+      5: { label: "FULL: +100 VIT, +100 DEF + Glacial Barrier",     stats: { vitality: 100, defense: 100, hp_bonus: 150 }, procEffect: "glacialveil_freeze" },
     },
   },
 
@@ -144,7 +144,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+50 Strength, +30 Defense",              stats: { strength: 50, defense: 30 } },
       3: { label: "+35 Damage, +25% Max HP",                stats: { damage: 35, hp_bonus: 80 } },
-      5: { label: "FULL: +120 Strength, +70 Damage",        stats: { strength: 120, damage: 70, crit_chance: 20 } },
+      5: { label: "FULL: +120 STR, +70 DMG",        stats: { strength: 120, damage: 70, crit_chance: 20 }, procEffect: null },
     },
   },
 
@@ -161,7 +161,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+60 Intelligence, +50 MP",              stats: { intelligence: 60, mp_bonus: 50 } },
       3: { label: "+40 Damage, +30 Luck",                   stats: { damage: 40, luck: 30 } },
-      5: { label: "FULL: +150 INT, +100 MP, +80 Damage",    stats: { intelligence: 150, mp_bonus: 100, damage: 80 } },
+      5: { label: "FULL: +150 INT, +100 MP, +80 DMG",    stats: { intelligence: 150, mp_bonus: 100, damage: 80 }, procEffect: null },
     },
   },
 
@@ -179,7 +179,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+60 Dexterity, +25% Crit Chance",       stats: { dexterity: 60, crit_chance: 25 } },
       3: { label: "+15% Lifesteal, +50 Luck",              stats: { lifesteal: 15, luck: 50 } },
-      5: { label: "FULL: +150 DEX, +25% Lifesteal, God Crit", stats: { dexterity: 150, lifesteal: 25, luck: 60, crit_chance: 30 } },
+      5: { label: "FULL: +150 DEX, +25% Lifesteal + Void Mark", stats: { dexterity: 150, lifesteal: 25, luck: 60, crit_chance: 30 }, procEffect: "voidreaper_mark" },
     },
   },
 
@@ -196,7 +196,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+80 Strength, +50 Defense",              stats: { strength: 80, defense: 50 } },
       3: { label: "+60 Damage, +40% Max HP",                stats: { damage: 60, hp_bonus: 150 } },
-      5: { label: "FULL: +200 Strength, +120 Damage",       stats: { strength: 200, damage: 120, crit_chance: 25, defense: 80 } },
+      5: { label: "FULL: +200 STR, +120 DMG + Shadow Cleave",       stats: { strength: 200, damage: 120, crit_chance: 25, defense: 80 }, procEffect: "shadowlord_cleave" },
     },
   },
 
@@ -213,7 +213,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+100 Intelligence, +80 MP",             stats: { intelligence: 100, mp_bonus: 80 } },
       3: { label: "+80 Damage, +60 Luck",                   stats: { damage: 80, luck: 60 } },
-      5: { label: "FULL: +250 INT, +200 MP, +150 Damage",   stats: { intelligence: 250, mp_bonus: 200, damage: 150 } },
+      5: { label: "FULL: +250 INT, +200 MP, +150 DMG + Genesis Wave",   stats: { intelligence: 250, mp_bonus: 200, damage: 150 }, procEffect: "genesis_wave" },
     },
   },
 
@@ -231,7 +231,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+100 All Primary Stats",                stats: { strength: 100, dexterity: 100, intelligence: 100, vitality: 100 } },
       3: { label: "+200 HP/MP, +50 Defense",               stats: { hp_bonus: 200, mp_bonus: 200, defense: 50 } },
-      5: { label: "FULL: GODLIKE — +300 All, +200 DMG",    stats: { strength: 300, dexterity: 300, intelligence: 300, vitality: 300, damage: 200, defense: 200 } },
+      5: { label: "FULL: GODLIKE — +300 All, +200 DMG + Cosmic Radiance",    stats: { strength: 300, dexterity: 300, intelligence: 300, vitality: 300, damage: 200, defense: 200 }, procEffect: "cosmic_radiance" },
     },
   },
 
@@ -248,7 +248,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+150 Strength, +100 Defense",             stats: { strength: 150, defense: 100 } },
       3: { label: "+100 Damage, +30% Crit Chance",           stats: { damage: 100, crit_chance: 30 } },
-      5: { label: "FULL: +400 Strength, +250 Damage, MAX CRIT", stats: { strength: 400, damage: 250, crit_chance: 40, defense: 200 } },
+      5: { label: "FULL: +400 STR, +250 DMG + Starborn Nova", stats: { strength: 400, damage: 250, crit_chance: 40, defense: 200 }, procEffect: "starborn_nova" },
     },
   },
 
@@ -265,7 +265,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+200 Intelligence, +150 MP",              stats: { intelligence: 200, mp_bonus: 150 } },
       3: { label: "+150 Damage, +100 Luck",                   stats: { damage: 150, luck: 100 } },
-      5: { label: "FULL: +500 INT, +400 MP, +300 Damage",     stats: { intelligence: 500, mp_bonus: 400, damage: 300 } },
+      5: { label: "FULL: +500 INT, +400 MP, +300 DMG + Genesis Wave",     stats: { intelligence: 500, mp_bonus: 400, damage: 300 }, procEffect: "genesis_wave" },
     },
   },
 
@@ -282,7 +282,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+200 Dexterity, +80 Luck",               stats: { dexterity: 200, luck: 80 } },
       3: { label: "+35% Crit Chance, +120 Damage",           stats: { crit_chance: 35, damage: 120 } },
-      5: { label: "FULL: +500 DEX, +35% Crit, +300 DMG",    stats: { dexterity: 500, crit_chance: 35, damage: 300, luck: 150 } },
+      5: { label: "FULL: +500 DEX, +35% Crit, +300 DMG + Nova Barrage",    stats: { dexterity: 500, crit_chance: 35, damage: 300, luck: 150 }, procEffect: "nova_barrage" },
     },
   },
 
@@ -299,7 +299,7 @@ export const ITEM_SETS = {
     bonuses: {
       2: { label: "+250 Dexterity, +35% Crit Chance",        stats: { dexterity: 250, crit_chance: 35 } },
       3: { label: "+25% Lifesteal, +150 Luck",               stats: { lifesteal: 25, luck: 150 } },
-      5: { label: "FULL: +600 DEX, +40% Lifesteal, GODCRIT", stats: { dexterity: 600, lifesteal: 40, luck: 200, crit_chance: 40, damage: 200 } },
+      5: { label: "FULL: +600 DEX, +40% Lifesteal + Void Execution", stats: { dexterity: 600, lifesteal: 40, luck: 200, crit_chance: 40, damage: 200 }, procEffect: "voidassassin_execute" },
     },
   },
 };
@@ -369,6 +369,23 @@ export function aggregateSetStats(equippedItems) {
   }
 
   return combined;
+}
+
+// ───────────────────────────────────────────────────────────────────────────
+// COLLECT ACTIVE SET PROC EFFECTS
+// Returns array of proc effect IDs from active full-set bonuses
+// ───────────────────────────────────────────────────────────────────────────
+export function collectSetProcEffects(equippedItems) {
+  const setBonuses = calculateSetBonuses(equippedItems);
+  const procs = [];
+  for (const { activeBonuses, set } of Object.values(setBonuses)) {
+    for (const bonus of activeBonuses) {
+      if (bonus.procEffect) {
+        procs.push({ procId: bonus.procEffect, source: set.name });
+      }
+    }
+  }
+  return procs;
 }
 
 // ───────────────────────────────────────────────────────────────────────────

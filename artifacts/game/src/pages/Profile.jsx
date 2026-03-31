@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import HealthBar from "@/components/game/HealthBar";
 import CombatStatsPanel from "@/components/game/CombatStatsPanel";
+import SetCollectionPanel from "@/components/game/SetCollectionPanel";
 import { CLASSES, calculateIdleRewards, SKILLS } from "@/lib/gameData";
 import { calculateFinalStats } from "@/lib/statSystem";
 import { formatGold } from "@/lib/formatGold";
@@ -105,12 +106,13 @@ export default function Profile({ character, onCharacterUpdate }) {
     },
   });
 
-  const { data: equippedItems = [] } = useQuery({
+  const { data: allCharItems = [] } = useQuery({
     queryKey: ["items", character?.id],
     queryFn: () => base44.entities.Item.filter({ owner_id: character?.id }),
     enabled: !!character?.id,
-    select: (data) => data.filter(i => i.equipped),
   });
+
+  const equippedItems = allCharItems.filter(i => i.equipped);
 
   if (!character) return null;
   const cls = CLASSES[character.class];
@@ -204,6 +206,18 @@ export default function Profile({ character, onCharacterUpdate }) {
           <Swords className="w-4 h-4 text-primary" /> Combat Stats
         </h3>
         <CombatStatsPanel derived={derived} character={character} />
+      </div>
+
+      {/* Set Collection */}
+      <div className="bg-card border border-border rounded-xl p-5">
+        <h3 className="font-semibold mb-3 flex items-center gap-2">
+          <Shield className="w-4 h-4 text-yellow-400" /> Set Collection
+        </h3>
+        <SetCollectionPanel
+          equippedItems={equippedItems}
+          allItems={allCharItems}
+          characterClass={character.class}
+        />
       </div>
 
       {/* Attributes */}

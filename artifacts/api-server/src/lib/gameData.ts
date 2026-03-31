@@ -418,6 +418,134 @@ function generateSetItemStats(setKey: string, slot: string, zone: string) {
   return { stats, itemLevel, levelReq: Math.max(1, levelBase - 3) };
 }
 
+// ── PROC EFFECT GENERATION ──────────────────────────────────────────────
+const PROC_IDS_OFFENSIVE = [
+  "lightning_bolt", "fireball_burst", "frost_nova", "poison_cloud",
+  "blood_drain", "sand_blast", "arcane_surge", "triple_strike", "soul_harvest",
+];
+const PROC_IDS_CRIT = ["thunder_god", "frozen_shatter", "execute"];
+const PROC_IDS_KILL = ["soul_reap", "gold_rush", "exp_surge"];
+const PROC_IDS_DEFENSIVE = ["thorns", "divine_shield", "counter_strike"];
+
+const PROC_POOLS_BY_TYPE: Record<string, { pool: string[]; maxProcs: Record<string, number> }> = {
+  weapon:  { pool: [...PROC_IDS_OFFENSIVE, ...PROC_IDS_CRIT], maxProcs: { epic: 1, legendary: 1, mythic: 2, shiny: 2 } },
+  armor:   { pool: [...PROC_IDS_DEFENSIVE, "soul_reap"], maxProcs: { epic: 1, legendary: 1, mythic: 1, shiny: 2 } },
+  helmet:  { pool: ["divine_shield", "exp_surge", "arcane_surge"], maxProcs: { legendary: 1, mythic: 1, shiny: 1 } },
+  gloves:  { pool: PROC_IDS_OFFENSIVE.slice(0, 6), maxProcs: { epic: 1, legendary: 1, mythic: 1, shiny: 2 } },
+  boots:   { pool: ["thorns", "counter_strike", "gold_rush"], maxProcs: { legendary: 1, mythic: 1, shiny: 1 } },
+  ring:    { pool: [...PROC_IDS_KILL, "arcane_surge", "execute"], maxProcs: { epic: 1, legendary: 1, mythic: 1, shiny: 2 } },
+  amulet:  { pool: [...PROC_IDS_DEFENSIVE, ...PROC_IDS_KILL], maxProcs: { epic: 1, legendary: 1, mythic: 1, shiny: 2 } },
+};
+
+function generateItemProcs(itemType: string, rarity: string, itemLevel: number): any[] {
+  const config = PROC_POOLS_BY_TYPE[itemType];
+  if (!config) return [];
+  const maxProcs = (config.maxProcs as any)[rarity] || 0;
+  if (maxProcs === 0) return [];
+
+  const procChance = Math.min(0.9, 0.3 + (itemLevel / 100) * 0.4);
+  const procs: any[] = [];
+  const pool = [...config.pool];
+
+  for (let i = 0; i < maxProcs && pool.length > 0; i++) {
+    if (Math.random() > procChance) continue;
+    const idx = Math.floor(Math.random() * pool.length);
+    const procId = pool.splice(idx, 1)[0];
+    procs.push({ id: procId });
+  }
+  return procs;
+}
+
+// ── UNIQUE ITEM DEFINITIONS (server-side for drop rolling) ─────────────
+const UNIQUE_DROPS: Record<string, { name: string; dropChance: number; class_restriction?: string[] | null; type: string; subtype?: string; rarity: string; level_req: number; item_level: number; stats: Record<string, number>; proc_effects: any[]; is_unique: boolean; lore: string; uniqueEffect: string }[]> = {
+  forest_guardian: [
+    { name: "Heartwood Guardian", dropChance: 0.08, class_restriction: ["warrior"], type: "weapon", subtype: "mace", rarity: "legendary", level_req: 8, item_level: 12, stats: { damage: 18, strength: 12, vitality: 15, hp_regen: 1.0, defense: 8 }, proc_effects: [{ id: "thorns" }], is_unique: true, lore: "Carved from the heart of an ancient treant.", uniqueEffect: "Nature's Wrath: 25% reflect" },
+  ],
+  ancient_treant: [
+    { name: "Serpent's Kiss", dropChance: 0.06, class_restriction: ["rogue"], type: "weapon", subtype: "dagger", rarity: "legendary", level_req: 8, item_level: 12, stats: { damage: 14, dexterity: 15, luck: 10, crit_chance: 5, poison_dmg: 15 }, proc_effects: [{ id: "poison_cloud" }], is_unique: true, lore: "The blade weeps a venom that never dries.", uniqueEffect: "Venom Drip: 15% poison" },
+  ],
+  desert_wyrm: [
+    { name: "Ra's Chosen Blade", dropChance: 0.06, class_restriction: ["warrior"], type: "weapon", subtype: "sword", rarity: "legendary", level_req: 20, item_level: 28, stats: { damage: 45, strength: 35, fire_dmg: 25, crit_chance: 8, attack_speed: 0.1 }, proc_effects: [{ id: "fireball_burst" }], is_unique: true, lore: "Blessed by the sun god.", uniqueEffect: "Solar Flare: 12% fire burst" },
+  ],
+  fire_colossus: [
+    { name: "Mirage Codex", dropChance: 0.05, class_restriction: ["mage"], type: "weapon", subtype: "staff", rarity: "legendary", level_req: 20, item_level: 28, stats: { damage: 35, intelligence: 45, sand_dmg: 20, mp_bonus: 40, mp_regen: 1.5 }, proc_effects: [{ id: "sand_blast" }], is_unique: true, lore: "Pages shift like sand dunes.", uniqueEffect: "Sandstorm Surge" },
+  ],
+  sand_titan: [
+    { name: "Scorpion King's Recurve", dropChance: 0.05, class_restriction: ["ranger"], type: "weapon", subtype: "bow", rarity: "legendary", level_req: 20, item_level: 28, stats: { damage: 40, dexterity: 38, poison_dmg: 20, crit_chance: 10, luck: 12 }, proc_effects: [{ id: "poison_cloud" }], is_unique: true, lore: "Strung with the Scorpion King's sinew.", uniqueEffect: "King's Venom" },
+  ],
+  frost_dragon: [
+    { name: "Frostbite's Edge", dropChance: 0.04, class_restriction: ["warrior"], type: "weapon", subtype: "axe", rarity: "mythic", level_req: 38, item_level: 48, stats: { damage: 85, strength: 70, ice_dmg: 30, crit_chance: 12, defense: 25 }, proc_effects: [{ id: "frost_nova" }, { id: "frozen_shatter" }], is_unique: true, lore: "Forged in the heart of a dying glacier.", uniqueEffect: "Permafrost: nova + shatter" },
+  ],
+  blizzard_titan: [
+    { name: "Crystal Heart", dropChance: 0.04, class_restriction: ["mage"], type: "weapon", subtype: "staff", rarity: "mythic", level_req: 38, item_level: 48, stats: { damage: 70, intelligence: 85, ice_dmg: 35, mp_bonus: 80, crit_dmg_pct: 15 }, proc_effects: [{ id: "frost_nova" }], is_unique: true, lore: "A crystallized dragon heart.", uniqueEffect: "Dragon's Breath: 12% ice nova" },
+  ],
+  shadow_lord: [
+    { name: "Soulreaver", dropChance: 0.03, class_restriction: ["rogue"], type: "weapon", subtype: "blade", rarity: "mythic", level_req: 60, item_level: 75, stats: { damage: 130, dexterity: 110, blood_dmg: 35, lifesteal: 12, crit_chance: 18, luck: 30 }, proc_effects: [{ id: "blood_drain" }, { id: "execute" }], is_unique: true, lore: "This blade hungers for souls.", uniqueEffect: "Soul Siphon" },
+  ],
+  void_titan: [
+    { name: "Voidheart Grimoire", dropChance: 0.03, class_restriction: ["mage"], type: "weapon", subtype: "staff", rarity: "mythic", level_req: 60, item_level: 75, stats: { damage: 110, intelligence: 130, blood_dmg: 30, mp_bonus: 120, mp_regen: 3.0 }, proc_effects: [{ id: "blood_drain" }, { id: "arcane_surge" }], is_unique: true, lore: "Written in blood on void-touched parchment.", uniqueEffect: "Void Pulse" },
+  ],
+  cosmic_overlord: [
+    { name: "Godslayer", dropChance: 0.02, class_restriction: ["warrior"], type: "weapon", subtype: "sword", rarity: "mythic", level_req: 85, item_level: 105, stats: { damage: 250, strength: 200, crit_chance: 20, crit_dmg_pct: 25, fire_dmg: 20, lightning_dmg: 20 }, proc_effects: [{ id: "thunder_god" }, { id: "fireball_burst" }], is_unique: true, lore: "The blade that slew a god.", uniqueEffect: "Divine Wrath" },
+    { name: "Edge of Oblivion", dropChance: 0.02, class_restriction: ["rogue"], type: "weapon", subtype: "blade", rarity: "mythic", level_req: 85, item_level: 105, stats: { damage: 210, dexterity: 240, crit_chance: 25, lifesteal: 15, blood_dmg: 30, luck: 40 }, proc_effects: [{ id: "execute" }, { id: "blood_drain" }], is_unique: true, lore: "A blade forged at the edge of existence.", uniqueEffect: "Oblivion" },
+    { name: "Celestial Stone of Ascension", dropChance: 0.03, class_restriction: null, type: "amulet", rarity: "mythic", level_req: 80, item_level: 100, stats: { strength: 80, dexterity: 80, intelligence: 80, vitality: 80, luck: 40, exp_gain_pct: 25, gold_gain_pct: 25 }, proc_effects: [{ id: "soul_reap" }, { id: "exp_surge" }], is_unique: true, lore: "A fragment of the Celestial Spire itself.", uniqueEffect: "Ascension" },
+  ],
+  omega_seraph: [
+    { name: "Genesis Tome", dropChance: 0.02, class_restriction: ["mage"], type: "weapon", subtype: "staff", rarity: "mythic", level_req: 85, item_level: 105, stats: { damage: 200, intelligence: 250, mp_bonus: 200, mp_regen: 5.0, ice_dmg: 25, lightning_dmg: 25 }, proc_effects: [{ id: "frost_nova" }, { id: "lightning_bolt" }], is_unique: true, lore: "This tome contains the first words ever spoken.", uniqueEffect: "Genesis" },
+    { name: "Elemental Convergence Ring", dropChance: 0.03, class_restriction: null, type: "ring", rarity: "mythic", level_req: 75, item_level: 95, stats: { fire_dmg: 15, ice_dmg: 15, lightning_dmg: 15, poison_dmg: 15, blood_dmg: 15, sand_dmg: 15, luck: 30 }, proc_effects: [{ id: "lightning_bolt" }, { id: "fireball_burst" }], is_unique: true, lore: "Six elemental crystals orbit this ring.", uniqueEffect: "Convergence" },
+  ],
+  celestial_titan: [
+    { name: "Starfall", dropChance: 0.02, class_restriction: ["ranger"], type: "weapon", subtype: "bow", rarity: "mythic", level_req: 85, item_level: 105, stats: { damage: 220, dexterity: 230, crit_chance: 22, luck: 50, fire_dmg: 15, ice_dmg: 15 }, proc_effects: [{ id: "triple_strike" }, { id: "fireball_burst" }], is_unique: true, lore: "Arrows fall like meteors from the heavens.", uniqueEffect: "Meteor Rain" },
+  ],
+  blood_colossus: [
+    { name: "Boots of the Phantom", dropChance: 0.04, class_restriction: null, type: "boots", rarity: "mythic", level_req: 55, item_level: 70, stats: { dexterity: 60, evasion: 8, attack_speed: 0.15, luck: 25 }, proc_effects: [{ id: "counter_strike" }], is_unique: true, lore: "Once belonging to the Phantom King.", uniqueEffect: "Phantom Step: 18% counter" },
+  ],
+};
+
+export function rollUniqueDrop(enemyKey: string, characterClass: string | null, luck: number): any | null {
+  const drops = UNIQUE_DROPS[enemyKey];
+  if (!drops) return null;
+  const luckBonus = 1 + Math.min(0.5, luck * 0.005);
+  for (const item of drops) {
+    if (item.class_restriction && characterClass && !item.class_restriction.includes(characterClass)) continue;
+    if (Math.random() < item.dropChance * luckBonus) {
+      return {
+        ...item,
+        sell_price: Math.floor((RARITY_SELL_PRICES[item.rarity] || 600) * (1 + item.item_level * 0.15)),
+      };
+    }
+  }
+  return null;
+}
+
+// ── CELESTIAL STONE DROPS ──────────────────────────────────────────────
+const CELESTIAL_STONE_DROPS: Record<string, { name: string; dropChance: number }> = {
+  forest_guardian: { name: "Emerald Heartstone", dropChance: 0.25 },
+  desert_wyrm: { name: "Solar Keystone", dropChance: 0.20 },
+  frost_dragon: { name: "Glacial Core", dropChance: 0.15 },
+  shadow_lord: { name: "Void Shard", dropChance: 0.10 },
+  cosmic_overlord: { name: "Celestial Fragment", dropChance: 0.08 },
+};
+
+export function rollStoneDrop(enemyKey: string, luck: number): any | null {
+  const stone = CELESTIAL_STONE_DROPS[enemyKey];
+  if (!stone) return null;
+  const luckBonus = 1 + Math.min(0.5, luck * 0.003);
+  if (Math.random() < stone.dropChance * luckBonus) {
+    return {
+      name: stone.name,
+      type: "material",
+      rarity: "mythic",
+      is_unique: true,
+      stats: {},
+      sell_price: 0,
+      item_level: 1,
+      level_req: 1,
+    };
+  }
+  return null;
+}
+
 export function generateLoot(
   enemyLevel: number,
   luck: number,
@@ -524,6 +652,9 @@ export function generateLoot(
   const stats = generateItemStats(type, rarity, itemLevel);
   const sellPrice = Math.floor((RARITY_SELL_PRICES[rarity] || 10) * (1 + itemLevel * 0.08));
 
+  // Generate proc effects for epic+ items
+  const procEffects = generateItemProcs(type, rarity, itemLevel);
+
   return {
     name,
     rarity,
@@ -533,5 +664,6 @@ export function generateLoot(
     level_req: levelReq,
     stats,
     sell_price: sellPrice,
+    ...(procEffects.length > 0 ? { proc_effects: procEffects } : {}),
   };
 }

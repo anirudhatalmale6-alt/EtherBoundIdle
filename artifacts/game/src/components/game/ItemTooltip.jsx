@@ -6,6 +6,8 @@ import { canEquipItem, getAllowedClassesLabel } from "@/lib/equipmentSystem";
 import { getItemSetInfo } from "@/lib/setSystem";
 import { getItemIcon } from "@/lib/itemIcons";
 import { calculateFinalStats } from "@/lib/statSystem";
+import { getItemProcs, PROC_TYPES } from "@/lib/procSystem";
+import { getUniqueItemDef } from "@/lib/uniqueItems";
 
 const CLASS_NAMES = { warrior: "Warrior", mage: "Mage", ranger: "Ranger", rogue: "Rogue" };
 const SUBTYPE_LABELS = {
@@ -34,6 +36,12 @@ const STAT_LABELS = {
   attack_speed: "Attack Speed",
   gold_gain_pct: "Gold Gain",
   exp_gain_pct: "EXP Gain",
+  fire_dmg: "Fire Damage",
+  ice_dmg: "Ice Damage",
+  lightning_dmg: "Lightning Damage",
+  poison_dmg: "Poison Damage",
+  blood_dmg: "Blood Damage",
+  sand_dmg: "Sand Damage",
 };
 
 const STAT_SUFFIXES = {
@@ -44,6 +52,12 @@ const STAT_SUFFIXES = {
   block_chance: "%",
   gold_gain_pct: "%",
   exp_gain_pct: "%",
+  fire_dmg: "%",
+  ice_dmg: "%",
+  lightning_dmg: "%",
+  poison_dmg: "%",
+  blood_dmg: "%",
+  sand_dmg: "%",
 };
 
 const STAT_PREFIXES = {
@@ -68,6 +82,11 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
   const classCheck = characterClass ? canEquipItem(characterClass, item) : { allowed: true, reason: "" };
   const setInfo = getItemSetInfo(item.name);
   const isSetItem = !!setInfo || !!item.set_key;
+  const uniqueDef = getUniqueItemDef(item.name);
+  const isUnique = !!uniqueDef || !!item.is_unique;
+
+  // Get proc effects
+  const itemProcs = getItemProcs(item);
 
   // Compute derived stat delta when equipping this item
   let derivedDelta = null;
@@ -90,12 +109,17 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
     <div className="space-y-3">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg ${rarity.bg} border ${rarity.border} ${isSetItem ? "ring-1 ring-yellow-400/40" : ""}`}>
+        <div className={`p-2 rounded-lg ${rarity.bg} border ${rarity.border} ${isSetItem ? "ring-1 ring-yellow-400/40" : ""} ${isUnique ? "ring-1 ring-orange-400/60" : ""}`}>
           <Icon className={`w-5 h-5 ${rarity.color}`} />
         </div>
         <div>
-          <h3 className={`font-bold text-base ${rarity.color}`}>{item.name}</h3>
+          <h3 className={`font-bold text-base ${isUnique ? "text-orange-300" : rarity.color}`}>{item.name}</h3>
           <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+            {isUnique && (
+              <Badge variant="outline" className="text-xs text-orange-300 border-orange-400/50 bg-orange-500/10">
+                UNIQUE
+              </Badge>
+            )}
             <Badge variant="outline" className={`text-xs ${rarity.color} ${rarity.border}`}>
               {rarity.label}
             </Badge>
@@ -109,6 +133,13 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
           </div>
         </div>
       </div>
+
+      {/* Unique Item Lore */}
+      {uniqueDef?.lore && (
+        <p className="text-xs italic text-muted-foreground/80 px-2 border-l-2 border-orange-400/30">
+          {uniqueDef.lore}
+        </p>
+      )}
 
       {/* Set Badge */}
       {(item.set_name || setInfo?.set?.name) && (
@@ -189,6 +220,29 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
             </div>
           );
           })}
+        </div>
+      )}
+
+      {/* Proc Effects */}
+      {itemProcs.length > 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-2 space-y-1.5">
+          <p className="text-xs font-semibold text-amber-400 uppercase tracking-wide">Special Effects</p>
+          {itemProcs.map((proc, i) => (
+            <div key={i} className="flex items-start gap-2 text-xs">
+              <span className="flex-shrink-0 mt-0.5">{proc.icon}</span>
+              <div>
+                <span className={`font-semibold ${proc.color}`}>{proc.name}</span>
+                <p className="text-muted-foreground mt-0.5">{proc.description}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Unique Effect Summary */}
+      {(uniqueDef?.uniqueEffect || item.uniqueEffect) && (
+        <div className="border border-orange-500/30 bg-orange-500/5 rounded-lg px-3 py-2">
+          <p className="text-xs font-bold text-orange-300">{uniqueDef?.uniqueEffect || item.uniqueEffect}</p>
         </div>
       )}
 
