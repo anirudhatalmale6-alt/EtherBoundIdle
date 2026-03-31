@@ -98,13 +98,21 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
   const totalPending = Object.values(pendingStats).reduce((s, v) => s + v, 0);
   const availablePoints = (character?.stat_points || 0) - totalPending;
 
-  const addStat = (key) => {
-    if (availablePoints <= 0) return;
-    setPendingStats(prev => ({ ...prev, [key]: (prev[key] || 0) + 1 }));
+  const addStat = (key, amount = 1) => {
+    setPendingStats(prev => {
+      const currentTotal = Object.values(prev).reduce((s, v) => s + v, 0);
+      const remaining = (character?.stat_points || 0) - currentTotal;
+      const actualAdd = Math.min(amount, remaining);
+      if (actualAdd <= 0) return prev;
+      return { ...prev, [key]: (prev[key] || 0) + actualAdd };
+    });
   };
-  const removeStat = (key) => {
-    if (!pendingStats[key]) return;
-    setPendingStats(prev => ({ ...prev, [key]: prev[key] - 1 }));
+  const removeStat = (key, amount = 1) => {
+    setPendingStats(prev => {
+      const current = prev[key] || 0;
+      if (current <= 0) return prev;
+      return { ...prev, [key]: Math.max(0, current - amount) };
+    });
   };
 
   if (!character) return null;
@@ -198,7 +206,7 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-sm">Attributes</h3>
                 {availablePoints > 0 && (
-                  <Badge className="bg-primary/20 text-primary border-primary/30">{availablePoints} pts available</Badge>
+                  <Badge className="bg-primary/20 text-primary border-primary/30">{availablePoints} pts (Shift+Click=10)</Badge>
                 )}
               </div>
               <div className="space-y-2">
@@ -218,13 +226,43 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
                         {(gearBonus > 0 || pending > 0) && <span className="text-foreground font-bold">= {finalVal}</span>}
                       </div>
                       {(character.stat_points || 0) > 0 && (
-                        <div className="flex gap-1">
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => removeStat(key)} disabled={!pendingStats[key]}>
-                            <Minus className="w-3 h-3" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => addStat(key)} disabled={availablePoints <= 0}>
-                            <Plus className="w-3 h-3" />
-                          </Button>
+                        <div className="flex items-center gap-1">
+                          <button
+                            type="button"
+                            className="h-6 w-6 flex items-center justify-center rounded bg-red-900/50 text-red-300 hover:bg-red-800 disabled:opacity-30 text-xs"
+                            onClick={(e) => removeStat(key, e.shiftKey ? 10 : 1)}
+                            disabled={!pendingStats[key]}
+                          >
+                            -
+                          </button>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={pending}
+                            onChange={(e) => {
+                              const raw = e.target.value.replace(/[^0-9]/g, '');
+                              const val = Math.max(0, Math.min(parseInt(raw) || 0, availablePoints + pending));
+                              setPendingStats(prev => ({ ...prev, [key]: val }));
+                            }}
+                            className="w-10 h-6 text-center text-xs rounded px-1 font-mono"
+                            style={{ backgroundColor: '#1e293b', color: '#e2e8f0', border: '1px solid #475569' }}
+                          />
+                          <button
+                            type="button"
+                            className="h-6 w-6 flex items-center justify-center rounded bg-green-900/50 text-green-300 hover:bg-green-800 disabled:opacity-30 text-xs"
+                            onClick={(e) => addStat(key, e.shiftKey ? 10 : 1)}
+                            disabled={availablePoints <= 0}
+                          >
+                            +
+                          </button>
+                          <button
+                            type="button"
+                            className="h-6 px-1.5 text-[10px] rounded bg-cyan-900/50 text-cyan-300 hover:bg-cyan-800 disabled:opacity-30"
+                            onClick={() => addStat(key, availablePoints)}
+                            disabled={availablePoints <= 0}
+                          >
+                            MAX
+                          </button>
                         </div>
                       )}
                     </div>
