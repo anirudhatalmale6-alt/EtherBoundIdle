@@ -79,7 +79,7 @@ function ItemCard({ item, character, equipped, onSelect, rarity, canEquip, isNew
   const isStack = item.stackCount > 1;
   const itemLevel = item.item_level;
   const isSetItem = item.rarity === "set";
-  const isUnique = !!item.is_unique || !!getUniqueItemDef(item.name);
+  const isUnique = !!item.is_unique || !!getUniqueItemDef(item.name) || (item.proc_effects && item.proc_effects.length > 0);
 
   return (
     <>
@@ -137,7 +137,6 @@ function ItemCard({ item, character, equipped, onSelect, rarity, canEquip, isNew
           </Badge>
           {item.equipped && <Badge className="text-xs bg-primary/20 text-primary">Equipped</Badge>}
           {isSetItem && <Badge className="text-xs bg-cyan-500/20 text-cyan-300 border-cyan-500/30">Set</Badge>}
-          {isUnique && <Badge className="text-xs bg-orange-500/20 text-orange-300 border-orange-500/30">U</Badge>}
           {!levelOk && <Badge className="text-xs bg-destructive/20 text-destructive border-destructive/30">Req. {item.level_req}</Badge>}
           {levelOk && !classOk && <Badge className="text-xs bg-destructive/20 text-destructive border-destructive/30">Wrong Class</Badge>}
         </div>
