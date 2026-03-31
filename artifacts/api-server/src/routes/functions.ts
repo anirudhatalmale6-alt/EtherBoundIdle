@@ -1430,6 +1430,96 @@ router.post("/functions/manageParty", async (req: Request, res: Response) => {
   }
 });
 
+// ── Shared Party Battle: sync enemy HP across party members ──────────────
+router.post("/functions/partyBattleAction", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { action, partyId, characterId, enemyData, damage, characterName, skillName, isCrit } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+
+    if (action === "spawn_enemy" && partyId) {
+      // Leader spawns a shared enemy — store in party extraData
+      const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+      if (!party) { sendError(res, 404, "Party not found"); return; }
+      if (party.leaderId !== characterId) { sendError(res, 403, "Only the leader can spawn enemies"); return; }
+      const extra = (party.extraData as any) || {};
+      extra.shared_enemy = {
+        ...enemyData,
+        currentHp: enemyData.maxHp,
+        spawned_at: new Date().toISOString(),
+        killed_by: null,
+        claimed_by: [],
+      };
+      await db.update(partiesTable).set({ extraData: extra }).where(eq(partiesTable.id, partyId));
+      sendSuccess(res, { success: true, shared_enemy: extra.shared_enemy });
+      return;
+    }
+
+    if (action === "report_damage" && partyId) {
+      // Member reports damage dealt — atomically decrement shared enemy HP
+      const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+      if (!party) { sendError(res, 404, "Party not found"); return; }
+      const extra = (party.extraData as any) || {};
+      if (!extra.shared_enemy || extra.shared_enemy.killed_by) {
+        sendSuccess(res, { success: false, message: "No active shared enemy" });
+        return;
+      }
+      const oldHp = extra.shared_enemy.currentHp;
+      const newHp = Math.max(0, oldHp - (damage || 0));
+      extra.shared_enemy.currentHp = newHp;
+      if (newHp <= 0) {
+        extra.shared_enemy.killed_by = characterId;
+        // Look up killer's name for display
+        const [killer] = await db.select({ name: charactersTable.name }).from(charactersTable).where(eq(charactersTable.id, characterId));
+        extra.shared_enemy.killed_by_name = killer?.name || "Unknown";
+      }
+      await db.update(partiesTable).set({ extraData: extra }).where(eq(partiesTable.id, partyId));
+      sendSuccess(res, {
+        success: true,
+        currentHp: newHp,
+        killed: newHp <= 0,
+        shared_enemy: extra.shared_enemy,
+      });
+      return;
+    }
+
+    if (action === "get_enemy" && partyId) {
+      // Poll current shared enemy state
+      const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+      if (!party) { sendError(res, 404, "Party not found"); return; }
+      const extra = (party.extraData as any) || {};
+      sendSuccess(res, { success: true, shared_enemy: extra.shared_enemy || null });
+      return;
+    }
+
+    if (action === "claim_reward" && partyId) {
+      // Party member claims reward after shared enemy killed
+      const [party] = await db.select().from(partiesTable).where(eq(partiesTable.id, partyId));
+      if (!party) { sendError(res, 404, "Party not found"); return; }
+      const extra = (party.extraData as any) || {};
+      if (!extra.shared_enemy || !extra.shared_enemy.killed_by) {
+        sendSuccess(res, { success: false, message: "Enemy not killed yet" });
+        return;
+      }
+      const claimed = extra.shared_enemy.claimed_by || [];
+      if (claimed.includes(characterId)) {
+        sendSuccess(res, { success: false, message: "Already claimed" });
+        return;
+      }
+      claimed.push(characterId);
+      extra.shared_enemy.claimed_by = claimed;
+      await db.update(partiesTable).set({ extraData: extra }).where(eq(partiesTable.id, partyId));
+      sendSuccess(res, { success: true, claimed: true });
+      return;
+    }
+
+    sendSuccess(res, { success: true, action });
+  } catch (err: any) {
+    req.log.error({ err }, "partyBattleAction error");
+    sendError(res, 500, err.message);
+  }
+});
+
 router.post("/functions/manageFriends", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   try {
