@@ -16,21 +16,18 @@ export default function SeasonPass({ character, onCharacterUpdate }) {
   const queryClient = useQueryClient();
 
   // Fetch season pass status
-  const { data: seasonData, refetch } = useQuery({
+  const { data: seasonData, refetch, error: seasonError } = useQuery({
     queryKey: ["seasonPass", character?.id],
     queryFn: async () => {
-      try {
-        const res = await base44.functions.invoke("seasonPassAction", {
-          action: "get_status",
-          characterId: character.id,
-        });
-        return res;
-      } catch {
-        return null;
-      }
+      const res = await base44.functions.invoke("seasonPassAction", {
+        action: "get_status",
+        characterId: character.id,
+      });
+      return res;
     },
     enabled: !!character?.id,
     refetchInterval: 30000,
+    retry: 1,
   });
 
   // Generate missions on mount
@@ -39,7 +36,10 @@ export default function SeasonPass({ character, onCharacterUpdate }) {
     base44.functions.invoke("seasonPassAction", {
       action: "generate_missions",
       characterId: character.id,
-    }).then(() => refetch()).catch(() => {});
+    }).then(() => refetch()).catch((err) => {
+      console.error("Season Pass mission generation failed:", err);
+      toast({ title: "Mission generation failed", description: err?.message || "Unknown error", variant: "destructive" });
+    });
   }, [character?.id]);
 
   const pass = seasonData?.pass || { tier: 0, xp: 0, isPremium: false, claimedFree: [], claimedPremium: [] };
@@ -139,6 +139,12 @@ export default function SeasonPass({ character, onCharacterUpdate }) {
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-4">
+      {/* Error display for debugging */}
+      {seasonError && (
+        <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-3 text-sm text-red-400">
+          Season Pass Error: {seasonError?.message || "Unknown error — check browser console (F12)"}
+        </div>
+      )}
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
