@@ -3422,12 +3422,6 @@ router.post("/functions/rebalanceItems", async (req: Request, res: Response) => 
   }
 });
 
-router.post("/functions/:name", async (req: Request, res: Response) => {
-  if (!requireAuth(req, res)) return;
-  req.log.warn({ functionName: req.params.name }, "Unhandled function call");
-  sendSuccess(res, { success: true, message: `Function ${req.params.name} stub` });
-});
-
 function toClientCharacter(c: any) {
   return {
     id: c.id,
@@ -3764,6 +3758,13 @@ router.post("/functions/seasonPassAction", async (req: Request, res: Response) =
     req.log.error({ err }, "seasonPassAction error");
     sendError(res, 500, err.message);
   }
+});
+
+// Catch-all for unknown functions — MUST be the last route
+router.post("/functions/:name", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  req.log.warn({ functionName: req.params.name }, "Unhandled function call");
+  sendSuccess(res, { success: true, message: `Function ${req.params.name} stub` });
 });
 
 export default router;
