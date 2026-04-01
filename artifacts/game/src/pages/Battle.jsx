@@ -631,8 +631,14 @@ export default function Battle({ character, onCharacterUpdate }) {
         partySize: partySize,
       });
 
-      const { rewards, character: updatedChar, levelsGained, loot, partyBonuses, petInfo } = result;
+      const { rewards, character: updatedChar, levelsGained, loot, partyBonuses, petInfo, petSkillResult } = result;
       if (petInfo) setLastPetInfo(petInfo);
+      if (petSkillResult) {
+        const petIcon = petInfo?.species ? ({"Wolf":"🐺","Phoenix":"🔥","Dragon":"🐉","Turtle":"🐢","Cat":"🐱","Owl":"🦉","Slime":"🫧","Fairy":"🧚","Serpent":"🐍","Golem":"🪨"}[petInfo.species] || "🐾") : "🐾";
+        if (petSkillResult.type === "heal") addLog(`${petIcon} ${petSkillResult.message}`);
+        else if (petSkillResult.type === "shield") addLog(`${petIcon} ${petSkillResult.message}`);
+        else if (petSkillResult.type === "extra_attack") addLog(`${petIcon} ${petSkillResult.message}`);
+      }
 
       if (levelsGained?.length > 0) {
         levelsGained.forEach(lv => addLog(`🎉 LEVEL UP! You are now level ${lv}!`));

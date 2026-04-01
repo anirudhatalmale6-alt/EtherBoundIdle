@@ -3246,6 +3246,25 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
       } catch {}
     }
 
+    // Pet active skill trigger
+    let petSkillResult: any = null;
+    if (equippedPet && equippedPet.skillType) {
+      const triggerChance = 0.25 + (equippedPet.level || 1) * 0.005; // 25% base + 0.5% per level
+      if (Math.random() < triggerChance) {
+        const sv = equippedPet.skillValue || 10;
+        if (equippedPet.skillType === "heal") {
+          const healAmt = Math.floor(sv * (1 + (equippedPet.level || 1) * 0.1));
+          petSkillResult = { type: "heal", value: healAmt, message: `${equippedPet.species} healed you for ${healAmt} HP!` };
+        } else if (equippedPet.skillType === "shield") {
+          const shieldAmt = Math.floor(sv * (1 + (equippedPet.level || 1) * 0.08));
+          petSkillResult = { type: "shield", value: shieldAmt, message: `${equippedPet.species} shielded you for ${shieldAmt}!` };
+        } else if (equippedPet.skillType === "extra_attack") {
+          const dmgAmt = Math.floor(sv * (1 + (equippedPet.level || 1) * 0.12));
+          petSkillResult = { type: "extra_attack", value: dmgAmt, message: `${equippedPet.species} attacked for ${dmgAmt} bonus damage!` };
+        }
+      }
+    }
+
     let lootItem = null;
     try {
       const charLuck = char.luck || 0;
@@ -3408,6 +3427,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
         newExp,
         newGold,
         petInfo: equippedPet ? { id: equippedPet.id, species: equippedPet.species, name: equippedPet.name, level: equippedPet.level, xp: equippedPet.xp, rarity: equippedPet.rarity, skillType: equippedPet.skillType, skillValue: equippedPet.skillValue, evolution: equippedPet.evolution || 0 } : null,
+        petSkillResult,
       });
   } catch (err: any) {
     req.log.error({ err }, "fight error");
