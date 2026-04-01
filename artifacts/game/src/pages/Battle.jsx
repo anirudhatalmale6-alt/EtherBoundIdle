@@ -1142,6 +1142,9 @@ export default function Battle({ character, onCharacterUpdate }) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
+          <h2 className="font-orbitron text-xl font-bold">{region?.name || "Unknown"}</h2>
+          <p className="text-xs text-muted-foreground">Level {region?.levelRange?.[0]}–{region?.levelRange?.[1]}</p>
+        </div>
         <div className="flex items-center gap-2">
           {/* Turn indicator */}
           <div className={`flex items-center gap-1.5 text-xs font-bold px-2 py-1 rounded-full border ${
