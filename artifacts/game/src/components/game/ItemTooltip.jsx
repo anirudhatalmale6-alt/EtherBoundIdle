@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, TrendingUp, TrendingDown, Minus } from "lucide-react";
 import { RARITY_CONFIG } from "@/lib/gameData";
 import { canEquipItem, getAllowedClassesLabel } from "@/lib/equipmentSystem";
-import { getItemSetInfo } from "@/lib/setSystem";
+import { getItemSetInfo, ITEM_SETS } from "@/lib/setSystem";
 import { getItemIcon } from "@/lib/itemIcons";
 import { calculateFinalStats } from "@/lib/statSystem";
 import { getItemProcs, PROC_TYPES } from "@/lib/procSystem";
@@ -141,14 +141,48 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
         </p>
       )}
 
-      {/* Set Badge */}
-      {(item.set_name || setInfo?.set?.name) && (
-        <div className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border bg-yellow-500/10 border-yellow-500/30 text-yellow-300`}>
-          <span>{setInfo?.set?.icon || "✨"}</span>
-          <span className="font-semibold">{item.set_name || setInfo?.set?.name}</span>
-          <span className="text-yellow-400/60 ml-auto">Set Item</span>
-        </div>
-      )}
+      {/* Set Badge + Bonuses */}
+      {(item.set_name || setInfo?.set?.name) && (() => {
+        const setKey = setInfo?.setKey || item.set_key;
+        const set = setInfo?.set || (setKey && ITEM_SETS[setKey]);
+        const equippedCount = set ? equippedItems.filter(eq => set.pieces.includes(eq.name)).length : 0;
+        return (
+          <div className="border border-yellow-500/30 bg-yellow-500/5 rounded-lg p-2.5 space-y-2">
+            <div className="flex items-center gap-2 text-xs text-yellow-300">
+              <span>{set?.icon || "✨"}</span>
+              <span className="font-semibold">{set?.name || item.set_name}</span>
+              <span className="text-yellow-400/60 ml-auto">{equippedCount}/{set?.pieces?.length || 5}</span>
+            </div>
+            {set?.bonuses && (
+              <div className="space-y-1">
+                {Object.entries(set.bonuses).sort(([a], [b]) => Number(a) - Number(b)).map(([threshold, bonus]) => {
+                  const active = equippedCount >= Number(threshold);
+                  return (
+                    <div key={threshold} className={`flex items-start gap-1.5 text-[11px] ${active ? "text-yellow-300" : "text-muted-foreground/50"}`}>
+                      <span className="flex-shrink-0 mt-px">{active ? "✓" : "○"}</span>
+                      <span>
+                        <span className="font-semibold">({threshold})</span> {bonus.label}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            {set?.pieces && (
+              <div className="space-y-0.5 pt-1 border-t border-yellow-500/20">
+                {set.pieces.map((piece, i) => {
+                  const owned = equippedItems.some(eq => eq.name === piece);
+                  return (
+                    <p key={i} className={`text-[10px] ${owned ? "text-yellow-300" : "text-muted-foreground/40"}`}>
+                      {owned ? "●" : "○"} {piece}
+                    </p>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Class restriction */}
       {(() => {

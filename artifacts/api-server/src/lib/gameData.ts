@@ -780,23 +780,28 @@ const ZONE_ITEM_LEVEL: Record<string, { base: number; range: number }> = {
 };
 
 const SET_STAT_THEMES: Record<string, Record<string, number>> = {
-  wildwood: { hp_bonus: 3, defense: 2, vitality: 2, strength: 1 },
-  glacialveil: { defense: 3, vitality: 3, hp_bonus: 2, strength: 1 },
-  cosmicguardian: { hp_bonus: 4, mp_bonus: 4, defense: 3, vitality: 3, strength: 2, dexterity: 2, intelligence: 2 },
-  thornblade: { strength: 3, damage: 3, defense: 2, crit_chance: 1 },
-  flamewarden: { strength: 4, damage: 3, defense: 3, hp_bonus: 2 },
-  froststrike: { strength: 5, damage: 4, defense: 4, hp_bonus: 3 },
-  shadowlord: { strength: 6, damage: 5, defense: 5, hp_bonus: 4 },
-  starbornslayer: { strength: 8, damage: 7, defense: 6, crit_chance: 3 },
-  desertmystic: { intelligence: 4, mp_bonus: 3, damage: 3, luck: 1 },
-  arcticspell: { intelligence: 5, mp_bonus: 4, damage: 4, luck: 2 },
-  voidweaver: { intelligence: 6, mp_bonus: 5, damage: 5, luck: 3 },
-  celestialarchmage: { intelligence: 8, mp_bonus: 7, damage: 6, luck: 4 },
-  leafwhisper: { dexterity: 3, luck: 2, crit_chance: 2, damage: 1 },
-  novastriker: { dexterity: 8, luck: 5, crit_chance: 4, damage: 5 },
-  sandviper: { dexterity: 4, luck: 3, crit_chance: 3, lifesteal: 1 },
-  voidreaper: { dexterity: 6, luck: 4, crit_chance: 4, lifesteal: 2 },
-  voidassassin: { dexterity: 8, luck: 6, crit_chance: 5, lifesteal: 3, damage: 4 },
+  // Zone 1 — Verdant Forest
+  wildwood: { hp_bonus: 8, defense: 6, vitality: 6, strength: 3 },
+  thornblade: { strength: 8, damage: 8, defense: 5, crit_chance: 2 },
+  leafwhisper: { dexterity: 8, luck: 5, crit_chance: 4, damage: 3 },
+  // Zone 2 — Scorched Desert
+  flamewarden: { strength: 10, damage: 8, defense: 7, hp_bonus: 5 },
+  desertmystic: { intelligence: 10, mp_bonus: 8, damage: 7, luck: 3 },
+  sandviper: { dexterity: 10, luck: 7, crit_chance: 6, lifesteal: 2 },
+  // Zone 3 — Frozen Peaks
+  glacialveil: { defense: 10, vitality: 9, hp_bonus: 7, strength: 4 },
+  froststrike: { strength: 13, damage: 10, defense: 9, hp_bonus: 7 },
+  arcticspell: { intelligence: 13, mp_bonus: 10, damage: 9, luck: 5 },
+  // Zone 4 — Shadow Realm
+  shadowlord: { strength: 16, damage: 13, defense: 12, hp_bonus: 10 },
+  voidweaver: { intelligence: 16, mp_bonus: 13, damage: 12, luck: 7 },
+  voidreaper: { dexterity: 16, luck: 10, crit_chance: 9, lifesteal: 4 },
+  // Zone 5 — Celestial Spire
+  cosmicguardian: { hp_bonus: 12, mp_bonus: 12, defense: 10, vitality: 10, strength: 6, dexterity: 6, intelligence: 6 },
+  starbornslayer: { strength: 20, damage: 18, defense: 15, crit_chance: 7 },
+  celestialarchmage: { intelligence: 20, mp_bonus: 18, damage: 15, luck: 10 },
+  novastriker: { dexterity: 20, luck: 13, crit_chance: 10, damage: 13 },
+  voidassassin: { dexterity: 20, luck: 15, crit_chance: 12, lifesteal: 6, damage: 10 },
 };
 
 function generateSetItemStats(setKey: string, slot: string, zone: string) {
