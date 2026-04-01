@@ -514,6 +514,15 @@ async function handleEntityUpdate(req: Request, res: Response) {
     }
     const dbData = toDb(entity, req.body);
 
+    // Merge extraData with existing DB value to prevent overwriting tower/ban data
+    if (dbData.extraData && typeof dbData.extraData === "object") {
+      const [existing] = await db.select().from(table).where(eq((table as any).id, id));
+      if (existing) {
+        const existingExtra = (existing as any).extraData || {};
+        dbData.extraData = { ...existingExtra, ...dbData.extraData };
+      }
+    }
+
     // Server-side multi-equip prevention: when equipping an item, unequip
     // all other items of the same type for this owner
     if (entity === "Item" && dbData.equipped === true) {
