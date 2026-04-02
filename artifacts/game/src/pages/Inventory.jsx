@@ -182,8 +182,8 @@ function CharacterStatsPanel({ character, equippedItems }) {
     { icon: Swords, label: "SPD", value: `${derived.attackSpeed}x`, color: "text-violet-400" },
     { icon: Shield, label: "DMG Red", value: `${derived.damageReduction}%`, color: "text-stone-400" },
     { icon: Droplet, label: "Lifesteal", value: `${derived.lifesteal || 0}%`, color: "text-rose-400", hide: !derived.lifesteal },
-    { icon: Coins, label: "Gold+", value: `${derived.goldGainPct || 0}%`, color: "text-yellow-300", hide: !derived.goldGainPct },
-    { icon: Gem, label: "EXP+", value: `${derived.expGainPct || 0}%`, color: "text-cyan-300", hide: !derived.expGainPct },
+    { icon: Coins, label: "Gold+", value: `${derived.goldGainPct || 0}%`, color: "text-yellow-300" },
+    { icon: Gem, label: "EXP+", value: `${derived.expGainPct || 0}%`, color: "text-cyan-300" },
   ];
 
   const elementalStats = [

@@ -338,6 +338,8 @@ function PetsInner({ character, onCharacterUpdate }) {
 
   // Evolution state
   const [evolvingPetId, setEvolvingPetId] = useState(null);
+  const [fuseAnimating, setFuseAnimating] = useState(false);
+  const [evolveAnimating, setEvolveAnimating] = useState(null); // petId or null
 
   // Skills state
   const [selectedSkillPet, setSelectedSkillPet] = useState(null);
@@ -419,15 +421,19 @@ function PetsInner({ character, onCharacterUpdate }) {
   });
 
   const fuseMutation = useMutation({
-    mutationFn: ({ species, rarity }) => base44.functions.invoke("petAction", { characterId: character.id, action: "fuse", species, rarity }),
+    mutationFn: ({ species, rarity }) => {
+      setFuseAnimating(true);
+      return base44.functions.invoke("petAction", { characterId: character.id, action: "fuse", species, rarity });
+    },
     onSuccess: (data) => {
+      setFuseAnimating(false);
       queryClient.invalidateQueries({ queryKey: ["pets"] });
       if (data?.failed) {
         setSelectedForFuse([]);
         setFuseMode(false);
         setFuseSpeciesFilter(null);
         setFuseRarityFilter(null);
-        setResultModal({ title: "Fusion Failed!", message: `Fusion failed. Success chance was ${data.chance}%. 1 pet was lost as penalty. ${data?.goldCost ? `${data.goldCost.toLocaleString()} gold consumed.` : ''}`, success: false });
+        setResultModal({ title: "Fusion Failed!", message: `Fusion failed! Success chance was ${data.chance}%. All 3 pets were lost. ${data?.goldCost ? `${data.goldCost.toLocaleString()} gold consumed.` : ''}`, success: false });
         return;
       }
       setSelectedForFuse([]);
@@ -440,7 +446,7 @@ function PetsInner({ character, onCharacterUpdate }) {
         : "New pet created!";
       setResultModal({ title: "Fusion Successful!", message: desc, success: true });
     },
-    onError: (err) => toast({ title: "Fusion failed", description: err?.message, variant: "destructive" }),
+    onError: (err) => { setFuseAnimating(false); toast({ title: "Fusion failed", description: err?.message, variant: "destructive" }); },
   });
 
   const sellAllMutation = useMutation({
@@ -490,8 +496,12 @@ function PetsInner({ character, onCharacterUpdate }) {
 
   // ── Evolution mutation ──
   const evolveMutation = useMutation({
-    mutationFn: (petId) => base44.functions.invoke("petAction", { characterId: character.id, action: "evolve", petId }),
+    mutationFn: (petId) => {
+      setEvolveAnimating(petId);
+      return base44.functions.invoke("petAction", { characterId: character.id, action: "evolve", petId });
+    },
     onSuccess: (data) => {
+      setEvolveAnimating(null);
       queryClient.invalidateQueries({ queryKey: ["pets"] });
       if (onCharacterUpdate) onCharacterUpdate();
       setEvolvingPetId(null);
@@ -505,6 +515,7 @@ function PetsInner({ character, onCharacterUpdate }) {
     },
     onError: (err) => {
       setEvolvingPetId(null);
+      setEvolveAnimating(null);
       toast({ title: "Evolution failed", description: err?.message, variant: "destructive" });
     },
   });
@@ -1078,7 +1089,7 @@ function PetsInner({ character, onCharacterUpdate }) {
               {canFuse && (
                 <Button
                   size="sm"
-                  className="bg-amber-600 hover:bg-amber-700 text-white gap-1.5"
+                  className={`bg-amber-600 hover:bg-amber-700 text-white gap-1.5 transition-all ${fuseAnimating ? "animate-pulse scale-105 ring-2 ring-amber-400/60" : ""}`}
                   onClick={() => {
                     const sp = selectedForFuse[0];
                     const fuseChances = { common: 95, uncommon: 85, rare: 70, epic: 55, legendary: 40, mythic: 25 };
@@ -1087,13 +1098,13 @@ function PetsInner({ character, onCharacterUpdate }) {
                     const fuseCost = fuseCosts[sp.rarity] || 5000;
                     setConfirmModal({
                       title: "Confirm Fusion",
-                      message: `Fuse 3x ${sp.rarity} ${sp.species} → 1 ${RARITY_NEXT[sp.rarity] || 'higher'} ${sp.species}\n\nCost: ${fuseCost.toLocaleString()} gold\nSuccess chance: ${chance}%\nOn failure: 1 pet is lost (gold still consumed)`,
+                      message: `Fuse 3x ${sp.rarity} ${sp.species} → 1 ${RARITY_NEXT[sp.rarity] || 'higher'} ${sp.species}\n\nCost: ${fuseCost.toLocaleString()} gold\nSuccess chance: ${chance}%\nOn failure: all 3 pets are lost (gold still consumed)`,
                       onConfirm: () => fuseMutation.mutate({ species: sp.species, rarity: sp.rarity }),
                     });
                   }}
                   disabled={fuseMutation.isPending}
                 >
-                  <Sparkles className="w-3.5 h-3.5" />
+                  <Sparkles className={`w-3.5 h-3.5 ${fuseAnimating ? "animate-spin" : ""}`} />
                   {fuseMutation.isPending
                     ? "Fusing..."
                     : `Fuse into ${RARITY_NEXT[selectedForFuse[0]?.rarity] || "higher rarity"}`}
@@ -1410,56 +1421,33 @@ function PetsInner({ character, onCharacterUpdate }) {
             <div className="text-center py-8 text-muted-foreground text-sm">Loading equipment...</div>
           ) : (
             <>
-              {/* Pet selector for equipment slots */}
+              {/* Pet selector for equipment slots — equipped pet only */}
               <div>
-                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Pet Equipment Slots</p>
-                <div className="flex gap-2 flex-wrap mb-3">
-                  {pets.map(p => (
-                    <button
-                      key={p.id}
-                      onClick={() => setSelectedEquipPet(p.id)}
-                      className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
-                        selectedEquipPet === p.id
-                          ? "border-cyan-500/60 bg-cyan-500/10 text-cyan-300"
-                          : "border-gray-600 bg-gray-800 text-muted-foreground hover:border-gray-500"
-                      }`}
-                    >
-                      <span>{SPECIES_ICONS[p.species] || "🐾"}</span>
-                      <span>{p.species}</span>
-                      <span className="text-[10px] opacity-60">Lv.{p.level}</span>
-                    </button>
-                  ))}
-                </div>
+                <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Equipped Pet Equipment</p>
 
-                {selectedEquipPet ? (
+                {equippedPet ? (
                   <div>
-                    {(() => {
-                      const pet = pets.find(p => p.id === selectedEquipPet);
-                      if (!pet) return null;
-                      return (
-                        <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
-                          <div className="flex items-center gap-3 mb-3">
-                            <span className="text-2xl">{SPECIES_ICONS[pet.species] || "🐾"}</span>
-                            <div>
-                              <p className="font-semibold text-white">{pet.species}</p>
-                              <p className="text-[10px] text-muted-foreground capitalize">{pet.rarity} · Lv.{pet.level}</p>
-                            </div>
-                          </div>
-                          {selectedInventoryItem && (
-                            <p className="text-[10px] text-cyan-400 mb-2">
-                              Click a matching slot to equip: <span className="font-bold">{selectedInventoryItem.name}</span> ({selectedInventoryItem.slot})
-                            </p>
-                          )}
-                          <div className="grid grid-cols-3 gap-2">
-                            {["collar", "claws", "charm"].map(slot => renderSlotBox(pet, slot))}
-                          </div>
+                    <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
+                      <div className="flex items-center gap-3 mb-3">
+                        <span className="text-2xl">{SPECIES_ICONS[equippedPet.species] || "🐾"}</span>
+                        <div>
+                          <p className="font-semibold text-white">{equippedPet.species}</p>
+                          <p className="text-[10px] text-muted-foreground capitalize">{equippedPet.rarity} · Lv.{equippedPet.level}</p>
                         </div>
-                      );
-                    })()}
+                      </div>
+                      {selectedInventoryItem && (
+                        <p className="text-[10px] text-cyan-400 mb-2">
+                          Click a matching slot to equip: <span className="font-bold">{selectedInventoryItem.name}</span> ({selectedInventoryItem.slot})
+                        </p>
+                      )}
+                      <div className="grid grid-cols-3 gap-2">
+                        {["collar", "claws", "charm"].map(slot => renderSlotBox(equippedPet, slot))}
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 text-center text-sm text-muted-foreground">
-                    Select a pet above to manage their equipment slots.
+                    Equip a pet first to manage their equipment.
                   </div>
                 )}
               </div>
@@ -1595,7 +1583,9 @@ function PetsInner({ character, onCharacterUpdate }) {
                         )}
                         <Button
                           size="sm"
-                          className={`w-full gap-1.5 text-xs ${
+                          className={`w-full gap-1.5 text-xs transition-all ${
+                            evolveAnimating === pet.id ? "animate-pulse scale-105 ring-2 ring-purple-400/60" : ""
+                          } ${
                             eligible
                               ? "bg-gradient-to-r from-amber-600 to-purple-600 hover:from-amber-700 hover:to-purple-700 text-white"
                               : "opacity-50 cursor-not-allowed"
@@ -1612,8 +1602,8 @@ function PetsInner({ character, onCharacterUpdate }) {
                             });
                           }}
                         >
-                          <TrendingUp className="w-3 h-3" />
-                          {isEvolving ? "Evolving..." : eligible ? "Evolve (500 💎)" : `Lv.${nextStage?.levelReq} required`}
+                          <TrendingUp className={`w-3 h-3 ${evolveAnimating === pet.id ? "animate-spin" : ""}`} />
+                          {isEvolving ? "Evolving..." : eligible ? `Evolve (${({ common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 }[pet.rarity] || 500)} 💎)` : `Lv.${nextStage?.levelReq} required`}
                         </Button>
                       </div>
                     )}
@@ -1754,7 +1744,7 @@ function PetsInner({ character, onCharacterUpdate }) {
                                     <p className="text-[9px] text-muted-foreground leading-tight">{skillData.desc}</p>
                                   )}
                                   {skillData.effect && current > 0 && (
-                                    <p className="text-[9px] text-cyan-400">Active: {skillData.effect}</p>
+                                    <p className="text-[9px] text-cyan-400">Active: {Object.entries(skillData.effect).map(([k, v]) => `${k.replace(/([A-Z])/g, ' $1').trim()} +${Math.round(v * current * 100)}%`).join(", ")}</p>
                                   )}
                                 </div>
                               );
