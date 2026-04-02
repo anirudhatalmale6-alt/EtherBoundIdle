@@ -427,7 +427,7 @@ function PetsInner({ character, onCharacterUpdate }) {
         setFuseMode(false);
         setFuseSpeciesFilter(null);
         setFuseRarityFilter(null);
-        setResultModal({ title: "Fusion Failed!", message: `Fusion failed. Success chance was ${data.chance}%. 1 pet was lost as penalty.`, success: false });
+        setResultModal({ title: "Fusion Failed!", message: `Fusion failed. Success chance was ${data.chance}%. 1 pet was lost as penalty. ${data?.goldCost ? `${data.goldCost.toLocaleString()} gold consumed.` : ''}`, success: false });
         return;
       }
       setSelectedForFuse([]);
@@ -496,7 +496,7 @@ function PetsInner({ character, onCharacterUpdate }) {
       if (onCharacterUpdate) onCharacterUpdate();
       setEvolvingPetId(null);
       if (data?.failed) {
-        setResultModal({ title: "Evolution Failed!", message: `Your pet failed to evolve. 500 gems consumed. Success chance was ${data.chance}%.`, success: false });
+        setResultModal({ title: "Evolution Failed!", message: `Your pet failed to evolve. ${data?.gemCost ?? 500} gems consumed. Success chance was ${data.chance}%.`, success: false });
         return;
       }
       const p = data?.pet;
@@ -1083,9 +1083,11 @@ function PetsInner({ character, onCharacterUpdate }) {
                     const sp = selectedForFuse[0];
                     const fuseChances = { common: 95, uncommon: 85, rare: 70, epic: 55, legendary: 40, mythic: 25 };
                     const chance = fuseChances[sp.rarity] || 80;
+                    const fuseCosts = { common: 500, uncommon: 1500, rare: 5000, epic: 15000, legendary: 50000, mythic: 150000 };
+                    const fuseCost = fuseCosts[sp.rarity] || 5000;
                     setConfirmModal({
                       title: "Confirm Fusion",
-                      message: `Fuse 3x ${sp.rarity} ${sp.species} → 1 ${RARITY_NEXT[sp.rarity] || 'higher'} ${sp.species}\n\nSuccess chance: ${chance}%\nOn failure: 1 pet is lost`,
+                      message: `Fuse 3x ${sp.rarity} ${sp.species} → 1 ${RARITY_NEXT[sp.rarity] || 'higher'} ${sp.species}\n\nCost: ${fuseCost.toLocaleString()} gold\nSuccess chance: ${chance}%\nOn failure: 1 pet is lost (gold still consumed)`,
                       onConfirm: () => fuseMutation.mutate({ species: sp.species, rarity: sp.rarity }),
                     });
                   }}
@@ -1516,7 +1518,7 @@ function PetsInner({ character, onCharacterUpdate }) {
           <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4">
             <p className="text-xs text-muted-foreground leading-relaxed">
               Pets evolve through 3 stages: <span className="text-gray-300 font-medium">Baby</span> → <span className="text-amber-300 font-medium">Adult ⭐ (Lv.15)</span> → <span className="text-purple-300 font-medium">Elder 👑 (Lv.35)</span>.
-              Evolving costs <span className="text-cyan-300 font-semibold">500 gems</span> and permanently upgrades your pet's appearance and stats.
+              Evolving costs gems (scaled by rarity: 200–3000 💎) and permanently upgrades your pet's appearance and stats.
             </p>
           </div>
 
@@ -1601,9 +1603,11 @@ function PetsInner({ character, onCharacterUpdate }) {
                           disabled={!eligible || isEvolving}
                           onClick={() => {
                             if (!eligible) return;
+                            const evolveGemCosts = { common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 };
+                            const evolveCost = evolveGemCosts[pet.rarity] || 500;
                             setConfirmModal({
                               title: "Evolve Pet",
-                              message: `Evolve ${pet.species} to ${nextStage?.name}?\nCost: 500 💎\nSuccess chance: ${{ common: 95, uncommon: 90, rare: 80, epic: 65, legendary: 50, mythic: 35 }[pet.rarity] || 80}%`,
+                              message: `Evolve ${pet.species} to ${nextStage?.name}?\nCost: ${evolveCost} 💎\nSuccess chance: ${{ common: 95, uncommon: 90, rare: 80, epic: 65, legendary: 50, mythic: 35 }[pet.rarity] || 80}%`,
                               onConfirm: () => { setEvolvingPetId(pet.id); evolveMutation.mutate(pet.id); },
                             });
                           }}
