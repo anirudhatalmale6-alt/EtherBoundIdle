@@ -384,6 +384,7 @@ function PetsInner({ character, onCharacterUpdate }) {
   const [selectedExpeditionPet, setSelectedExpeditionPet] = useState("");
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedDuration, setSelectedDuration] = useState("");
+  const [expeditionResultModal, setExpeditionResultModal] = useState(null); // { petName, rewards }
 
   // Equipment state
   const [selectedEquipPet, setSelectedEquipPet] = useState("");
@@ -637,17 +638,13 @@ function PetsInner({ character, onCharacterUpdate }) {
   });
 
   const claimExpeditionMutation = useMutation({
-    mutationFn: (expeditionId) =>
-      base44.functions.invoke("petExpedition", { characterId: character.id, action: "claim", expeditionId }),
+    mutationFn: ({ expeditionId, petName }) =>
+      base44.functions.invoke("petExpedition", { characterId: character.id, action: "claim", expeditionId }).then(d => ({ ...d, _petName: petName })),
     onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["petExpeditions"] });
       queryClient.invalidateQueries({ queryKey: ["pets"] });
       if (onCharacterUpdate) onCharacterUpdate();
-      const rewards = data?.rewards;
-      const rewardText = rewards
-        ? Object.entries(rewards).map(([k, v]) => `${v} ${k}`).join(", ")
-        : "Rewards claimed!";
-      toast({ title: "Expedition complete!", description: rewardText, duration: 3000 });
+      setExpeditionResultModal({ petName: data._petName || "Your Pet", rewards: data?.rewards || {} });
     },
     onError: (err) => toast({ title: "Claim failed", description: err?.message, variant: "destructive" }),
   });
@@ -1310,7 +1307,7 @@ function PetsInner({ character, onCharacterUpdate }) {
                                 <Button
                                   size="sm"
                                   className="h-7 text-[10px] bg-green-600 hover:bg-green-700 text-white gap-1"
-                                  onClick={() => claimExpeditionMutation.mutate(exp.id)}
+                                  onClick={() => claimExpeditionMutation.mutate({ expeditionId: exp.id, petName: pet?.species || "Pet" })}
                                   disabled={claimExpeditionMutation.isPending}
                                 >
                                   <CheckCircle2 className="w-3 h-3" />
@@ -1646,8 +1643,8 @@ function PetsInner({ character, onCharacterUpdate }) {
                           disabled={!eligible || isEvolving}
                           onClick={() => {
                             if (!eligible) return;
-                            const evolveGemCosts = { common: 1000, uncommon: 3000, rare: 8000, epic: 20000, legendary: 50000, mythic: 100000 };
-                            const evolveCost = evolveGemCosts[pet.rarity] || 8000;
+                            const evolveGemCosts = { common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 };
+                            const evolveCost = evolveGemCosts[pet.rarity] || 500;
                             setConfirmModal({
                               title: "Evolve Pet",
                               message: `Evolve ${pet.species} to ${nextStage?.name}?\nCost: ${evolveCost.toLocaleString()} 💎\nSuccess chance: ${{ common: 75, uncommon: 60, rare: 45, epic: 30, legendary: 20, mythic: 10 }[pet.rarity] || 45}%`,
@@ -1656,7 +1653,7 @@ function PetsInner({ character, onCharacterUpdate }) {
                           }}
                         >
                           <TrendingUp className={`w-3 h-3 ${evolveAnimating === pet.id ? "animate-spin" : ""}`} />
-                          {isEvolving ? "Evolving..." : eligible ? `Evolve (${({ common: 1000, uncommon: 3000, rare: 8000, epic: 20000, legendary: 50000, mythic: 100000 }[pet.rarity] || 8000).toLocaleString()} 💎)` : `Lv.${nextStage?.levelReq} required`}
+                          {isEvolving ? "Evolving..." : eligible ? `Evolve (${({ common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 }[pet.rarity] || 500).toLocaleString()} 💎)` : `Lv.${nextStage?.levelReq} required`}
                         </Button>
                       </div>
                     )}
@@ -2008,6 +2005,123 @@ function PetsInner({ character, onCharacterUpdate }) {
 
       {/* Result Modal */}
       <ResultModal modal={resultModal} onClose={() => setResultModal(null)} />
+
+      {/* Expedition Result Modal */}
+      {expeditionResultModal && (
+        <AnimatePresence>
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm"
+            onClick={() => setExpeditionResultModal(null)}
+          >
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0, y: 40 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 20 }}
+              transition={{ type: "spring", damping: 15, stiffness: 300 }}
+              className="bg-gradient-to-b from-gray-900 to-gray-950 border-2 border-cyan-500/50 shadow-2xl shadow-cyan-500/20 rounded-2xl p-8 max-w-sm w-full mx-4 text-center relative overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="absolute inset-0 opacity-10 bg-gradient-to-b from-cyan-500 to-transparent" />
+              <div className="relative z-10">
+                <motion.div
+                  initial={{ scale: 0, rotate: -180 }}
+                  animate={{ scale: 1, rotate: 0 }}
+                  transition={{ delay: 0.15, type: "spring", damping: 12 }}
+                  className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 border-2 bg-cyan-500/20 border-cyan-500/40"
+                >
+                  <MapPin className="w-9 h-9 text-cyan-400" />
+                </motion.div>
+                <motion.h3
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.2 }}
+                  className="font-orbitron font-bold text-lg mb-1 text-cyan-300"
+                >
+                  Expedition Complete!
+                </motion.h3>
+                <motion.p
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.25 }}
+                  className="text-xs text-gray-400 mb-5"
+                >
+                  {expeditionResultModal.petName} has returned with loot
+                </motion.p>
+                <div className="space-y-2.5 mb-6">
+                  {expeditionResultModal.rewards.gold > 0 && (
+                    <motion.div
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.3 }}
+                      className="flex items-center justify-between bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2.5"
+                    >
+                      <span className="text-xs text-amber-300 flex items-center gap-2"><Star className="w-4 h-4" /> Gold</span>
+                      <span className="text-sm font-bold text-amber-200">+{expeditionResultModal.rewards.gold.toLocaleString()}</span>
+                    </motion.div>
+                  )}
+                  {expeditionResultModal.rewards.exp > 0 && (
+                    <motion.div
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.35 }}
+                      className="flex items-center justify-between bg-blue-500/10 border border-blue-500/20 rounded-lg px-4 py-2.5"
+                    >
+                      <span className="text-xs text-blue-300 flex items-center gap-2"><TrendingUp className="w-4 h-4" /> Character EXP</span>
+                      <span className="text-sm font-bold text-blue-200">+{expeditionResultModal.rewards.exp.toLocaleString()}</span>
+                    </motion.div>
+                  )}
+                  {expeditionResultModal.rewards.petXp > 0 && (
+                    <motion.div
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.4 }}
+                      className="flex items-center justify-between bg-purple-500/10 border border-purple-500/20 rounded-lg px-4 py-2.5"
+                    >
+                      <span className="text-xs text-purple-300 flex items-center gap-2"><PawPrint className="w-4 h-4" /> Pet EXP</span>
+                      <span className="text-sm font-bold text-purple-200">+{expeditionResultModal.rewards.petXp.toLocaleString()}</span>
+                    </motion.div>
+                  )}
+                  {expeditionResultModal.rewards.petEgg && (
+                    <motion.div
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.45 }}
+                      className="flex items-center justify-center bg-emerald-500/10 border border-emerald-500/20 rounded-lg px-4 py-2.5"
+                    >
+                      <span className="text-xs text-emerald-300 flex items-center gap-2"><Baby className="w-4 h-4" /> New Pet Egg Found!</span>
+                    </motion.div>
+                  )}
+                  {expeditionResultModal.rewards.equipmentDrop && (
+                    <motion.div
+                      initial={{ x: -20, opacity: 0 }}
+                      animate={{ x: 0, opacity: 1 }}
+                      transition={{ delay: 0.5 }}
+                      className="flex items-center justify-between bg-cyan-500/10 border border-cyan-500/20 rounded-lg px-4 py-2.5"
+                    >
+                      <span className="text-xs text-cyan-300 flex items-center gap-2"><Package className="w-4 h-4" /> Equipment Drop</span>
+                      <span className="text-xs font-bold text-cyan-200 capitalize">{expeditionResultModal.rewards.equipmentDrop.rarity} {expeditionResultModal.rewards.equipmentDrop.slot}</span>
+                    </motion.div>
+                  )}
+                </div>
+                <motion.button
+                  initial={{ y: 10, opacity: 0 }}
+                  animate={{ y: 0, opacity: 1 }}
+                  transition={{ delay: 0.55 }}
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setExpeditionResultModal(null)}
+                  className="px-8 py-2.5 rounded-lg text-sm font-bold tracking-wide uppercase bg-cyan-600 hover:bg-cyan-500 text-white shadow-lg shadow-cyan-600/30 transition-all"
+                >
+                  Continue
+                </motion.button>
+              </div>
+            </motion.div>
+          </motion.div>
+        </AnimatePresence>
+      )}
 
       {/* ══════════════════════════════════════════════════════
           TAB: AURAS & SYNERGIES
