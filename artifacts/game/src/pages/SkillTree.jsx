@@ -4,15 +4,15 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Zap, Shield, Lock, CheckCircle2, ChevronDown, ChevronRight, Star, Flame, Snowflake, Swords } from "lucide-react";
+import { Zap, Shield, Lock, CheckCircle2, ChevronDown, ChevronRight, Star, Flame, Snowflake, Swords, Sparkles } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { CLASS_SKILLS, SKILL_TIERS, ELEMENT_CONFIG } from "@/lib/skillData";
+import { CLASS_SKILLS, SKILL_TIERS, ELEMENT_CONFIG, SKILL_SYNERGIES, getActiveSynergies } from "@/lib/skillData";
 import SkillHotbar from "@/components/game/SkillHotbar";
 
 export default function SkillTree({ character, onCharacterUpdate }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [openTiers, setOpenTiers] = useState({ 1: true, 2: false, 3: false, 4: false, 5: false });
+  const [openTiers, setOpenTiers] = useState({ 1: true, 2: false, 3: false, 4: false, 5: false, 6: false });
 
   const charClass = character?.class || "warrior";
   const skills = CLASS_SKILLS[charClass] || [];
@@ -45,7 +45,11 @@ export default function SkillTree({ character, onCharacterUpdate }) {
   });
 
   const toggleTier = (tier) => setOpenTiers(prev => ({ ...prev, [tier]: !prev[tier] }));
-  const tierNums = [1, 2, 3, 4, 5];
+  const tierNums = [1, 2, 3, 4, 5, 6];
+
+  // Synergies
+  const allSynergies = SKILL_SYNERGIES[charClass] || [];
+  const activeSynergies = getActiveSynergies(charClass, learnedSkills);
 
   return (
     <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-3">
@@ -229,6 +233,72 @@ export default function SkillTree({ character, onCharacterUpdate }) {
           </div>
         );
       })}
+
+      {/* Skill Synergies */}
+      {allSynergies.length > 0 && (
+        <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-orbitron font-bold text-sm text-amber-400 flex items-center gap-2">
+              <Sparkles className="w-4 h-4" /> Skill Synergies
+            </h3>
+            <Badge className="bg-amber-500/20 text-amber-300 border-amber-500/30 text-xs">
+              {activeSynergies.length}/{allSynergies.length} active
+            </Badge>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Learn specific skill combinations to unlock permanent passive bonuses. Build your character around synergies for maximum power.
+          </p>
+          <div className="grid md:grid-cols-2 gap-2">
+            {allSynergies.map(syn => {
+              const isActive = activeSynergies.some(a => a.id === syn.id);
+              const learnedSet = new Set(learnedSkills);
+              const progress = syn.requires.filter(id => learnedSet.has(id)).length;
+
+              return (
+                <motion.div
+                  key={syn.id}
+                  className={`border rounded-lg p-3 transition-all ${
+                    isActive
+                      ? "border-amber-500/50 bg-amber-500/10"
+                      : "border-gray-700 bg-gray-800/30 opacity-60"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-lg">{syn.icon}</span>
+                    <div className="flex-1">
+                      <p className={`text-xs font-bold ${isActive ? "text-amber-300" : "text-gray-400"}`}>
+                        {syn.name}
+                      </p>
+                      <p className="text-[9px] text-muted-foreground">{syn.buildType} Build</p>
+                    </div>
+                    {isActive ? (
+                      <CheckCircle2 className="w-4 h-4 text-amber-400" />
+                    ) : (
+                      <span className="text-[9px] text-gray-500">{progress}/{syn.requires.length}</span>
+                    )}
+                  </div>
+                  <p className={`text-[10px] mb-1.5 ${isActive ? "text-amber-200" : "text-gray-500"}`}>
+                    {syn.description}
+                  </p>
+                  <div className="flex gap-1 flex-wrap">
+                    {syn.requires.map(id => {
+                      const sk = skills.find(s => s.id === id);
+                      const has = learnedSet.has(id);
+                      return (
+                        <span key={id} className={`text-[8px] px-1.5 py-0.5 rounded border ${
+                          has ? "border-green-500/40 text-green-400 bg-green-500/10" : "border-gray-700 text-gray-500"
+                        }`}>
+                          {sk?.name || id}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

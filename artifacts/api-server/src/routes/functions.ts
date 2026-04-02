@@ -29,6 +29,7 @@ import {
   petsTable,
   petExpeditionsTable,
   petEquipmentTable,
+  runesTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -2650,6 +2651,17 @@ router.post("/functions/towerAction", async (req: Request, res: Response) => {
         if (floor > (towerProgress.highestFloor || 0)) towerProgress.highestFloor = floor;
         towerProgress.tammablocks = (towerProgress.tammablocks || 0) + (rewards.tammablocks || 0);
         towerProgress.towershards = (towerProgress.towershards || 0) + (rewards.towershards || 0);
+        // Tower dust drops: every 5 floors, higher floors = better dust
+        const towerFloor = floor;
+        if (towerFloor % 5 === 0) {
+          let tDustType = "magic_dust";
+          let tDustAmt = 2;
+          if (towerFloor >= 80) { tDustType = "void_dust"; tDustAmt = 2 + Math.floor(towerFloor / 50); }
+          else if (towerFloor >= 40) { tDustType = "heavens_dust"; tDustAmt = 2 + Math.floor(towerFloor / 30); }
+          else { tDustAmt = 2 + Math.floor(towerFloor / 20); }
+          extraData[tDustType] = (extraData[tDustType] || 0) + tDustAmt;
+        }
+
         extraData.tower = towerProgress;
         await db.update(charactersTable).set({ extraData }).where(eq(charactersTable.id, characterId));
 
@@ -2681,7 +2693,7 @@ router.post("/functions/towerAction", async (req: Request, res: Response) => {
                 rarity: loot.rarity,
                 level: Math.max(1, Math.floor(floor / 10)),
                 stats: loot.stats || {},
-                extraData: { source: "tower", floor },
+                extraData: { source: "tower", floor, rune_slots: loot.rune_slots || 0 },
               });
               d.combat_log.push({ type: "system", text: `Loot: ${loot.name} (${loot.rarity})` });
             }
@@ -3252,6 +3264,31 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
       maxMp: newMaxMp,
     }).where(eq(charactersTable.id, characterId)).returning();
 
+    // Dust drops from combat (boss/elite = guaranteed, normal = small chance)
+    try {
+      const dustDropChance = serverIsBoss ? 0.80 : serverIsElite ? 0.50 : 0.12;
+      if (Math.random() < dustDropChance) {
+        const charExtra = (updated.extraData as any) || {};
+        const cLvl = updated.level || 1;
+        // Determine dust type based on character level
+        let dustType = "magic_dust";
+        let dustAmt = 1;
+        if (cLvl >= 70) {
+          const r = Math.random();
+          dustType = r < 0.3 ? "void_dust" : r < 0.7 ? "heavens_dust" : "magic_dust";
+          dustAmt = serverIsBoss ? 3 : serverIsElite ? 2 : 1;
+        } else if (cLvl >= 40) {
+          const r = Math.random();
+          dustType = r < 0.5 ? "heavens_dust" : "magic_dust";
+          dustAmt = serverIsBoss ? 2 : 1;
+        } else {
+          dustAmt = serverIsBoss ? 2 : 1;
+        }
+        charExtra[dustType] = (charExtra[dustType] || 0) + dustAmt;
+        await db.update(charactersTable).set({ extraData: charExtra }).where(eq(charactersTable.id, characterId));
+      }
+    } catch {}
+
     // Award pet XP from combat
     if (equippedPet) {
       try {
@@ -3346,6 +3383,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
             is_unique: loot.is_unique || false,
             lore: loot.lore || null,
             uniqueEffect: loot.uniqueEffect || null,
+            rune_slots: loot.rune_slots || 0,
           },
         }).returning();
         lootItem = inserted;
@@ -3367,6 +3405,18 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
           },
         });
       }
+
+      // 4a. Rune drop chance (boss/elite = higher chance)
+      let droppedRune: any = null;
+      try {
+        const runeDropChance = serverIsBoss ? 0.35 : serverIsElite ? 0.15 : 0.04;
+        if (Math.random() < runeDropChance) {
+          const rarity = rollRuneRarity(char.level || 1, charLuck + petLuckBonus);
+          const runeData = generateRune(char.level || 1, rarity);
+          const [inserted] = await db.insert(runesTable).values({ characterId, ...runeData }).returning();
+          droppedRune = inserted;
+        }
+      } catch {}
 
       // 4. Pet egg drop chance (from any kill, boosted by boss/luck)
       try {
@@ -3454,6 +3504,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
         character: toClientCharacter(updated),
         levelsGained,
         loot: lootItem,
+        droppedRune,
         newLevel,
         newExp,
         newGold,
@@ -4877,6 +4928,336 @@ router.post("/functions/petEquipment", async (req: Request, res: Response) => {
     sendError(res, 400, `Unknown equipment action: ${action}`);
   } catch (err: any) {
     req.log.error({ err }, "petEquipment error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  RUNE SYSTEM  (equipment-socketed, dust-based upgrades)                     ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+
+const RUNE_STATS: Record<string, { label: string; category: string }> = {
+  // Offensive
+  attack_pct:     { label: "ATK%",           category: "offensive" },
+  crit_chance:    { label: "Crit Chance%",   category: "offensive" },
+  crit_dmg_pct:   { label: "Crit DMG%",     category: "offensive" },
+  boss_dmg_pct:   { label: "Boss DMG%",     category: "offensive" },
+  attack_speed:   { label: "ATK Speed%",    category: "offensive" },
+  lifesteal:      { label: "Lifesteal%",    category: "offensive" },
+  // Defensive
+  defense_pct:    { label: "DEF%",           category: "defensive" },
+  block_chance:   { label: "Block%",         category: "defensive" },
+  evasion:        { label: "Evasion%",       category: "defensive" },
+  hp_flat:        { label: "HP",             category: "defensive" },
+  mp_flat:        { label: "MP",             category: "defensive" },
+  hp_regen:       { label: "HP Regen",       category: "defensive" },
+  mp_regen:       { label: "MP Regen",       category: "defensive" },
+  // Utility
+  exp_pct:        { label: "EXP%",           category: "utility" },
+  gold_pct:       { label: "Gold%",          category: "utility" },
+  drop_chance:    { label: "Drop%",          category: "utility" },
+  // Elemental
+  fire_dmg:       { label: "Fire DMG%",      category: "elemental" },
+  ice_dmg:        { label: "Ice DMG%",       category: "elemental" },
+  lightning_dmg:  { label: "Lightning DMG%", category: "elemental" },
+  poison_dmg:     { label: "Poison DMG%",    category: "elemental" },
+  blood_dmg:      { label: "Blood DMG%",     category: "elemental" },
+  sand_dmg:       { label: "Sand DMG%",      category: "elemental" },
+};
+
+const RUNE_STAT_KEYS = Object.keys(RUNE_STATS);
+
+// Main stat base values per rarity (at level 1)
+const RUNE_MAIN_STAT_BASE: Record<string, number> = {
+  common: 3, uncommon: 5, rare: 8, epic: 12, legendary: 18, mythic: 25,
+};
+
+// Sub-stat count by rarity
+const RUNE_SUB_COUNT: Record<string, number> = {
+  common: 1, uncommon: 1, rare: 2, epic: 3, legendary: 3, mythic: 4,
+};
+
+// Sub-stat value ranges per rarity
+const RUNE_SUB_VALUE: Record<string, [number, number]> = {
+  common: [1, 2], uncommon: [1, 3], rare: [2, 4], epic: [2, 5], legendary: [3, 6], mythic: [4, 8],
+};
+
+const RUNE_NAMES: Record<string, string[]> = {
+  offensive:  ["Fury Rune", "Wrath Rune", "Rage Rune", "Storm Rune", "Havoc Rune", "Slayer Rune"],
+  defensive:  ["Ward Rune", "Bastion Rune", "Aegis Rune", "Fortitude Rune", "Sentinel Rune", "Guardian Rune"],
+  utility:    ["Fortune Rune", "Insight Rune", "Prosperity Rune", "Wisdom Rune", "Discovery Rune"],
+  elemental:  ["Ember Rune", "Frost Rune", "Spark Rune", "Venom Rune", "Crimson Rune", "Dust Rune"],
+};
+
+// Max rune level: base 1 + 6 upgrades = level 7
+const RUNE_MAX_LEVEL = 7;
+
+// Dust types per upgrade bracket
+// Level 1→2, 2→3: Magic Dust | 3→4, 4→5: Heavens Dust | 5→6, 6→7: Void Dust
+const RUNE_DUST_TYPE: Record<number, string> = {
+  1: "magic_dust", 2: "magic_dust",
+  3: "heavens_dust", 4: "heavens_dust",
+  5: "void_dust", 6: "void_dust",
+};
+const RUNE_DUST_COST: Record<number, number> = {
+  1: 3, 2: 5, 3: 8, 4: 12, 5: 20, 6: 30,
+};
+// Success rates decrease with level — failure drops 1 level (min 1)
+const RUNE_UPGRADE_RATE: Record<number, number> = {
+  1: 90, 2: 75, 3: 60, 4: 45, 5: 30, 6: 20,
+};
+// Minimal stat increase per level: +8% of base value per level
+const RUNE_LEVEL_STAT_MULT = 0.08;
+
+function generateRune(characterLevel: number, rarity: string): any {
+  // Pick random main stat
+  const mainStat = RUNE_STAT_KEYS[Math.floor(Math.random() * RUNE_STAT_KEYS.length)];
+  const category = RUNE_STATS[mainStat as keyof typeof RUNE_STATS].category;
+  const mainBase = RUNE_MAIN_STAT_BASE[rarity] || 3;
+  const levelScale = 1 + characterLevel * 0.02;
+  const mainValue = Math.round(mainBase * levelScale);
+
+  // Generate sub-stats (different from main stat)
+  const subCount = RUNE_SUB_COUNT[rarity] || 1;
+  const available = RUNE_STAT_KEYS.filter(s => s !== mainStat);
+  const subStats: { stat: string; value: number }[] = [];
+  for (let i = 0; i < subCount && available.length > 0; i++) {
+    const idx = Math.floor(Math.random() * available.length);
+    const stat = available.splice(idx, 1)[0];
+    const [min, max] = RUNE_SUB_VALUE[rarity] || [1, 2];
+    const value = Math.floor(Math.random() * (max - min + 1)) + min;
+    subStats.push({ stat, value });
+  }
+
+  const names = RUNE_NAMES[category] || RUNE_NAMES.offensive;
+  const name = names[Math.floor(Math.random() * names.length)];
+
+  return { runeType: category, mainStat, mainValue, subStats, rarity, level: 1, name };
+}
+
+function rollRuneRarity(characterLevel: number, luck: number = 0): string {
+  const roll = Math.random() * 100;
+  const luckBonus = Math.min(luck * 0.1, 15);
+  if (roll < 2 + luckBonus * 0.1)   return "mythic";
+  if (roll < 8 + luckBonus * 0.3)   return "legendary";
+  if (roll < 20 + luckBonus * 0.5)  return "epic";
+  if (roll < 40 + luckBonus)        return "rare";
+  if (roll < 65 + luckBonus)        return "uncommon";
+  return "common";
+}
+
+router.post("/functions/runes", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId, action, runeId, itemId, count } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+
+    // === LIST ===
+    // Returns all runes + equipped items with their rune slot info
+    if (action === "list") {
+      const runes = await db.select().from(runesTable).where(eq(runesTable.characterId, characterId));
+      // Also fetch equipped items so frontend knows which have rune slots
+      const items = await db.select().from(itemsTable).where(
+        and(eq(itemsTable.ownerId, characterId), eq(itemsTable.equipped, true))
+      );
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      const extra = (char?.extraData as any) || {};
+      const dust = {
+        magic_dust: extra.magic_dust || 0,
+        heavens_dust: extra.heavens_dust || 0,
+        void_dust: extra.void_dust || 0,
+      };
+      sendSuccess(res, { runes, equippedItems: items, dust });
+      return;
+    }
+
+    // === GENERATE (drop from combat/dungeon) ===
+    if (action === "generate") {
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!char) { sendError(res, 404, "Character not found"); return; }
+      const numRunes = Math.min(count || 1, 3);
+      const generated: any[] = [];
+      for (let i = 0; i < numRunes; i++) {
+        const rarity = rollRuneRarity(char.level || 1, char.luck || 0);
+        const runeData = generateRune(char.level || 1, rarity);
+        const [inserted] = await db.insert(runesTable).values({
+          characterId,
+          ...runeData,
+        }).returning();
+        generated.push(inserted);
+      }
+      sendSuccess(res, { runes: generated });
+      return;
+    }
+
+    // === SOCKET RUNE INTO EQUIPMENT ===
+    if (action === "socket") {
+      if (!runeId || !itemId) { sendError(res, 400, "runeId and itemId required"); return; }
+
+      // Validate rune belongs to character and is not already socketed
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      if (rune.itemId) { sendError(res, 400, "Rune is already socketed — unsocket it first"); return; }
+
+      // Validate item belongs to character and has available rune slots
+      const [item] = await db.select().from(itemsTable).where(
+        and(eq(itemsTable.id, itemId), eq(itemsTable.ownerId, characterId))
+      );
+      if (!item) { sendError(res, 404, "Item not found"); return; }
+      const extraData = (item.extraData as any) || {};
+      const maxSlots = extraData.rune_slots || 0;
+      if (maxSlots === 0) { sendError(res, 400, "This item has no rune slots"); return; }
+
+      // Count runes already socketed in this item
+      const socketedRunes = await db.select().from(runesTable).where(
+        and(eq(runesTable.characterId, characterId), eq(runesTable.itemId, itemId))
+      );
+      if (socketedRunes.length >= maxSlots) {
+        sendError(res, 400, `All ${maxSlots} rune slot(s) are full`); return;
+      }
+
+      // Socket the rune
+      const [updated] = await db.update(runesTable).set({ itemId }).where(eq(runesTable.id, runeId)).returning();
+      sendSuccess(res, { rune: updated });
+      return;
+    }
+
+    // === UNSOCKET RUNE FROM EQUIPMENT ===
+    if (action === "unsocket") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      if (!rune.itemId) { sendError(res, 400, "Rune is not socketed"); return; }
+
+      const [updated] = await db.update(runesTable).set({ itemId: null }).where(eq(runesTable.id, runeId)).returning();
+      sendSuccess(res, { rune: updated });
+      return;
+    }
+
+    // === UPGRADE RUNE (dust-based RNG) ===
+    if (action === "upgrade") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      const currentLevel = rune.level || 1;
+      if (currentLevel >= RUNE_MAX_LEVEL) { sendError(res, 400, "Rune is max level (7)"); return; }
+
+      // Determine dust type & cost
+      const dustType = RUNE_DUST_TYPE[currentLevel];
+      const dustCost = RUNE_DUST_COST[currentLevel];
+      const successRate = RUNE_UPGRADE_RATE[currentLevel];
+
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!char) { sendError(res, 404, "Character not found"); return; }
+      const extra = (char.extraData as any) || {};
+      const currentDust = extra[dustType] || 0;
+      if (currentDust < dustCost) {
+        const dustLabel = dustType.replace("_", " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        sendError(res, 400, `Need ${dustCost} ${dustLabel} (have ${currentDust})`);
+        return;
+      }
+
+      // Deduct dust
+      const newExtra = { ...extra, [dustType]: currentDust - dustCost };
+      await db.update(charactersTable).set({ extraData: newExtra }).where(eq(charactersTable.id, characterId));
+
+      // RNG roll
+      const roll = Math.random() * 100;
+      const success = roll < successRate;
+
+      if (success) {
+        const newLevel = currentLevel + 1;
+        // Minimal stat increase: +8% per level on main stat
+        const baseValue = RUNE_MAIN_STAT_BASE[rune.rarity || "common"] || 3;
+        const charLevelScale = 1 + (char.level || 1) * 0.02;
+        const newMainValue = Math.round(baseValue * charLevelScale * (1 + (newLevel - 1) * RUNE_LEVEL_STAT_MULT));
+
+        // Every 2 levels, slightly boost a random sub-stat
+        let newSubStats = [...((rune.subStats as any[]) || [])];
+        if (newLevel % 2 === 0 && newSubStats.length > 0) {
+          const subIdx = Math.floor(Math.random() * newSubStats.length);
+          newSubStats[subIdx] = { ...newSubStats[subIdx], value: newSubStats[subIdx].value + 1 };
+        }
+
+        const [updated] = await db.update(runesTable).set({
+          level: newLevel,
+          mainValue: newMainValue,
+          subStats: newSubStats,
+        }).where(eq(runesTable.id, runeId)).returning();
+
+        sendSuccess(res, { rune: updated, success: true, newLevel, dustUsed: dustType, dustCost });
+      } else {
+        // Failure: drop 1 level (minimum 1)
+        const newLevel = Math.max(1, currentLevel - 1);
+        let newMainValue = rune.mainValue;
+        if (newLevel < currentLevel) {
+          const baseValue = RUNE_MAIN_STAT_BASE[rune.rarity || "common"] || 3;
+          const charLevelScale = 1 + (char.level || 1) * 0.02;
+          newMainValue = Math.round(baseValue * charLevelScale * (1 + (newLevel - 1) * RUNE_LEVEL_STAT_MULT));
+        }
+
+        const [updated] = await db.update(runesTable).set({
+          level: newLevel,
+          mainValue: newMainValue,
+        }).where(eq(runesTable.id, runeId)).returning();
+
+        sendSuccess(res, { rune: updated, success: false, newLevel, dustUsed: dustType, dustCost });
+      }
+      return;
+    }
+
+    // === SALVAGE RUNE (destroy for dust) ===
+    if (action === "salvage") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      if (rune.itemId) { sendError(res, 400, "Unsocket rune before salvaging"); return; }
+
+      // Salvage gives dust based on rune rarity
+      const dustReward: Record<string, Record<string, number>> = {
+        common:    { magic_dust: 2 },
+        uncommon:  { magic_dust: 4 },
+        rare:      { magic_dust: 6, heavens_dust: 1 },
+        epic:      { magic_dust: 8, heavens_dust: 3 },
+        legendary: { heavens_dust: 6, void_dust: 1 },
+        mythic:    { heavens_dust: 8, void_dust: 3 },
+      };
+      const rewards = dustReward[rune.rarity || "common"] || { magic_dust: 1 };
+      // Bonus dust for leveled runes
+      const levelBonus = Math.floor(((rune.level || 1) - 1) * 1.5);
+      if (levelBonus > 0) {
+        const primaryDust = Object.keys(rewards)[0];
+        rewards[primaryDust] = (rewards[primaryDust] || 0) + levelBonus;
+      }
+
+      await db.delete(runesTable).where(eq(runesTable.id, runeId));
+
+      // Award dust to character
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (char) {
+        const extra = (char.extraData as any) || {};
+        const newExtra = { ...extra };
+        for (const [dustKey, amount] of Object.entries(rewards)) {
+          newExtra[dustKey] = (newExtra[dustKey] || 0) + amount;
+        }
+        await db.update(charactersTable).set({ extraData: newExtra }).where(eq(charactersTable.id, characterId));
+      }
+
+      sendSuccess(res, { salvaged: true, dustGained: rewards });
+      return;
+    }
+
+    sendError(res, 400, `Unknown rune action: ${action}`);
+  } catch (err: any) {
+    req.log.error({ err }, "runes error");
     sendError(res, 500, err.message);
   }
 });

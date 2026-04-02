@@ -409,6 +409,26 @@ export const petEquipmentTable = pgTable("pet_equipment", {
   index("idx_pet_equipment_pet").on(table.petId),
 ]);
 
+// ── Rune System ─────────────────────────────────────────────────────────────
+// Runes are socketed into equipment items (not directly on characters).
+// Equipment items have runeSlots (0-3) in their extraData field.
+export const runesTable = pgTable("runes", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  characterId: varchar("character_id").notNull(),
+  itemId: varchar("item_id"),      // null = in rune inventory, set = socketed in equipment
+  runeType: varchar("rune_type").notNull(),  // "offensive", "defensive", "utility", "elemental"
+  mainStat: varchar("main_stat").notNull(),  // e.g. "attack_pct", "crit_chance", "fire_dmg"
+  mainValue: integer("main_value").notNull().default(0),
+  subStats: jsonb("sub_stats").default([]),  // [{stat, value}, ...] up to 4
+  rarity: varchar("rarity").notNull().default("common"),
+  level: integer("level").notNull().default(1),
+  name: varchar("name").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (table) => [
+  index("idx_runes_character").on(table.characterId),
+  index("idx_runes_item").on(table.itemId),
+]);
+
 export const userRolesTable = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey().references(() => usersTable.id),
   role: varchar("role").notNull().default("player"),

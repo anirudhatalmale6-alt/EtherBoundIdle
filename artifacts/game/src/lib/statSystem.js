@@ -101,19 +101,64 @@ function calcBlockChance(str, vit, bonusBlock = 0) {
 // ─────────────────────────────────────────────────────────────────────────────
 // MAIN PIPELINE
 // ─────────────────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────────────────────
+// RUNE STAT MAPPING → base stat keys
+// ─────────────────────────────────────────────────────────────────────────────
+const RUNE_STAT_TO_BASE = {
+  attack_pct:    "damage",        // converted: attack% → flat damage scaled later
+  crit_chance:   "crit_chance",
+  crit_dmg_pct:  "crit_dmg_pct",
+  boss_dmg_pct:  "boss_dmg_pct",  // new derived stat
+  attack_speed:  "attack_speed",
+  lifesteal:     "lifesteal",
+  defense_pct:   "defense",       // converted: def% → flat defense scaled later
+  block_chance:  "block_chance",
+  evasion:       "evasion",
+  hp_flat:       "hp_bonus",
+  mp_flat:       "mp_bonus",
+  hp_regen:      "hp_regen",
+  mp_regen:      "mp_regen",
+  exp_pct:       "exp_gain_pct",
+  gold_pct:      "gold_gain_pct",
+  drop_chance:   "drop_chance",   // new derived stat
+  fire_dmg:      "fire_dmg",
+  ice_dmg:       "ice_dmg",
+  lightning_dmg: "lightning_dmg",
+  poison_dmg:    "poison_dmg",
+  blood_dmg:     "blood_dmg",
+  sand_dmg:      "sand_dmg",
+};
+
+export function calculateRuneBonus(equippedRunes = []) {
+  const bonus = {};
+  for (const rune of equippedRunes) {
+    if (!rune || !rune.itemId) continue; // only count runes socketed into equipment
+    // Main stat
+    const mainKey = RUNE_STAT_TO_BASE[rune.mainStat];
+    if (mainKey) bonus[mainKey] = (bonus[mainKey] || 0) + (rune.mainValue || 0);
+    // Sub-stats
+    const subs = rune.subStats || [];
+    for (const sub of subs) {
+      const subKey = RUNE_STAT_TO_BASE[sub.stat];
+      if (subKey) bonus[subKey] = (bonus[subKey] || 0) + (sub.value || 0);
+    }
+  }
+  return bonus;
+}
+
 /**
- * calculateFinalStats(character, equippedItems, extraSetStats?)
+ * calculateFinalStats(character, equippedItems, extraSetStats?, equippedRunes?)
  *
- * Returns: { base, equipBonus, setBonus, total, derived }
+ * Returns: { base, equipBonus, setBonus, runeBonus, total, derived }
  *
  * derived includes ALL combat-ready values:
  *   attackPower, rawDefense, damageReduction, maxHp, maxMp,
  *   critChance, lifesteal,
  *   hpRegen, mpRegen,
  *   evasion, blockChance, blockReduction,
- *   goldGainPct, expGainPct
+ *   goldGainPct, expGainPct, bossDmgPct, dropChance
  */
-export function calculateFinalStats(character, equippedItems = [], extraSetStats = null) {
+export function calculateFinalStats(character, equippedItems = [], extraSetStats = null, equippedRunes = []) {
   const cls   = character.class || "warrior";
   const level = character.level || 1;
 
@@ -146,6 +191,9 @@ export function calculateFinalStats(character, equippedItems = [], extraSetStats
     poison_dmg:    0,
     blood_dmg:     0,
     sand_dmg:      0,
+    // Rune-added stats
+    boss_dmg_pct:  0,
+    drop_chance:   0,
   };
 
   // ── 2. Equipment Bonus ────────────────────────────────────────────────────
@@ -166,10 +214,17 @@ export function calculateFinalStats(character, equippedItems = [], extraSetStats
     }
   }
 
-  // ── 4. Total ──────────────────────────────────────────────────────────────
+  // ── 4. Rune Bonus ──────────────────────────────────────────────────────────
+  const runeBonus = Object.fromEntries(BONUS_KEYS.map(k => [k, 0]));
+  const runeBonusRaw = calculateRuneBonus(equippedRunes);
+  for (const [k, v] of Object.entries(runeBonusRaw)) {
+    if (k in runeBonus) runeBonus[k] += v || 0;
+  }
+
+  // ── 5. Total ──────────────────────────────────────────────────────────────
   const total = {};
   for (const k of BONUS_KEYS) {
-    total[k] = base[k] + equipBonus[k] + setBonus[k];
+    total[k] = base[k] + equipBonus[k] + setBonus[k] + runeBonus[k];
   }
 
   // ── 5. Derived Combat Values ──────────────────────────────────────────────
@@ -248,6 +303,12 @@ export function calculateFinalStats(character, equippedItems = [], extraSetStats
   const bloodDmg     = Math.min(100, (character.blood_dmg     || 0) + total.blood_dmg);
   const sandDmg      = Math.min(100, (character.sand_dmg      || 0) + total.sand_dmg);
 
+  // Boss damage bonus: capped at 100%
+  const bossDmgPct = Math.min(100, total.boss_dmg_pct);
+
+  // Drop chance bonus: capped at 50%
+  const dropChance = Math.min(50, total.drop_chance);
+
   const derived = {
     attackPower,
     magicAttack,
@@ -266,6 +327,8 @@ export function calculateFinalStats(character, equippedItems = [], extraSetStats
     goldGainPct,
     expGainPct,
     attackSpeed,
+    bossDmgPct,
+    dropChance,
     fireDmg,
     iceDmg,
     lightningDmg,
@@ -274,7 +337,7 @@ export function calculateFinalStats(character, equippedItems = [], extraSetStats
     sandDmg,
   };
 
-  return { base, equipBonus, setBonus, total, derived };
+  return { base, equipBonus, setBonus, runeBonus, total, derived };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
