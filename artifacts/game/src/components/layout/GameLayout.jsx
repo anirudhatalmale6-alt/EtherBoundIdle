@@ -27,6 +27,7 @@ const NAV_ITEMS = [
   { path: "/gearupgrading", icon: Wrench, label: "Gear Upgrading" },
   { path: "/dungeons", icon: Skull, label: "Dungeons" },
   { path: "/skilltree", icon: Zap, label: "Skill Tree" },
+  { path: "/runes", icon: Gem, label: "Runes" },
   { path: "/admin", icon: Shield, label: "Admin", admin: true },
   { path: "/gameconfig", icon: Settings, label: "Game Config", admin: true },
 ];

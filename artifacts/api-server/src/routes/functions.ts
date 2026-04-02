@@ -29,6 +29,7 @@ import {
   petsTable,
   petExpeditionsTable,
   petEquipmentTable,
+  runesTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -4877,6 +4878,269 @@ router.post("/functions/petEquipment", async (req: Request, res: Response) => {
     sendError(res, 400, `Unknown equipment action: ${action}`);
   } catch (err: any) {
     req.log.error({ err }, "petEquipment error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// ╔══════════════════════════════════════════════════════════════════════════════╗
+// ║  RUNE SYSTEM                                                                ║
+// ╚══════════════════════════════════════════════════════════════════════════════╝
+
+const RUNE_STATS = {
+  // Offensive
+  attack_pct:     { label: "ATK%",           category: "offensive" },
+  crit_chance:    { label: "Crit Chance%",   category: "offensive" },
+  crit_dmg_pct:   { label: "Crit DMG%",     category: "offensive" },
+  boss_dmg_pct:   { label: "Boss DMG%",     category: "offensive" },
+  attack_speed:   { label: "ATK Speed%",    category: "offensive" },
+  lifesteal:      { label: "Lifesteal%",    category: "offensive" },
+  // Defensive
+  defense_pct:    { label: "DEF%",           category: "defensive" },
+  block_chance:   { label: "Block%",         category: "defensive" },
+  evasion:        { label: "Evasion%",       category: "defensive" },
+  hp_flat:        { label: "HP",             category: "defensive" },
+  mp_flat:        { label: "MP",             category: "defensive" },
+  hp_regen:       { label: "HP Regen",       category: "defensive" },
+  mp_regen:       { label: "MP Regen",       category: "defensive" },
+  // Utility
+  exp_pct:        { label: "EXP%",           category: "utility" },
+  gold_pct:       { label: "Gold%",          category: "utility" },
+  drop_chance:    { label: "Drop%",          category: "utility" },
+  // Elemental
+  fire_dmg:       { label: "Fire DMG%",      category: "elemental" },
+  ice_dmg:        { label: "Ice DMG%",       category: "elemental" },
+  lightning_dmg:  { label: "Lightning DMG%", category: "elemental" },
+  poison_dmg:     { label: "Poison DMG%",    category: "elemental" },
+  blood_dmg:      { label: "Blood DMG%",     category: "elemental" },
+  sand_dmg:       { label: "Sand DMG%",      category: "elemental" },
+};
+
+const RUNE_STAT_KEYS = Object.keys(RUNE_STATS);
+
+// Main stat base values per rarity (at level 1)
+const RUNE_MAIN_STAT_BASE: Record<string, number> = {
+  common: 3, uncommon: 5, rare: 8, epic: 12, legendary: 18, mythic: 25,
+};
+
+// Sub-stat count by rarity
+const RUNE_SUB_COUNT: Record<string, number> = {
+  common: 1, uncommon: 1, rare: 2, epic: 3, legendary: 3, mythic: 4,
+};
+
+// Sub-stat value ranges per rarity
+const RUNE_SUB_VALUE: Record<string, [number, number]> = {
+  common: [1, 2], uncommon: [1, 3], rare: [2, 4], epic: [2, 5], legendary: [3, 6], mythic: [4, 8],
+};
+
+// Enhance cost per level (gold)
+const RUNE_ENHANCE_COST = [0, 200, 500, 1000, 1800, 3000, 5000, 8000, 12000, 18000, 26000, 36000, 50000, 70000, 100000];
+// EXP required per level
+const RUNE_EXP_PER_LEVEL = [0, 50, 100, 180, 300, 500, 800, 1200, 1800, 2700, 4000, 6000, 9000, 14000, 20000];
+
+const RUNE_MAX_LEVEL = 15;
+const RUNE_MAX_SLOTS = 6;
+
+const RUNE_NAMES: Record<string, string[]> = {
+  offensive:  ["Fury Rune", "Wrath Rune", "Rage Rune", "Storm Rune", "Havoc Rune", "Slayer Rune"],
+  defensive:  ["Ward Rune", "Bastion Rune", "Aegis Rune", "Fortitude Rune", "Sentinel Rune", "Guardian Rune"],
+  utility:    ["Fortune Rune", "Insight Rune", "Prosperity Rune", "Wisdom Rune", "Discovery Rune"],
+  elemental:  ["Ember Rune", "Frost Rune", "Spark Rune", "Venom Rune", "Crimson Rune", "Dust Rune"],
+};
+
+function generateRune(characterLevel: number, rarity: string): any {
+  const rarityIdx = ["common", "uncommon", "rare", "epic", "legendary", "mythic"].indexOf(rarity);
+  // Pick random main stat
+  const mainStat = RUNE_STAT_KEYS[Math.floor(Math.random() * RUNE_STAT_KEYS.length)];
+  const category = RUNE_STATS[mainStat as keyof typeof RUNE_STATS].category;
+  const mainBase = RUNE_MAIN_STAT_BASE[rarity] || 3;
+  // Scale slightly with character level
+  const levelScale = 1 + characterLevel * 0.02;
+  const mainValue = Math.round(mainBase * levelScale);
+
+  // Generate sub-stats (different from main stat)
+  const subCount = RUNE_SUB_COUNT[rarity] || 1;
+  const available = RUNE_STAT_KEYS.filter(s => s !== mainStat);
+  const subStats: { stat: string; value: number }[] = [];
+  for (let i = 0; i < subCount && available.length > 0; i++) {
+    const idx = Math.floor(Math.random() * available.length);
+    const stat = available.splice(idx, 1)[0];
+    const [min, max] = RUNE_SUB_VALUE[rarity] || [1, 2];
+    const value = Math.floor(Math.random() * (max - min + 1)) + min;
+    subStats.push({ stat, value });
+  }
+
+  const names = RUNE_NAMES[category] || RUNE_NAMES.offensive;
+  const name = names[Math.floor(Math.random() * names.length)];
+
+  return {
+    runeType: category,
+    mainStat,
+    mainValue,
+    subStats,
+    rarity,
+    level: 1,
+    exp: 0,
+    name,
+  };
+}
+
+// Rune drop from dungeons/bosses — returns rarity based on character level + luck
+function rollRuneRarity(characterLevel: number, luck: number = 0): string {
+  const roll = Math.random() * 100;
+  const luckBonus = Math.min(luck * 0.1, 15); // luck adds up to 15% shift
+  if (roll < 2 + luckBonus * 0.1)   return "mythic";
+  if (roll < 8 + luckBonus * 0.3)   return "legendary";
+  if (roll < 20 + luckBonus * 0.5)  return "epic";
+  if (roll < 40 + luckBonus)        return "rare";
+  if (roll < 65 + luckBonus)        return "uncommon";
+  return "common";
+}
+
+router.post("/functions/runes", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId, action, runeId, slot, count } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+
+    // === LIST RUNES ===
+    if (action === "list") {
+      const runes = await db.select().from(runesTable).where(eq(runesTable.characterId, characterId));
+      sendSuccess(res, { runes });
+      return;
+    }
+
+    // === GENERATE (drop from combat/dungeon) ===
+    if (action === "generate") {
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!char) { sendError(res, 404, "Character not found"); return; }
+      const numRunes = Math.min(count || 1, 3);
+      const generated: any[] = [];
+      for (let i = 0; i < numRunes; i++) {
+        const rarity = rollRuneRarity(char.level || 1, char.luck || 0);
+        const runeData = generateRune(char.level || 1, rarity);
+        const [inserted] = await db.insert(runesTable).values({
+          characterId,
+          ...runeData,
+        }).returning();
+        generated.push(inserted);
+      }
+      sendSuccess(res, { runes: generated });
+      return;
+    }
+
+    // === EQUIP RUNE ===
+    if (action === "equip") {
+      if (!runeId || !slot || slot < 1 || slot > RUNE_MAX_SLOTS) {
+        sendError(res, 400, `runeId and slot (1-${RUNE_MAX_SLOTS}) required`); return;
+      }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+
+      // Unequip any rune in that slot
+      await db.update(runesTable).set({ slot: null }).where(
+        and(eq(runesTable.characterId, characterId), eq(runesTable.slot, slot))
+      );
+      // Equip
+      const [updated] = await db.update(runesTable).set({ slot }).where(eq(runesTable.id, runeId)).returning();
+      sendSuccess(res, { rune: updated });
+      return;
+    }
+
+    // === UNEQUIP RUNE ===
+    if (action === "unequip") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [updated] = await db.update(runesTable).set({ slot: null }).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      ).returning();
+      if (!updated) { sendError(res, 404, "Rune not found"); return; }
+      sendSuccess(res, { rune: updated });
+      return;
+    }
+
+    // === ENHANCE RUNE (spend gold to level up) ===
+    if (action === "enhance") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      if ((rune.level || 1) >= RUNE_MAX_LEVEL) { sendError(res, 400, "Rune is max level"); return; }
+
+      const currentLevel = rune.level || 1;
+      const goldCost = RUNE_ENHANCE_COST[currentLevel] || 5000;
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!char || (char.gold || 0) < goldCost) { sendError(res, 400, `Need ${goldCost} gold to enhance`); return; }
+
+      // Deduct gold
+      await db.update(charactersTable).set({ gold: (char.gold || 0) - goldCost }).where(eq(charactersTable.id, characterId));
+
+      const newLevel = currentLevel + 1;
+      // Main stat increases per level
+      const rarityBase = RUNE_MAIN_STAT_BASE[rune.rarity || "common"] || 3;
+      const levelScale = 1 + (char.level || 1) * 0.02;
+      const newMainValue = Math.round(rarityBase * levelScale * (1 + (newLevel - 1) * 0.15));
+
+      // Every 3 levels, upgrade a random sub-stat
+      let newSubStats = (rune.subStats as any[]) || [];
+      if (newLevel % 3 === 0 && newSubStats.length > 0) {
+        const subIdx = Math.floor(Math.random() * newSubStats.length);
+        newSubStats = [...newSubStats];
+        const [min, max] = RUNE_SUB_VALUE[rune.rarity || "common"] || [1, 2];
+        const boost = Math.floor(Math.random() * (max - min + 1)) + min;
+        newSubStats[subIdx] = { ...newSubStats[subIdx], value: newSubStats[subIdx].value + boost };
+      }
+
+      // If level 6 or 12 and rarity >= rare, add a new sub-stat if below max
+      const maxSubs = { common: 2, uncommon: 2, rare: 3, epic: 4, legendary: 4, mythic: 4 }[rune.rarity || "common"] || 2;
+      if ((newLevel === 6 || newLevel === 12) && newSubStats.length < maxSubs) {
+        const existing = new Set(newSubStats.map((s: any) => s.stat));
+        existing.add(rune.mainStat);
+        const available = RUNE_STAT_KEYS.filter(s => !existing.has(s));
+        if (available.length > 0) {
+          const stat = available[Math.floor(Math.random() * available.length)];
+          const [min, max] = RUNE_SUB_VALUE[rune.rarity || "common"] || [1, 2];
+          newSubStats.push({ stat, value: Math.floor(Math.random() * (max - min + 1)) + min });
+        }
+      }
+
+      const [updated] = await db.update(runesTable).set({
+        level: newLevel,
+        mainValue: newMainValue,
+        subStats: newSubStats,
+      }).where(eq(runesTable.id, runeId)).returning();
+
+      sendSuccess(res, { rune: updated, goldCost, newLevel });
+      return;
+    }
+
+    // === SALVAGE RUNE (destroy for gold) ===
+    if (action === "salvage") {
+      if (!runeId) { sendError(res, 400, "runeId required"); return; }
+      const [rune] = await db.select().from(runesTable).where(
+        and(eq(runesTable.id, runeId), eq(runesTable.characterId, characterId))
+      );
+      if (!rune) { sendError(res, 404, "Rune not found"); return; }
+      if (rune.slot) { sendError(res, 400, "Unequip rune before salvaging"); return; }
+
+      const salvageGold = { common: 50, uncommon: 150, rare: 400, epic: 1000, legendary: 3000, mythic: 8000 }[rune.rarity || "common"] || 50;
+      const levelBonus = ((rune.level || 1) - 1) * 100;
+      const totalGold = salvageGold + levelBonus;
+
+      await db.delete(runesTable).where(eq(runesTable.id, runeId));
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (char) {
+        await db.update(charactersTable).set({ gold: (char.gold || 0) + totalGold }).where(eq(charactersTable.id, characterId));
+      }
+
+      sendSuccess(res, { salvaged: true, goldGained: totalGold });
+      return;
+    }
+
+    sendError(res, 400, `Unknown rune action: ${action}`);
+  } catch (err: any) {
+    req.log.error({ err }, "runes error");
     sendError(res, 500, err.message);
   }
 });
