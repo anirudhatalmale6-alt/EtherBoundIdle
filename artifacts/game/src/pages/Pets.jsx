@@ -147,7 +147,10 @@ function getBondLevelName(pet) {
 function TraitPill({ trait, index }) {
   const color = TRAIT_COLORS[index % TRAIT_COLORS.length];
   return (
-    <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border font-medium ${color}`}>
+    <span
+      className={`inline-block text-[9px] px-1.5 py-0.5 rounded-full border font-medium cursor-help ${color}`}
+      title={typeof trait === 'object' ? (trait.desc || trait.name || '') : ''}
+    >
       {typeof trait === 'object' ? (trait.name || trait.key || JSON.stringify(trait)) : trait}
     </span>
   );
@@ -214,6 +217,47 @@ class PetsErrorBoundary extends React.Component {
   }
 }
 
+// ─── Result Modal ─────────────────────────────────────────────────────────────
+
+function ResultModal({ modal, onClose }) {
+  if (!modal) return null;
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className={`bg-gray-900 border-2 rounded-xl p-7 max-w-sm w-full mx-4 shadow-2xl text-center ${
+          modal.success ? "border-green-500/60 shadow-green-500/20" : "border-red-500/60 shadow-red-500/20"
+        }`}
+        onClick={e => e.stopPropagation()}
+      >
+        <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto mb-4 ${
+          modal.success ? "bg-green-500/20" : "bg-red-500/20"
+        }`}>
+          {modal.success
+            ? <CheckCircle2 className="w-8 h-8 text-green-400" />
+            : <XCircle className="w-8 h-8 text-red-400" />}
+        </div>
+        <h3 className={`font-bold text-lg mb-2 ${modal.success ? "text-green-300" : "text-red-300"}`}>
+          {modal.title}
+        </h3>
+        <p className="text-sm text-muted-foreground mb-6 whitespace-pre-line">{modal.message}</p>
+        <button
+          onClick={onClose}
+          className={`px-6 py-2 rounded-lg text-sm font-semibold transition-all ${
+            modal.success
+              ? "bg-green-600 hover:bg-green-700 text-white"
+              : "bg-red-600 hover:bg-red-700 text-white"
+          }`}
+        >
+          OK
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ─── Confirm Modal ────────────────────────────────────────────────────────────
 
 function ConfirmModal({ modal, onClose }) {
@@ -267,6 +311,9 @@ function PetsInner({ character, onCharacterUpdate }) {
   // Confirm modal state
   const [confirmModal, setConfirmModal] = useState(null); // { title, message, onConfirm, variant }
 
+  // Result modal state
+  const [resultModal, setResultModal] = useState(null); // { title, message, success, icon }
+
   // My Pets state
   const [selectedForFuse, setSelectedForFuse] = useState([]);
   const [fuseMode, setFuseMode] = useState(false);
@@ -310,6 +357,11 @@ function PetsInner({ character, onCharacterUpdate }) {
   const skillTrees = petData?.skillTrees || {};
   const equippedPet = pets.find(p => p.equipped);
   const unequippedPets = pets.filter(p => !p.equipped);
+
+  // Auto-select equipped pet in skills tab
+  useEffect(() => {
+    if (equippedPet && activeTab === "skills") setSelectedSkillPet(equippedPet);
+  }, [equippedPet?.id, activeTab]);
 
   // ── Expeditions query ──
   const { data: expeditionData, isLoading: expeditionsLoading } = useQuery({
@@ -369,7 +421,7 @@ function PetsInner({ character, onCharacterUpdate }) {
         setFuseMode(false);
         setFuseSpeciesFilter(null);
         setFuseRarityFilter(null);
-        toast({ title: "Fusion failed!", description: `Success chance was ${data.chance}%. 1 pet was lost as penalty.`, variant: "destructive", duration: 4000 });
+        setResultModal({ title: "Fusion Failed!", message: `Fusion failed. Success chance was ${data.chance}%. 1 pet was lost as penalty.`, success: false });
         return;
       }
       setSelectedForFuse([]);
@@ -378,7 +430,7 @@ function PetsInner({ character, onCharacterUpdate }) {
       setFuseRarityFilter(null);
       const p = data?.pet;
       const desc = p ? `${p.rarity} ${p.species} — Lv.${p.level}, Passive: +${p.passiveValue}, Skill: ${p.skillValue}` : "New pet created!";
-      toast({ title: "Fusion successful!", description: desc, duration: 4000 });
+      setResultModal({ title: "Fusion Successful!", message: desc, success: true });
     },
     onError: (err) => toast({ title: "Fusion failed", description: err?.message, variant: "destructive" }),
   });
@@ -426,13 +478,12 @@ function PetsInner({ character, onCharacterUpdate }) {
       if (onCharacterUpdate) onCharacterUpdate();
       setEvolvingPetId(null);
       if (data?.failed) {
-        toast({ title: "Evolution failed!", description: `Success chance was ${data.chance}%. ${data.gemCost} 💎 were consumed.`, variant: "destructive", duration: 4000 });
+        setResultModal({ title: "Evolution Failed!", message: `Your pet failed to evolve. 500 gems consumed. Success chance was ${data.chance}%.`, success: false });
         return;
       }
       const p = data?.pet;
       const stageName = data?.stage || (p?.evolution === 1 ? "Adult" : "Elder");
-      const desc = p ? `${p.species} is now ${stageName}! Passive: +${p.passiveValue}, Skill: ${p.skillValue}` : `Your pet is now ${stageName}!`;
-      toast({ title: `Evolution complete!`, description: desc, duration: 4000 });
+      setResultModal({ title: "Evolution Successful!", message: `${p?.species || 'Pet'} evolved to ${stageName}!`, success: true });
     },
     onError: (err) => {
       setEvolvingPetId(null);
@@ -1037,6 +1088,16 @@ function PetsInner({ character, onCharacterUpdate }) {
               <div className="max-w-xs">
                 {renderPetCard(equippedPet, true)}
               </div>
+              {/* Pet Stats Guide */}
+              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-3 mt-3">
+                <p className="text-[10px] font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Pet Stats Guide</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px]">
+                  <div><Star className="w-3 h-3 inline text-amber-400 mr-1" /><span className="text-muted-foreground">Passive:</span> <span className="text-white">Always active bonus (damage, crit, gold, etc.)</span></div>
+                  <div><Swords className="w-3 h-3 inline text-cyan-400 mr-1" /><span className="text-muted-foreground">Skill:</span> <span className="text-white">Triggers in combat (heal, shield, extra attack)</span></div>
+                  <div><Heart className="w-3 h-3 inline text-pink-400 mr-1" /><span className="text-muted-foreground">Bond:</span> <span className="text-white">Grows from feeding and fighting together</span></div>
+                  <div><TrendingUp className="w-3 h-3 inline text-purple-400 mr-1" /><span className="text-muted-foreground">Evolution:</span> <span className="text-white">Baby → Adult (Lv.15) → Elder (Lv.35)</span></div>
+                </div>
+              </div>
             </div>
           )}
 
@@ -1186,35 +1247,26 @@ function PetsInner({ character, onCharacterUpdate }) {
                   <p className="text-xs text-muted-foreground">All pets are currently on expeditions.</p>
                 ) : (
                   <div className="space-y-3">
-                    {/* Pet select — mini card grid */}
+                    {/* Pet select — compact scrollable grid */}
                     <div>
-                      <label className="text-[10px] text-muted-foreground mb-2 block">Select Pet</label>
-                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                        {availablePetsForExpedition.map(p => {
-                          const isSelected = selectedExpeditionPet === p.id;
-                          const badgeColor = RARITY_BADGE[p.rarity] || RARITY_BADGE.common;
-                          const visual = getEvolutionVisual(p);
-                          return (
-                            <div
-                              key={p.id}
-                              onClick={() => setSelectedExpeditionPet(p.id)}
-                              className={`rounded-lg border p-2 cursor-pointer transition-all flex items-center gap-2 ${
-                                isSelected
-                                  ? "border-cyan-500/60 bg-cyan-500/10"
-                                  : "border-gray-600 bg-gray-700/50 hover:border-gray-500"
-                              }`}
-                            >
-                              <span className="text-lg flex-shrink-0">{visual}</span>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-[11px] font-semibold text-white truncate">{p.species}</p>
-                                <div className="flex items-center gap-1 flex-wrap">
-                                  <Badge className={`text-[8px] px-1 py-0 ${badgeColor}`}>{p.rarity}</Badge>
-                                  <span className="text-[9px] text-muted-foreground">Lv.{p.level}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <label className="text-[10px] text-muted-foreground mb-1 block">Select Pet</label>
+                      <div className="max-h-40 overflow-y-auto border border-gray-700 rounded-lg p-2 grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-1.5">
+                        {availablePetsForExpedition.map(p => (
+                          <button
+                            key={p.id}
+                            onClick={() => setSelectedExpeditionPet(p.id)}
+                            className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border text-center transition-all ${
+                              selectedExpeditionPet === p.id
+                                ? "border-cyan-500/60 bg-cyan-500/10"
+                                : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                            }`}
+                          >
+                            <span className="text-lg">{SPECIES_ICONS[p.species] || "🐾"}</span>
+                            <span className="text-[9px] text-white font-medium truncate w-full">{p.species}</span>
+                            <span className="text-[8px] text-muted-foreground">Lv.{p.level}</span>
+                            <Badge className={`text-[7px] px-1 py-0 ${RARITY_BADGE[p.rarity] || ""}`}>{p.rarity}</Badge>
+                          </button>
+                        ))}
                       </div>
                     </div>
 
@@ -1535,33 +1587,24 @@ function PetsInner({ character, onCharacterUpdate }) {
          ══════════════════════════════════════════════════════ */}
       {activeTab === "skills" && (
         <div className="space-y-4">
-          {/* Pet selector */}
+          {/* Pet selector — equipped pet only */}
           <div>
-            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Select Pet</p>
-            <div className="flex gap-2 flex-wrap">
-              {pets.map(p => (
-                <button
-                  key={p.id}
-                  onClick={() => setSelectedSkillPet(p)}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs transition-all ${
-                    selectedSkillPet?.id === p.id
-                      ? "border-cyan-500/60 bg-cyan-500/10 text-cyan-300"
-                      : "border-gray-600 bg-gray-800 text-muted-foreground hover:border-gray-500"
-                  }`}
-                >
-                  <span>{getEvolutionVisual(p)}</span>
-                  <span>{p.species}</span>
-                  <span className="text-[10px] opacity-60">Lv.{p.level}</span>
-                </button>
-              ))}
-            </div>
+            <p className="text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wide">Equipped Pet Skills</p>
+            {!equippedPet ? (
+              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-6 text-center">
+                <GitBranch className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-muted-foreground text-sm">Equip a pet first to manage its skills.</p>
+              </div>
+            ) : null}
           </div>
 
           {!selectedSkillPet ? (
-            <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-8 text-center">
-              <GitBranch className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">Select a pet to view its skill tree.</p>
-            </div>
+            equippedPet ? null : (
+              <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-8 text-center">
+                <GitBranch className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+                <p className="text-muted-foreground text-sm">Equip a pet to view its skill tree.</p>
+              </div>
+            )
           ) : (() => {
             // Re-find the pet from the latest data to keep points current
             const pet = pets.find(p => p.id === selectedSkillPet.id) || selectedSkillPet;
@@ -1732,22 +1775,23 @@ function PetsInner({ character, onCharacterUpdate }) {
                       <p className="text-xs text-muted-foreground">No pet selected</p>
                     </div>
                   )}
-                  <select
-                    value={slot?.id || ""}
-                    onChange={e => {
-                      const pet = unequippedPets.find(p => p.id === e.target.value);
-                      setSlot(pet || null);
-                      setBreedResult(null);
-                    }}
-                    className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-cyan-500"
-                  >
-                    <option value="">Choose a pet...</option>
+                  <div className="max-h-32 overflow-y-auto border border-gray-700 rounded-lg p-2 grid grid-cols-3 sm:grid-cols-4 gap-1.5">
                     {availablePets.map(p => (
-                      <option key={p.id} value={p.id}>
-                        {SPECIES_ICONS[p.species] || "🐾"} {p.species} (Lv.{p.level}, {p.rarity})
-                      </option>
+                      <button
+                        key={p.id}
+                        onClick={() => { setSlot(p); setBreedResult(null); }}
+                        className={`flex flex-col items-center gap-0.5 p-1.5 rounded-lg border text-center transition-all ${
+                          slot?.id === p.id
+                            ? "border-pink-500/60 bg-pink-500/10"
+                            : "border-gray-600 bg-gray-800/50 hover:border-gray-500"
+                        }`}
+                      >
+                        <span className="text-lg">{SPECIES_ICONS[p.species] || "🐾"}</span>
+                        <span className="text-[9px] text-white font-medium truncate w-full">{p.species}</span>
+                        <span className="text-[8px] text-muted-foreground">Lv.{p.level} · {p.rarity}</span>
+                      </button>
                     ))}
-                  </select>
+                  </div>
                 </div>
               );
             })}
@@ -1871,11 +1915,22 @@ function PetsInner({ character, onCharacterUpdate }) {
       {/* Confirm Modal */}
       <ConfirmModal modal={confirmModal} onClose={() => setConfirmModal(null)} />
 
+      {/* Result Modal */}
+      <ResultModal modal={resultModal} onClose={() => setResultModal(null)} />
+
       {/* ══════════════════════════════════════════════════════
           TAB: AURAS & SYNERGIES
          ══════════════════════════════════════════════════════ */}
       {activeTab === "auras" && (
         <div className="space-y-5">
+          <div className="bg-gray-800/50 border border-gray-700 rounded-lg p-3 mb-4">
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              <Sparkles className="w-3 h-3 inline mr-1 text-cyan-400" />
+              Each pet <span className="text-cyan-300">species</span> you own provides one unique aura.
+              Owning multiple pets of the same species does NOT stack — only <span className="text-white font-semibold">unique species</span> count.
+              Max 10 auras (one per species). Set bonuses activate when you own all required species.
+            </p>
+          </div>
           {aurasLoading ? (
             <div className="text-center py-8 text-muted-foreground text-sm">Loading auras...</div>
           ) : (() => {
