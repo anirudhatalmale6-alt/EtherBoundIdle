@@ -4238,6 +4238,11 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
       if (candidates.length < 3) {
         sendError(res, 400, `Need 3 ${rarity} ${species} pets (have ${candidates.length})`); return;
       }
+      const fuseCosts: Record<string, number> = { common: 500, uncommon: 1500, rare: 5000, epic: 15000, legendary: 50000, mythic: 150000 };
+      const fuseCost = fuseCosts[rarity] || 5000;
+      const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+      if (!char || (char.gold || 0) < fuseCost) { sendError(res, 400, `Need ${fuseCost.toLocaleString()} gold to fuse ${rarity} pets`); return; }
+      await db.update(charactersTable).set({ gold: (char.gold || 0) - fuseCost }).where(eq(charactersTable.id, characterId));
       // Fuse success chance based on rarity
       const fuseChance: Record<string, number> = { common: 0.95, uncommon: 0.85, rare: 0.70, epic: 0.55, legendary: 0.40, mythic: 0.25 };
       const fuseProbability = fuseChance[rarity] || 0.80;
@@ -4245,7 +4250,7 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
         // Failed - lose 1 of the 3 pets as penalty
         const sacrificed = candidates[0];
         await db.delete(petsTable).where(eq(petsTable.id, sacrificed.id));
-        sendSuccess(res, { success: false, failed: true, sacrificedPet: sacrificed, chance: Math.round(fuseProbability * 100) });
+        sendSuccess(res, { success: false, failed: true, sacrificedPet: sacrificed, chance: Math.round(fuseProbability * 100), goldCost: fuseCost });
         return;
       }
       // Delete 3
@@ -4270,7 +4275,7 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
         skillValue: getPetSkillValue(avgLevel, newRarity),
         traits: rollTraits(newRarity),
       }).returning();
-      sendSuccess(res, { pet: newPet, fusedFrom: toDelete.map(p => p.id) });
+      sendSuccess(res, { pet: newPet, fusedFrom: toDelete.map(p => p.id), goldCost: fuseCost });
       return;
     }
 
@@ -4334,7 +4339,8 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
       if ((pet.level || 1) < nextStage.levelReq) {
         sendError(res, 400, `Pet needs level ${nextStage.levelReq} to evolve (currently ${pet.level})`); return;
       }
-      const gemCost = 500;
+      const evolveGemCost: Record<string, number> = { common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 };
+      const gemCost = evolveGemCost[pet.rarity] || 500;
       const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
       if (!char || (char.gems || 0) < gemCost) { sendError(res, 400, `Need ${gemCost} gems to evolve`); return; }
       await db.update(charactersTable).set({ gems: (char.gems || 0) - gemCost }).where(eq(charactersTable.id, characterId));

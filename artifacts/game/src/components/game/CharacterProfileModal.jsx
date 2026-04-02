@@ -76,6 +76,25 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
     select: (data) => data.filter(i => i.equipped),
   });
 
+  const { data: guildData } = useQuery({
+    queryKey: ["guildForStats", character?.guildId],
+    queryFn: async () => {
+      if (!character?.guildId) return null;
+      const guilds = await base44.entities.Guild.filter({ id: character.guildId });
+      return guilds?.[0] || null;
+    },
+    enabled: !!character?.guildId,
+    staleTime: 60000,
+  });
+
+  const { data: petData } = useQuery({
+    queryKey: ["petsForStats", character?.id],
+    queryFn: () => base44.functions.invoke("petAction", { characterId: character.id, action: "list" }),
+    enabled: !!character?.id,
+    staleTime: 60000,
+  });
+  const equippedPetForStats = (petData?.pets || []).find(p => p.equipped);
+
   const statMutation = useMutation({
     mutationFn: async () => {
       const totalSpent = Object.values(pendingStats).reduce((s, v) => s + v, 0);
@@ -299,6 +318,65 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
                 </div>
               );
             })}
+
+            {/* Combat Bonuses - Guild & Pet */}
+            {(() => {
+              const bonuses = [];
+
+              // Guild bonuses
+              const guildBuffs = guildData?.buffs && typeof guildData.buffs === 'object' ? guildData.buffs : {};
+              if (guildBuffs.exp_bonus) bonuses.push({ label: "Guild EXP Bonus", value: `+${guildBuffs.exp_bonus}%`, color: "text-green-400", icon: TrendingUp });
+              if (guildBuffs.gold_bonus) bonuses.push({ label: "Guild Gold Bonus", value: `+${guildBuffs.gold_bonus}%`, color: "text-yellow-400", icon: Coins });
+              if (guildBuffs.damage_bonus) bonuses.push({ label: "Guild Damage Bonus", value: `+${guildBuffs.damage_bonus}%`, color: "text-red-400", icon: Swords });
+
+              // Pet passive bonus
+              if (equippedPetForStats) {
+                const PASSIVE_LABELS = { crit_chance: "Crit Chance", exp_gain: "EXP Gain", gold_gain: "Gold Gain", damage: "Damage", defense: "Defense", luck: "Luck" };
+                const PASSIVE_ICONS = { crit_chance: Target, exp_gain: Star, gold_gain: Coins, damage: Swords, defense: Shield, luck: Clover };
+                const PASSIVE_COLORS = { crit_chance: "text-orange-400", exp_gain: "text-purple-400", gold_gain: "text-yellow-400", damage: "text-red-400", defense: "text-blue-400", luck: "text-amber-400" };
+                const pLabel = PASSIVE_LABELS[equippedPetForStats.passiveType] || equippedPetForStats.passiveType;
+                const pIcon = PASSIVE_ICONS[equippedPetForStats.passiveType] || Star;
+                const pColor = PASSIVE_COLORS[equippedPetForStats.passiveType] || "text-cyan-400";
+                bonuses.push({
+                  label: `Pet: ${pLabel}`,
+                  value: `+${equippedPetForStats.passiveValue}${equippedPetForStats.passiveType === 'crit_chance' || equippedPetForStats.passiveType === 'luck' ? '' : '%'}`,
+                  color: pColor,
+                  icon: pIcon,
+                });
+                const SKILL_LABELS = { heal: "Heal", shield: "Shield", extra_attack: "Extra Attack" };
+                const SKILL_ICONS = { heal: Heart, shield: ShieldCheck, extra_attack: Swords };
+                bonuses.push({
+                  label: `Pet Skill: ${SKILL_LABELS[equippedPetForStats.skillType] || equippedPetForStats.skillType}`,
+                  value: `${equippedPetForStats.skillValue}`,
+                  color: "text-cyan-400",
+                  icon: SKILL_ICONS[equippedPetForStats.skillType] || Zap,
+                });
+              }
+
+              if (bonuses.length === 0) return null;
+
+              return (
+                <div className="bg-muted/30 rounded-xl p-4">
+                  <h4 className="text-xs font-semibold text-cyan-400 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5" /> Combat Bonuses
+                  </h4>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {bonuses.map((b, i) => {
+                      const BIcon = b.icon;
+                      return (
+                        <div key={i} className="flex items-center justify-between px-2.5 py-1.5 rounded-lg bg-muted/30">
+                          <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                            <BIcon className="w-3 h-3" />
+                            {b.label}
+                          </span>
+                          <span className={`text-xs font-bold ${b.color}`}>{b.value}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Elemental Damage */}
             <div className="bg-muted/30 rounded-xl p-4">
