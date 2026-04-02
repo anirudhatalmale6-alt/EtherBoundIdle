@@ -132,7 +132,7 @@ const RUNE_STAT_TO_BASE = {
 export function calculateRuneBonus(equippedRunes = []) {
   const bonus = {};
   for (const rune of equippedRunes) {
-    if (!rune || !rune.slot) continue; // only count equipped runes
+    if (!rune || !rune.itemId) continue; // only count runes socketed into equipment
     // Main stat
     const mainKey = RUNE_STAT_TO_BASE[rune.mainStat];
     if (mainKey) bonus[mainKey] = (bonus[mainKey] || 0) + (rune.mainValue || 0);
