@@ -1148,6 +1148,16 @@ export function generateShopItem(
   const sellPrice = Math.floor((RARITY_SELL_PRICES[rarity] || 10) * (1 + itemLevel * 0.08));
   const buyPrice = Math.floor(sellPrice * 3.5);
 
+  // Rune slots: same logic as generateLoot
+  let runeSlots = 0;
+  const slotRoll = rngFn() * 100;
+  const rarityIdx = ["common", "uncommon", "rare", "epic", "legendary", "mythic", "shiny"].indexOf(rarity);
+  if (rarityIdx >= 5) runeSlots = slotRoll < 60 ? 3 : slotRoll < 85 ? 2 : 1;
+  else if (rarityIdx >= 4) runeSlots = slotRoll < 30 ? 3 : slotRoll < 70 ? 2 : 1;
+  else if (rarityIdx >= 3) runeSlots = slotRoll < 15 ? 3 : slotRoll < 50 ? 2 : slotRoll < 85 ? 1 : 0;
+  else if (rarityIdx >= 2) runeSlots = slotRoll < 40 ? 1 : slotRoll < 60 ? 2 : 0;
+  else if (rarityIdx >= 1) runeSlots = slotRoll < 25 ? 1 : 0;
+
   return {
     name,
     type,
@@ -1159,5 +1169,6 @@ export function generateShopItem(
     sell_price: sellPrice,
     buy_price: buyPrice,
     ...(procEffects.length > 0 ? { proc_effects: procEffects } : {}),
+    ...(runeSlots > 0 ? { rune_slots: runeSlots } : {}),
   };
 }

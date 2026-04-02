@@ -112,6 +112,10 @@ export default function Shop({ character, onCharacterUpdate }) {
         sell_price: shopItem.sell_price || Math.floor(shopItem.buy_price * 0.3),
         buy_price: shopItem.buy_price,
         description: shopItem.description || `Purchased from the rotating shop`,
+        extra_data: {
+          ...(shopItem.rune_slots ? { rune_slots: shopItem.rune_slots } : {}),
+          ...(shopItem.proc_effects ? { proc_effects: shopItem.proc_effects } : {}),
+        },
       });
       const newGold = (character.gold || 0) - shopItem.buy_price;
       await base44.entities.Character.update(character.id, { gold: newGold });
@@ -192,6 +196,11 @@ export default function Shop({ character, onCharacterUpdate }) {
                     </Badge>
                     {item.item_level && (
                       <Badge variant="outline" className="text-xs">iLv.{item.item_level}</Badge>
+                    )}
+                    {item.rune_slots > 0 && (
+                      <Badge variant="outline" className="text-xs text-purple-400 border-purple-400/30 gap-0.5">
+                        <Gem className="w-2.5 h-2.5" /> {item.rune_slots} slot{item.rune_slots > 1 ? "s" : ""}
+                      </Badge>
                     )}
                   </div>
                   {item.description && (
