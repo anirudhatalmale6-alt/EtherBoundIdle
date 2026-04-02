@@ -145,6 +145,21 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
   const { base, equipBonus, total, derived } = calculateFinalStats(previewChar, equippedItems);
   derived.lootBonus = Math.min(50, Math.round((total.luck || 0) * 0.5));
 
+  // Add guild + pet bonuses to EXP/Gold display so player sees total
+  const guildBuffs2 = guildData?.buffs && typeof guildData.buffs === 'object' ? guildData.buffs : {};
+  derived.expGainPct = (derived.expGainPct || 0) + (guildBuffs2.exp_bonus || 0);
+  derived.goldGainPct = (derived.goldGainPct || 0) + (guildBuffs2.gold_bonus || 0);
+  if (equippedPetForStats) {
+    if (equippedPetForStats.passiveType === "exp_gain") derived.expGainPct += equippedPetForStats.passiveValue || 0;
+    if (equippedPetForStats.passiveType === "gold_gain") derived.goldGainPct += equippedPetForStats.passiveValue || 0;
+    // Add pet skill tree exp/gold bonuses
+    const st2 = equippedPetForStats.skillTree || {};
+    const expPts = st2.resource?.exp_seeker || 0;
+    const goldPts = st2.resource?.gold_finder || 0;
+    if (expPts > 0) derived.expGainPct += Math.round(0.05 * expPts * 100);
+    if (goldPts > 0) derived.goldGainPct += Math.round(0.06 * goldPts * 100);
+  }
+
   return (
     <AnimatePresence>
       <motion.div
@@ -353,6 +368,48 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
                   color: "text-cyan-400",
                   icon: SKILL_ICONS[equippedPetForStats.skillType] || Zap,
                 });
+
+                // Pet skill tree bonuses
+                const PET_SKILL_TREES = {
+                  combat: {
+                    damage_boost: { name: "Damage Boost", effect: { damage: 0.05 } },
+                    crit_mastery: { name: "Crit Mastery", effect: { critChance: 0.03 } },
+                    lethal_strikes: { name: "Boss Damage", effect: { bossDamage: 0.08 } },
+                    berserker: { name: "Attack Speed", effect: { attackSpeed: 0.04 } },
+                  },
+                  resource: {
+                    gold_finder: { name: "Gold Gain", effect: { goldGain: 0.06 } },
+                    exp_seeker: { name: "EXP Gain", effect: { expGain: 0.05 } },
+                    lucky_looter: { name: "Drop Rate", effect: { luck: 0.04 } },
+                    treasure_sense: { name: "Expedition Loot", effect: { expeditionLoot: 0.10 } },
+                  },
+                  utility: {
+                    quick_learner: { name: "Pet XP Gain", effect: { petXpGain: 0.08 } },
+                    bond_master: { name: "Bond Gain", effect: { bondGain: 0.10 } },
+                    expedition_pro: { name: "Expedition Speed", effect: { expeditionSpeed: 0.10 } },
+                    aura_amplifier: { name: "Aura Strength", effect: { auraStrength: 0.05 } },
+                  },
+                };
+                const EFFECT_ICONS = { damage: Swords, critChance: Target, bossDamage: Flame, attackSpeed: Clock, goldGain: Coins, expGain: Star, luck: Clover, expeditionLoot: Sparkles, petXpGain: TrendingUp, bondGain: Heart, expeditionSpeed: Wind, auraStrength: Sparkles };
+                const EFFECT_COLORS = { damage: "text-red-400", critChance: "text-orange-400", bossDamage: "text-red-300", attackSpeed: "text-yellow-400", goldGain: "text-yellow-400", expGain: "text-purple-400", luck: "text-amber-400", expeditionLoot: "text-green-400", petXpGain: "text-cyan-400", bondGain: "text-pink-400", expeditionSpeed: "text-blue-400", auraStrength: "text-indigo-400" };
+                const st = equippedPetForStats.skillTree || {};
+                for (const branchKey of Object.keys(st)) {
+                  const branch = st[branchKey] || {};
+                  for (const [skillKey, points] of Object.entries(branch)) {
+                    if (typeof points !== "number" || points <= 0) continue;
+                    const skillDef = PET_SKILL_TREES[branchKey]?.[skillKey];
+                    if (!skillDef?.effect) continue;
+                    for (const [effectKey, effectVal] of Object.entries(skillDef.effect)) {
+                      const totalPct = Math.round(effectVal * points * 100);
+                      bonuses.push({
+                        label: `Skill: ${skillDef.name}`,
+                        value: `+${totalPct}%`,
+                        color: EFFECT_COLORS[effectKey] || "text-cyan-400",
+                        icon: EFFECT_ICONS[effectKey] || Zap,
+                      });
+                    }
+                  }
+                }
               }
 
               if (bonuses.length === 0) return null;

@@ -3169,8 +3169,39 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
         else if (pet.passiveType === "damage") petDmgBonus = pv / 100;
         else if (pet.passiveType === "luck") petLuckBonus = pv;
         else if (pet.passiveType === "defense") {} // defense applies in dungeon/tower only
+
+        // Apply pet skill tree bonuses
+        const st = (pet.skillTree as any) || {};
+        for (const branchKey of Object.keys(st)) {
+          const branch = st[branchKey] || {};
+          for (const [skillKey, points] of Object.entries(branch)) {
+            if (typeof points !== "number" || points <= 0) continue;
+            const skillDef = (PET_SKILL_TREES as any)[branchKey]?.[skillKey];
+            if (!skillDef?.effect) continue;
+            for (const [effectKey, effectVal] of Object.entries(skillDef.effect)) {
+              const bonus = (effectVal as number) * points;
+              if (effectKey === "damage") petDmgBonus += bonus;
+              else if (effectKey === "critChance") petCritBonus += bonus * 100; // convert to flat %
+              else if (effectKey === "bossDamage") { /* applied separately below */ }
+              else if (effectKey === "goldGain") petGoldBonus += bonus;
+              else if (effectKey === "expGain") petExpBonus += bonus;
+              else if (effectKey === "luck") petLuckBonus += bonus * 100;
+            }
+          }
+        }
       }
     } catch {}
+
+    // Calculate pet skill tree boss damage bonus
+    let petBossDmgBonus = 0;
+    if (equippedPet) {
+      const st = (equippedPet.skillTree as any) || {};
+      const lethalPts = st.combat?.lethal_strikes || 0;
+      if (lethalPts > 0) {
+        const skillDef = PET_SKILL_TREES.combat.lethal_strikes;
+        petBossDmgBonus = skillDef.effect.bossDamage * lethalPts;
+      }
+    }
 
     const activeBuffs = charExtra.active_buffs || [];
     const nowMs = Date.now();
@@ -3426,7 +3457,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
         newLevel,
         newExp,
         newGold,
-        petInfo: equippedPet ? { id: equippedPet.id, species: equippedPet.species, name: equippedPet.name, level: equippedPet.level, xp: equippedPet.xp, rarity: equippedPet.rarity, skillType: equippedPet.skillType, skillValue: equippedPet.skillValue, evolution: equippedPet.evolution || 0, traits: equippedPet.traits || [] } : null,
+        petInfo: equippedPet ? { id: equippedPet.id, species: equippedPet.species, name: equippedPet.name, level: equippedPet.level, xp: equippedPet.xp, rarity: equippedPet.rarity, skillType: equippedPet.skillType, skillValue: equippedPet.skillValue, evolution: equippedPet.evolution || 0, traits: equippedPet.traits || [], skillTree: equippedPet.skillTree || {} } : null,
         petSkillResult,
       });
   } catch (err: any) {
@@ -4253,10 +4284,12 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
       const fuseChance: Record<string, number> = { common: 0.95, uncommon: 0.85, rare: 0.70, epic: 0.55, legendary: 0.40, mythic: 0.25 };
       const fuseProbability = fuseChance[rarity] || 0.80;
       if (Math.random() > fuseProbability) {
-        // Failed - lose 1 of the 3 pets as penalty
-        const sacrificed = candidates[0];
-        await db.delete(petsTable).where(eq(petsTable.id, sacrificed.id));
-        sendSuccess(res, { success: false, failed: true, sacrificedPet: sacrificed, chance: Math.round(fuseProbability * 100), goldCost: fuseCost });
+        // Failed - lose all 3 pets
+        const toDeleteFailed = candidates.slice(0, 3);
+        for (const p of toDeleteFailed) {
+          await db.delete(petsTable).where(eq(petsTable.id, p.id));
+        }
+        sendSuccess(res, { success: false, failed: true, lostCount: 3, chance: Math.round(fuseProbability * 100), goldCost: fuseCost });
         return;
       }
       // Delete 3
