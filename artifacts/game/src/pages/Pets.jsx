@@ -1643,8 +1643,8 @@ function PetsInner({ character, onCharacterUpdate }) {
                           disabled={!eligible || isEvolving}
                           onClick={() => {
                             if (!eligible) return;
-                            const evolveGemCosts = { common: 1000, uncommon: 3000, rare: 8000, epic: 20000, legendary: 50000, mythic: 100000 };
-                            const evolveCost = evolveGemCosts[pet.rarity] || 8000;
+                            const evolveGemCosts = { common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 };
+                            const evolveCost = evolveGemCosts[pet.rarity] || 500;
                             setConfirmModal({
                               title: "Evolve Pet",
                               message: `Evolve ${pet.species} to ${nextStage?.name}?\nCost: ${evolveCost.toLocaleString()} 💎\nSuccess chance: ${{ common: 75, uncommon: 60, rare: 45, epic: 30, legendary: 20, mythic: 10 }[pet.rarity] || 45}%`,
@@ -1653,7 +1653,7 @@ function PetsInner({ character, onCharacterUpdate }) {
                           }}
                         >
                           <TrendingUp className={`w-3 h-3 ${evolveAnimating === pet.id ? "animate-spin" : ""}`} />
-                          {isEvolving ? "Evolving..." : eligible ? `Evolve (${({ common: 1000, uncommon: 3000, rare: 8000, epic: 20000, legendary: 50000, mythic: 100000 }[pet.rarity] || 8000).toLocaleString()} 💎)` : `Lv.${nextStage?.levelReq} required`}
+                          {isEvolving ? "Evolving..." : eligible ? `Evolve (${({ common: 200, uncommon: 350, rare: 500, epic: 800, legendary: 1500, mythic: 3000 }[pet.rarity] || 500).toLocaleString()} 💎)` : `Lv.${nextStage?.levelReq} required`}
                         </Button>
                       </div>
                     )}
