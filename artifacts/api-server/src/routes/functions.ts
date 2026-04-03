@@ -6068,9 +6068,73 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
                 pd.combat_log.push({ type: "system", text: `${enemy.name} defeated!` });
               }
 
-              // Check all enemies dead — wave clear handled on next actual attack
+              // Check all enemies dead — wave clear
               const allEnemiesDead = enemies.every((e: any) => e.hp <= 0);
-              if (!allEnemiesDead) {
+              if (allEnemiesDead) {
+                // Wave clear! Generate rewards and next wave
+                const wave = s.wave || pd.wave || 1;
+                const portalLevel = s.portalLevel || pd.portalLevel || 1;
+                const rewards = getPortalWaveRewards(wave, portalLevel);
+                pd.rewards = rewards;
+                pd.combat_log.push({ type: "victory", text: `Wave ${wave} cleared!` });
+
+                // Give rewards to all members
+                for (const m of pMembers) {
+                  try {
+                    await db.update(charactersTable).set({
+                      gold: sql`COALESCE(gold, 0) + ${rewards.gold}`,
+                      exp: sql`COALESCE(exp, 0) + ${rewards.exp}`,
+                    }).where(eq(charactersTable.id, m.characterId));
+                    const [mc] = await db.select().from(charactersTable).where(eq(charactersTable.id, m.characterId));
+                    if (mc) {
+                      const mExtra = (mc.extraData as any) || {};
+                      const mPortal = mExtra.portal || { level: 1, shards: 0, highest_wave: 0 };
+                      if (rewards.portalShards > 0) mPortal.shards = (mPortal.shards || 0) + rewards.portalShards;
+                      if (wave > (mPortal.highest_wave || 0)) mPortal.highest_wave = wave;
+                      const gKey = pMembers.length === 1 ? "highest_wave_solo" : `highest_wave_${pMembers.length}p`;
+                      if (wave > (mPortal[gKey] || 0)) mPortal[gKey] = wave;
+                      if (rewards.dustType && rewards.dustAmount > 0) {
+                        mExtra[rewards.dustType] = (mExtra[rewards.dustType] || 0) + rewards.dustAmount;
+                      }
+                      mExtra.portal = mPortal;
+                      await db.update(charactersTable).set({ extraData: mExtra }).where(eq(charactersTable.id, m.characterId));
+                    }
+                  } catch {}
+                }
+
+                // Reward summary
+                let rewardText = `+${rewards.gold}g, +${rewards.exp} exp`;
+                if (rewards.portalShards > 0) rewardText += `, +${rewards.portalShards} Portal Shards`;
+                if (rewards.dustType) rewardText += `, +${rewards.dustAmount} ${rewards.dustType.replace(/_/g, " ")}`;
+                pd.combat_log.push({ type: "system", text: rewardText });
+
+                if (!pd.totalRewards) pd.totalRewards = { gold: 0, exp: 0, portalShards: 0, dust: {}, loot: [] };
+                if (!pd.totalRewards.dust) pd.totalRewards.dust = {};
+                if (!pd.totalRewards.loot) pd.totalRewards.loot = [];
+                pd.totalRewards.gold = (pd.totalRewards.gold || 0) + rewards.gold;
+                pd.totalRewards.exp = (pd.totalRewards.exp || 0) + rewards.exp;
+                pd.totalRewards.portalShards = (pd.totalRewards.portalShards || 0) + rewards.portalShards;
+
+                // Advance to next wave
+                const nextWave = wave + 1;
+                const nextWaveData = generatePortalWave(nextWave, portalLevel);
+                pd.enemies = nextWaveData.enemies;
+                pd.isBossWave = nextWaveData.isBossWave;
+                pd.wave = nextWave;
+                pd.status = "combat";
+                pd.currentEnemyIndex = 0;
+                // Reset turn
+                let startIdx = 0;
+                while (startIdx < pMembers.length && pMembers[startIdx].hp <= 0) startIdx++;
+                pd.current_turn_index = startIdx < pMembers.length ? startIdx : 0;
+                pd.turn_deadline = new Date(Date.now() + 3000).toISOString();
+                pd.combat_log.push({ type: "system", text: `Wave ${nextWave} begins!${nextWaveData.isBossWave ? " ⚠️ BOSS WAVE!" : ""}` });
+
+                pMembers[turnIdx] = afkMember;
+                await db.update(portalSessionsTable).set({ wave: nextWave, data: pd, members: pMembers }).where(eq(portalSessionsTable.id, s.id));
+                sendSuccess(res, { success: true, session: { id: s.id, wave: nextWave, status: "combat", ...pd, members: pMembers } });
+                return;
+              } else {
                 // Enemy counter-attacks the AFK player
                 for (let ei = 0; ei < enemies.length; ei++) {
                   const e = enemies[ei];
