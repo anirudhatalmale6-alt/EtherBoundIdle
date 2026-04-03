@@ -287,7 +287,10 @@ export default function ItemTooltip({ item, characterLevel, compareItem = null, 
       {(() => {
         const extraData = item.extraData || item.extra_data || {};
         const maxSlots = extraData.rune_slots || 0;
-        const itemRunes = socketedRunes.filter(r => (r.itemId || r.item_id) === item.id);
+        const itemRunes = socketedRunes.filter(r => {
+          const runeItemId = String(r.itemId || r.item_id || "");
+          return runeItemId && runeItemId === String(item.id);
+        });
         if (maxSlots === 0 && itemRunes.length === 0) return null;
         return (
           <div className="border border-purple-500/30 bg-purple-500/5 rounded-lg p-2 space-y-1.5">
