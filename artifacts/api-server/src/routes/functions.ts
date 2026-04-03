@@ -31,6 +31,7 @@ import {
   petEquipmentTable,
   runesTable,
   portalSessionsTable,
+  worldBossSessionsTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -6134,6 +6135,611 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
     sendSuccess(res, { success: true, action });
   } catch (err: any) {
     req.log.error({ err }, "portalAction error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// ══════════════════════════════════════════════════════════════════════════════
+// WORLD BOSS — server-wide bosses per zone, all players attack simultaneously
+// ══════════════════════════════════════════════════════════════════════════════
+
+const WORLD_BOSS_SPAWN_INTERVAL_MS = 4 * 60 * 60 * 1000; // 4 hours
+const WORLD_BOSS_DURATION_MS = 3.5 * 60 * 60 * 1000;     // 3.5 hours active
+const WORLD_BOSS_MAX_ATTACKS = 50;                        // per player per cycle
+
+const WORLD_BOSSES: Record<string, { name: string; hp: number; dmg: number; armor: number; element: string; minLevel: number; icon: string }> = {
+  verdant_forest:  { name: "Gaia, Ancient Guardian",  hp: 500_000_000,   dmg: 150,  armor: 50,   element: "earth",    minLevel: 1,  icon: "🌳" },
+  scorched_desert: { name: "Ignis, Desert Inferno",   hp: 1_000_000_000, dmg: 400,  armor: 120,  element: "fire",     minLevel: 10, icon: "🔥" },
+  frozen_peaks:    { name: "Cryos, Frost Sovereign",   hp: 2_000_000_000, dmg: 800,  armor: 250,  element: "ice",      minLevel: 25, icon: "❄️" },
+  shadow_realm:    { name: "Nyx, Void Empress",        hp: 5_000_000_000, dmg: 1500, armor: 500,  element: "shadow",   minLevel: 45, icon: "🌑" },
+  celestial_spire: { name: "Solaris, Cosmic Arbiter",  hp: 10_000_000_000,dmg: 3000, armor: 1000, element: "celestial", minLevel: 70, icon: "✨" },
+};
+
+function getWorldBossSpawnCycle(): number {
+  return Math.floor(Date.now() / WORLD_BOSS_SPAWN_INTERVAL_MS);
+}
+
+function formatHp(n: number): string {
+  if (n >= 1_000_000_000) return `${(n / 1_000_000_000).toFixed(1)}B`;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return `${n}`;
+}
+
+// Boss-specific unique gear definitions
+const WORLD_BOSS_GEAR: Record<string, Array<{ name: string; type: string; stats: any }>> = {
+  verdant_forest: [
+    { name: "Gaia's Verdant Blade", type: "weapon", stats: { damage: 120, strength: 40, vitality: 25, hp_bonus: 500 } },
+    { name: "Bark of the Ancient", type: "armor", stats: { defense: 80, vitality: 50, hp_bonus: 800, evasion: 5 } },
+    { name: "Canopy Crown", type: "helmet", stats: { defense: 40, intelligence: 30, mp_bonus: 200, hp_bonus: 300 } },
+    { name: "Ring of Roots", type: "ring", stats: { vitality: 35, defense: 25, hp_bonus: 400, lifesteal: 3 } },
+  ],
+  scorched_desert: [
+    { name: "Ignis Flamecleaver", type: "weapon", stats: { damage: 250, strength: 60, fire_dmg: 40, crit_chance: 8 } },
+    { name: "Inferno Carapace", type: "armor", stats: { defense: 130, vitality: 65, fire_dmg: 20, hp_bonus: 1000 } },
+    { name: "Scorched Diadem", type: "helmet", stats: { defense: 60, intelligence: 50, fire_dmg: 30, mp_bonus: 350 } },
+    { name: "Ember Loop", type: "ring", stats: { fire_dmg: 35, crit_dmg_pct: 15, damage: 80, strength: 30 } },
+  ],
+  frozen_peaks: [
+    { name: "Cryos Frostfang", type: "weapon", stats: { damage: 400, dexterity: 80, ice_dmg: 50, crit_chance: 12 } },
+    { name: "Glacial Aegis", type: "armor", stats: { defense: 200, vitality: 90, ice_dmg: 30, block_chance: 10 } },
+    { name: "Frostmantle Hood", type: "helmet", stats: { defense: 90, intelligence: 70, ice_dmg: 40, mp_bonus: 500 } },
+    { name: "Permafrost Seal", type: "ring", stats: { ice_dmg: 45, defense: 50, evasion: 8, hp_bonus: 600 } },
+  ],
+  shadow_realm: [
+    { name: "Nyx Voidreaver", type: "weapon", stats: { damage: 650, intelligence: 100, poison_dmg: 60, crit_dmg_pct: 25 } },
+    { name: "Umbral Vestments", type: "armor", stats: { defense: 300, vitality: 120, evasion: 12, poison_dmg: 35 } },
+    { name: "Crown of Shadows", type: "helmet", stats: { defense: 130, intelligence: 90, blood_dmg: 45, mp_bonus: 700 } },
+    { name: "Voidheart Band", type: "ring", stats: { blood_dmg: 55, lifesteal: 8, crit_chance: 10, damage: 200 } },
+  ],
+  celestial_spire: [
+    { name: "Solaris, Light Eternal", type: "weapon", stats: { damage: 1000, strength: 150, lightning_dmg: 80, crit_chance: 15, crit_dmg_pct: 30 } },
+    { name: "Radiant Divinity Plate", type: "armor", stats: { defense: 450, vitality: 180, hp_bonus: 3000, block_chance: 12 } },
+    { name: "Halo of the Cosmos", type: "helmet", stats: { defense: 200, intelligence: 130, lightning_dmg: 60, mp_bonus: 1000 } },
+    { name: "Stellar Convergence", type: "ring", stats: { damage: 350, crit_chance: 12, crit_dmg_pct: 35, lightning_dmg: 70, lifesteal: 5 } },
+  ],
+};
+
+async function getOrCreateWorldBossSession(zone: string) {
+  const boss = WORLD_BOSSES[zone];
+  if (!boss) return null;
+  const cycle = getWorldBossSpawnCycle();
+  const expiresAt = new Date((cycle + 1) * WORLD_BOSS_SPAWN_INTERVAL_MS - 30 * 60 * 1000); // 30 min before next cycle
+
+  // Try to find existing
+  const [existing] = await db.select().from(worldBossSessionsTable).where(
+    and(
+      eq(worldBossSessionsTable.zone, zone),
+      eq(worldBossSessionsTable.spawnCycle, cycle),
+    )
+  );
+  if (existing) return existing;
+
+  // Create new session
+  try {
+    const [session] = await db.insert(worldBossSessionsTable).values({
+      zone,
+      bossKey: `wb_${zone}`,
+      status: "active",
+      participants: [],
+      data: {
+        boss_hp: boss.hp,
+        boss_max_hp: boss.hp,
+        boss_name: boss.name,
+        boss_dmg: boss.dmg,
+        boss_armor: boss.armor,
+        boss_element: boss.element,
+        boss_icon: boss.icon,
+        combat_log: [{ type: "system", text: `${boss.name} has appeared in the ${zone.replace(/_/g, " ")}!` }],
+      },
+      spawnCycle: cycle,
+      expiresAt,
+    }).returning();
+    return session;
+  } catch {
+    // Race condition — another player created it first
+    const [s] = await db.select().from(worldBossSessionsTable).where(
+      and(eq(worldBossSessionsTable.zone, zone), eq(worldBossSessionsTable.spawnCycle, cycle))
+    );
+    return s || null;
+  }
+}
+
+router.post("/functions/worldBossAction", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { characterId, action, zone, skillId } = req.body;
+    if (!characterId || !action) { sendError(res, 400, "characterId and action required"); return; }
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { sendError(res, 404, "Character not found"); return; }
+
+    // === GET STATUS: overview of all world bosses ===
+    if (action === "get_status") {
+      const cycle = getWorldBossSpawnCycle();
+      const cycleStart = cycle * WORLD_BOSS_SPAWN_INTERVAL_MS;
+      const cycleEnd = (cycle + 1) * WORLD_BOSS_SPAWN_INTERVAL_MS;
+      const nextSpawn = cycleEnd;
+
+      const sessions = await db.select().from(worldBossSessionsTable).where(eq(worldBossSessionsTable.spawnCycle, cycle));
+      const sessionMap: Record<string, any> = {};
+      for (const s of sessions) sessionMap[s.zone] = s;
+
+      const bosses = Object.entries(WORLD_BOSSES).map(([z, boss]) => {
+        const s = sessionMap[z];
+        const d = s ? (s.data as any) || {} : null;
+        const participants = s ? (s.participants as any[]) || [] : [];
+        const myEntry = participants.find((p: any) => p.characterId === characterId);
+
+        // Get attack count for this player this cycle
+        const attackKey = `wb_attacks_${characterId}_${z}_${cycle}`;
+
+        return {
+          zone: z,
+          bossName: boss.name,
+          bossIcon: boss.icon,
+          bossHp: d ? (d.boss_hp ?? boss.hp) : boss.hp,
+          bossMaxHp: boss.hp,
+          bossDmg: boss.dmg,
+          bossArmor: boss.armor,
+          bossElement: boss.element,
+          minLevel: boss.minLevel,
+          status: s ? (s.status === "active" && Date.now() > new Date(s.expiresAt).getTime() ? "expired" : s.status) : "waiting",
+          participantCount: participants.length,
+          myDamage: myEntry?.totalDamage || 0,
+          myClaimed: myEntry?.claimed || false,
+          sessionId: s?.id || null,
+          timeRemaining: Math.max(0, cycleEnd - 30 * 60 * 1000 - Date.now()),
+          nextSpawn: nextSpawn,
+          meetsLevel: (char.level || 1) >= boss.minLevel,
+        };
+      });
+
+      sendSuccess(res, { bosses, currentCycle: cycle });
+      return;
+    }
+
+    // === JOIN: enter world boss fight ===
+    if (action === "join") {
+      if (!zone) { sendError(res, 400, "zone required"); return; }
+      const boss = WORLD_BOSSES[zone];
+      if (!boss) { sendError(res, 400, "Invalid zone"); return; }
+      if ((char.level || 1) < boss.minLevel) { sendError(res, 400, `Level ${boss.minLevel} required`); return; }
+
+      const session = await getOrCreateWorldBossSession(zone);
+      if (!session) { sendError(res, 500, "Failed to create boss session"); return; }
+      if (session.status !== "active") { sendError(res, 400, "Boss is not active"); return; }
+      if (Date.now() > new Date(session.expiresAt).getTime()) { sendError(res, 400, "Boss has expired"); return; }
+
+      const participants = (session.participants as any[]) || [];
+      const existing = participants.find((p: any) => p.characterId === characterId);
+      if (existing) {
+        // Already joined — return session state
+        const d = (session.data as any) || {};
+        sendSuccess(res, {
+          success: true,
+          session: { id: session.id, zone, status: session.status, ...d, participants },
+          myEntry: existing,
+        });
+        return;
+      }
+
+      const memberStats = await calculateDungeonMemberStats(characterId, char);
+      const newParticipant = {
+        characterId,
+        name: char.name,
+        class: char.class,
+        level: char.level,
+        hp: memberStats.hp,
+        maxHp: memberStats.max_hp,
+        totalDamage: 0,
+        attacks: 0,
+        claimed: false,
+        ...memberStats,
+      };
+      participants.push(newParticipant);
+
+      const d = (session.data as any) || {};
+      d.combat_log = d.combat_log || [];
+      d.combat_log.push({ type: "system", text: `${char.name} (Lv.${char.level}) joined the fight!` });
+      // Keep log trimmed
+      if (d.combat_log.length > 50) d.combat_log = d.combat_log.slice(-50);
+
+      await db.update(worldBossSessionsTable).set({ participants, data: d }).where(eq(worldBossSessionsTable.id, session.id));
+      sendSuccess(res, {
+        success: true,
+        session: { id: session.id, zone, status: session.status, ...d, participants },
+        myEntry: newParticipant,
+      });
+      return;
+    }
+
+    // === ATTACK / SKILL ===
+    if (action === "attack" || action === "skill") {
+      if (!zone) { sendError(res, 400, "zone required"); return; }
+      const boss = WORLD_BOSSES[zone];
+      if (!boss) { sendError(res, 400, "Invalid zone"); return; }
+
+      const session = await getOrCreateWorldBossSession(zone);
+      if (!session || session.status !== "active") { sendError(res, 400, "Boss not active"); return; }
+      if (Date.now() > new Date(session.expiresAt).getTime()) {
+        await db.update(worldBossSessionsTable).set({ status: "expired" }).where(eq(worldBossSessionsTable.id, session.id));
+        sendError(res, 400, "Boss expired");
+        return;
+      }
+
+      const d = (session.data as any) || {};
+      const participants = (session.participants as any[]) || [];
+      const meIdx = participants.findIndex((p: any) => p.characterId === characterId);
+      if (meIdx < 0) { sendError(res, 400, "Join the boss fight first"); return; }
+      const me = participants[meIdx];
+      if (me.hp <= 0) { sendError(res, 400, "You are KO'd. Wait for the boss to reset or use a revive."); return; }
+      if ((me.attacks || 0) >= WORLD_BOSS_MAX_ATTACKS) { sendError(res, 400, `Max ${WORLD_BOSS_MAX_ATTACKS} attacks per boss cycle`); return; }
+
+      let bossHp = d.boss_hp ?? boss.hp;
+      if (bossHp <= 0) { sendError(res, 400, "Boss already defeated"); return; }
+
+      // Calculate player damage (same formula as portal/dungeon)
+      const totalStr = me.strength || 10;
+      const totalDex = me.dexterity || 8;
+      const totalInt = me.intelligence || 5;
+      const totalLuck = me.luck || 5;
+      const classScaling: Record<string, { primary: string; mult: number }> = {
+        warrior: { primary: "strength", mult: 1.3 },
+        mage: { primary: "intelligence", mult: 1.4 },
+        ranger: { primary: "dexterity", mult: 1.2 },
+        rogue: { primary: "dexterity", mult: 1.2 },
+      };
+      const scaling = classScaling[char.class || "warrior"] || classScaling.warrior;
+      const primaryStat = scaling.primary === "strength" ? totalStr : scaling.primary === "intelligence" ? totalInt : totalDex;
+      let baseDmg = primaryStat * scaling.mult + (me.damage || 0);
+
+      // Guild damage bonus
+      if (char.guildId) {
+        try {
+          const [g] = await db.select({ buffs: guildsTable.buffs }).from(guildsTable).where(eq(guildsTable.id, char.guildId));
+          if (g?.buffs && typeof g.buffs === "object") baseDmg *= (1 + ((g.buffs as any).damage_bonus || 0) / 100);
+        } catch {}
+      }
+
+      let dmgMult = 1.0;
+      let skillName = "Basic Attack";
+      if (action === "skill" && skillId && SKILL_DATA[skillId]) {
+        dmgMult = SKILL_DATA[skillId].damage || 1.0;
+        skillName = skillId.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      }
+      const rawDmg = Math.max(1, Math.floor(baseDmg * dmgMult * (0.85 + Math.random() * 0.3)));
+      let playerDmg = Math.max(1, rawDmg - Math.floor((d.boss_armor || boss.armor) * 0.4));
+
+      // Elemental bonus
+      const memberElemDmg = me.elemental_damage || {};
+      const ELEM_MAP: Record<string, string> = { fire: "fire_dmg", ice: "ice_dmg", lightning: "lightning_dmg", poison: "poison_dmg", blood: "blood_dmg", sand: "sand_dmg" };
+      let elemBonusDmg = 0;
+      for (const [, statKey] of Object.entries(ELEM_MAP)) {
+        const val = memberElemDmg[statKey] || 0;
+        if (val > 0) elemBonusDmg += val;
+      }
+      if (elemBonusDmg > 0) playerDmg += elemBonusDmg;
+
+      // Crit
+      const effectiveCritChance = Math.min(0.5, ((me.crit_chance || 0) + totalLuck * 0.3 + totalDex * 0.1) / 100);
+      const isCrit = Math.random() < effectiveCritChance;
+      const critMultiplier = 1.5 + ((me.crit_dmg_pct || 0) / 100);
+      const finalDmg = isCrit ? Math.floor(playerDmg * critMultiplier) : playerDmg;
+
+      // Apply damage to boss
+      bossHp = Math.max(0, bossHp - finalDmg);
+      d.boss_hp = bossHp;
+
+      d.combat_log = d.combat_log || [];
+      d.combat_log.push({
+        type: "player_attack",
+        text: `${me.name} hits ${d.boss_name || boss.name} for ${formatHp(finalDmg)}${isCrit ? " (CRIT!)" : ""}!`,
+      });
+
+      // Lifesteal
+      if ((me.lifesteal || 0) > 0 && finalDmg > 0) {
+        const healAmt = Math.min(Math.floor(finalDmg * me.lifesteal / 100), Math.floor(me.maxHp * 0.10));
+        if (healAmt > 0) {
+          me.hp = Math.min(me.maxHp, me.hp + healAmt);
+        }
+      }
+
+      // Track damage
+      me.totalDamage = (me.totalDamage || 0) + finalDmg;
+      me.attacks = (me.attacks || 0) + 1;
+
+      // Boss counter-attacks this player
+      const bossDmgBase = d.boss_dmg || boss.dmg;
+      const bossDmg = Math.max(1, Math.floor(bossDmgBase * (0.8 + Math.random() * 0.4)));
+      const memberDef = me.defense || 0;
+      const memberVit = me.vitality || 8;
+      const totalDefense = memberDef + memberVit * 0.5;
+      const memberEvasion = Math.min(0.4, (me.evasion || 0) / 100);
+      const evaded = Math.random() < memberEvasion;
+      const memberBlock = Math.min(0.35, (me.block_chance || 0) / 100);
+      const blocked = !evaded && Math.random() < memberBlock;
+
+      if (evaded) {
+        d.combat_log.push({ type: "boss_attack", text: `${me.name} evaded ${d.boss_name || boss.name}'s attack!` });
+      } else {
+        const mitigated = Math.max(1, bossDmg - Math.floor(totalDefense * 0.3));
+        const actualDmg = blocked ? Math.floor(mitigated * 0.4) : mitigated;
+        me.hp = Math.max(0, me.hp - actualDmg);
+        d.combat_log.push({ type: "boss_attack", text: `${d.boss_name || boss.name} hits ${me.name} for ${actualDmg}${blocked ? " (BLOCKED!)" : ""}` });
+      }
+
+      if (me.hp <= 0) {
+        d.combat_log.push({ type: "system", text: `${me.name} has been knocked out!` });
+      }
+
+      participants[meIdx] = me;
+
+      // Trim combat log
+      if (d.combat_log.length > 50) d.combat_log = d.combat_log.slice(-50);
+
+      // Check boss defeated
+      if (bossHp <= 0) {
+        d.boss_hp = 0;
+        d.combat_log.push({ type: "victory", text: `${d.boss_name || boss.name} has been defeated! All participants can claim rewards!` });
+        await db.update(worldBossSessionsTable).set({ status: "defeated", data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
+        sendSuccess(res, {
+          success: true,
+          session: { id: session.id, zone, status: "defeated", ...d, participants },
+          myEntry: me,
+          bossDefeated: true,
+        });
+        return;
+      }
+
+      await db.update(worldBossSessionsTable).set({ data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
+      sendSuccess(res, {
+        success: true,
+        session: { id: session.id, zone, status: "active", ...d, participants },
+        myEntry: me,
+      });
+      return;
+    }
+
+    // === POLL: lightweight state check ===
+    if (action === "poll") {
+      if (!zone) { sendError(res, 400, "zone required"); return; }
+      const cycle = getWorldBossSpawnCycle();
+      const [s] = await db.select().from(worldBossSessionsTable).where(
+        and(eq(worldBossSessionsTable.zone, zone), eq(worldBossSessionsTable.spawnCycle, cycle))
+      );
+      if (!s) { sendSuccess(res, { success: false, error: "No active boss" }); return; }
+
+      // Check expiry
+      if (s.status === "active" && Date.now() > new Date(s.expiresAt).getTime()) {
+        await db.update(worldBossSessionsTable).set({ status: "expired" }).where(eq(worldBossSessionsTable.id, s.id));
+        sendSuccess(res, { success: true, session: { id: s.id, zone, status: "expired", ...(s.data as any), participants: s.participants } });
+        return;
+      }
+
+      const d = (s.data as any) || {};
+      const participants = (s.participants as any[]) || [];
+      const myEntry = participants.find((p: any) => p.characterId === characterId);
+      // Top 10 damagers
+      const topDamagers = [...participants]
+        .sort((a: any, b: any) => (b.totalDamage || 0) - (a.totalDamage || 0))
+        .slice(0, 10)
+        .map((p: any) => ({ name: p.name, class: p.class, level: p.level, totalDamage: p.totalDamage || 0 }));
+
+      sendSuccess(res, {
+        success: true,
+        session: { id: s.id, zone, status: s.status, ...d, participants },
+        myEntry,
+        topDamagers,
+      });
+      return;
+    }
+
+    // === CLAIM REWARDS ===
+    if (action === "claim_rewards") {
+      if (!zone) { sendError(res, 400, "zone required"); return; }
+      const boss = WORLD_BOSSES[zone];
+      if (!boss) { sendError(res, 400, "Invalid zone"); return; }
+      const cycle = getWorldBossSpawnCycle();
+
+      // Also check previous cycle (boss defeated recently)
+      const sessions = await db.select().from(worldBossSessionsTable).where(
+        and(eq(worldBossSessionsTable.zone, zone), sql`${worldBossSessionsTable.spawnCycle} >= ${cycle - 1}`)
+      );
+      const session = sessions.find(s => s.status === "defeated");
+      if (!session) { sendError(res, 400, "No defeated boss to claim from"); return; }
+
+      const participants = (session.participants as any[]) || [];
+      const meIdx = participants.findIndex((p: any) => p.characterId === characterId);
+      if (meIdx < 0) { sendError(res, 400, "You didn't participate"); return; }
+      const me = participants[meIdx];
+      if (me.claimed) { sendError(res, 400, "Already claimed"); return; }
+
+      // Calculate reward tier based on damage rank
+      const sorted = [...participants].sort((a: any, b: any) => (b.totalDamage || 0) - (a.totalDamage || 0));
+      const myRank = sorted.findIndex((p: any) => p.characterId === characterId);
+      const totalParticipants = sorted.length;
+      const percentile = totalParticipants > 0 ? (myRank / totalParticipants) : 1;
+      const myDamage = me.totalDamage || 0;
+      const damageRatio = myDamage / (boss.hp || 1);
+
+      // Zone tier multiplier (1-5)
+      const zoneTiers: Record<string, number> = { verdant_forest: 1, scorched_desert: 2, frozen_peaks: 3, shadow_realm: 4, celestial_spire: 5 };
+      const tier = zoneTiers[zone] || 1;
+
+      // Base rewards (everyone gets these)
+      const goldBase = [10000, 50000, 200000, 500000, 1000000][tier - 1];
+      const expBase = [1000, 5000, 20000, 50000, 100000][tier - 1];
+      const gemsBase = [5, 15, 30, 60, 100][tier - 1];
+      // Scale by damage contribution (min 20%, max 300%)
+      const dmgScale = Math.max(0.2, Math.min(3.0, damageRatio * 1000 + 0.5));
+
+      const goldReward = Math.floor(goldBase * dmgScale);
+      const expReward = Math.floor(expBase * dmgScale);
+      const gemsReward = Math.floor(gemsBase * dmgScale);
+
+      // Apply gold/exp/gems
+      await db.update(charactersTable).set({
+        gold: sql`COALESCE(gold, 0) + ${goldReward}`,
+        exp: sql`COALESCE(exp, 0) + ${expReward}`,
+        gems: sql`COALESCE(gems, 0) + ${gemsReward}`,
+      }).where(eq(charactersTable.id, characterId));
+
+      const rewardItems: string[] = [];
+      const extraData = (char.extraData as any) || {};
+
+      // Hourglass — top 25% get one
+      if (percentile < 0.25) {
+        await db.insert(itemsTable).values({
+          ownerId: characterId, name: "Hourglass of Eternity", type: "consumable", rarity: "epic",
+          level: 1, stats: {}, extraData: { consumableType: "hourglass", source: "world_boss" },
+        });
+        rewardItems.push("Hourglass of Eternity");
+      }
+
+      // Scrolls — random scroll for top 50%
+      if (percentile < 0.5) {
+        const scrollTypes = [
+          { name: "Scroll of Experience", subtype: "scroll_exp", bonus: 50, duration: 7200 },
+          { name: "Scroll of Wealth", subtype: "scroll_gold", bonus: 50, duration: 7200 },
+          { name: "Scroll of Power", subtype: "scroll_dmg", bonus: 25, duration: 7200 },
+          { name: "Scroll of Fortune", subtype: "scroll_loot", bonus: 25, duration: 7200 },
+        ];
+        const scroll = scrollTypes[Math.floor(Math.random() * scrollTypes.length)];
+        await db.insert(itemsTable).values({
+          ownerId: characterId, name: scroll.name, type: "consumable", rarity: "rare",
+          level: 1, stats: { bonus_value: scroll.bonus, duration: scroll.duration },
+          extraData: { consumableType: scroll.subtype, source: "world_boss" },
+        });
+        rewardItems.push(scroll.name);
+      }
+
+      // Upgrade Stone — top 50%
+      if (percentile < 0.5) {
+        await db.insert(itemsTable).values({
+          ownerId: characterId, name: "Upgrade Stone", type: "material", rarity: "epic",
+          level: 1, stats: {}, extraData: { materialType: "upgrade_stone", source: "world_boss" },
+        });
+        rewardItems.push("Upgrade Stone");
+      }
+
+      // Dungeon Ticket — everyone
+      await db.insert(itemsTable).values({
+        ownerId: characterId, name: "Dungeon Ticket", type: "consumable", rarity: "uncommon",
+        level: 1, stats: {}, extraData: { consumableType: "dungeon_ticket", source: "world_boss" },
+      });
+      rewardItems.push("Dungeon Ticket");
+
+      // Boss Gear — top 10% get unique boss gear
+      if (percentile < 0.1) {
+        const gearPool = WORLD_BOSS_GEAR[zone] || [];
+        if (gearPool.length > 0) {
+          const gear = gearPool[Math.floor(Math.random() * gearPool.length)];
+          const gearRarity = myRank < 3 ? "mythic" : "legendary";
+          await db.insert(itemsTable).values({
+            ownerId: characterId, name: gear.name, type: gear.type, rarity: gearRarity,
+            level: Math.max(1, tier * 15), stats: gear.stats,
+            extraData: { source: "world_boss", boss: zone, unique: true, rune_slots: myRank < 3 ? 3 : 2 },
+          });
+          rewardItems.push(`${gear.name} (${gearRarity})`);
+        }
+      }
+
+      // Runes — top 25%, higher rarity for higher rank
+      if (percentile < 0.25) {
+        const runeRarity = myRank < 3 ? "legendary" : myRank < 10 ? "epic" : "rare";
+        const runeTypes = ["offensive", "defensive", "utility", "elemental"];
+        const runeType = runeTypes[Math.floor(Math.random() * runeTypes.length)];
+        const runeStats: Record<string, string[]> = {
+          offensive: ["damage", "crit_chance", "crit_dmg_pct"],
+          defensive: ["defense", "vitality", "hp_bonus", "block_chance"],
+          utility: ["evasion", "lifesteal", "luck"],
+          elemental: ["fire_dmg", "ice_dmg", "lightning_dmg", "poison_dmg"],
+        };
+        const statPool = runeStats[runeType] || ["damage"];
+        const mainStat = statPool[Math.floor(Math.random() * statPool.length)];
+        const rarityMult = { rare: 1, epic: 1.5, legendary: 2.5 }[runeRarity] || 1;
+        const mainValue = Math.floor((10 + tier * 5) * rarityMult);
+        await db.insert(runesTable).values({
+          ownerId: characterId, runeType, rarity: runeRarity, level: tier * 3,
+          mainStat, mainValue, subStats: {},
+        });
+        rewardItems.push(`${runeRarity} ${runeType} rune`);
+      }
+
+      // Shiny Pet Egg — top 3 MVP only
+      if (myRank < 3) {
+        await db.insert(itemsTable).values({
+          ownerId: characterId, name: "Shiny Pet Egg", type: "consumable", rarity: "shiny",
+          level: 1, stats: {}, extraData: { consumableType: "pet_egg_shiny", source: "world_boss", guaranteed_shiny: true },
+        });
+        rewardItems.push("Shiny Pet Egg");
+      }
+
+      // Celestial Stone — top 10%
+      if (percentile < 0.1) {
+        const stoneCount = myRank < 3 ? 3 : 1;
+        extraData.celestial_stones = (extraData.celestial_stones || 0) + stoneCount;
+        rewardItems.push(`${stoneCount}x Celestial Stone`);
+      }
+
+      // Ascension Mark — top 3 MVP only
+      if (myRank < 3) {
+        extraData.ascension_marks = (extraData.ascension_marks || 0) + 1;
+        rewardItems.push("Ascension Mark");
+      }
+
+      // Save extraData updates
+      await db.update(charactersTable).set({ extraData }).where(eq(charactersTable.id, characterId));
+
+      // Mark as claimed
+      me.claimed = true;
+      participants[meIdx] = me;
+      await db.update(worldBossSessionsTable).set({ participants }).where(eq(worldBossSessionsTable.id, session.id));
+
+      sendSuccess(res, {
+        success: true,
+        rewards: {
+          gold: goldReward,
+          exp: expReward,
+          gems: gemsReward,
+          items: rewardItems,
+          rank: myRank + 1,
+          totalParticipants,
+          damageDealt: myDamage,
+          damageFormatted: formatHp(myDamage),
+        },
+      });
+      return;
+    }
+
+    // === LEADERBOARD ===
+    if (action === "leaderboard") {
+      if (!zone) { sendError(res, 400, "zone required"); return; }
+      // Get recent defeated sessions for this zone
+      const sessions = await db.select().from(worldBossSessionsTable).where(
+        and(eq(worldBossSessionsTable.zone, zone), eq(worldBossSessionsTable.status, "defeated"))
+      ).orderBy(desc(worldBossSessionsTable.createdAt)).limit(5);
+
+      const allTimeDamage: Record<string, { name: string; class: string; level: number; totalDamage: number }> = {};
+      for (const s of sessions) {
+        for (const p of (s.participants as any[]) || []) {
+          if (!allTimeDamage[p.characterId]) {
+            allTimeDamage[p.characterId] = { name: p.name, class: p.class, level: p.level, totalDamage: 0 };
+          }
+          allTimeDamage[p.characterId].totalDamage += p.totalDamage || 0;
+        }
+      }
+      const leaderboard = Object.values(allTimeDamage)
+        .sort((a, b) => b.totalDamage - a.totalDamage)
+        .slice(0, 50);
+
+      sendSuccess(res, { leaderboard });
+      return;
+    }
+
+    sendSuccess(res, { success: true, action });
+  } catch (err: any) {
+    req.log.error({ err }, "worldBossAction error");
     sendError(res, 500, err.message);
   }
 });
