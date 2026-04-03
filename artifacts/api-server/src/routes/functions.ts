@@ -5485,17 +5485,32 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
             level: c.level,
             portalLevel: pd.level || 1,
             highestWave: pd.highest_wave || 0,
+            highestWaveSolo: pd.highest_wave_solo || 0,
+            highestWave2p: pd.highest_wave_2p || 0,
+            highestWave3p: pd.highest_wave_3p || 0,
+            highestWave4p: pd.highest_wave_4p || 0,
           };
-        })
-        .filter(e => leaderboardType === "wave" ? e.highestWave > 0 : e.portalLevel > 1);
+        });
 
-      if (leaderboardType === "wave") {
-        entries.sort((a, b) => b.highestWave - a.highestWave);
+      // Filter & sort by leaderboard type
+      const waveKey = leaderboardType === "solo" ? "highestWaveSolo"
+        : leaderboardType === "2p" ? "highestWave2p"
+        : leaderboardType === "3p" ? "highestWave3p"
+        : leaderboardType === "4p" ? "highestWave4p"
+        : leaderboardType === "wave" ? "highestWave"
+        : null;
+
+      let filtered;
+      if (waveKey) {
+        filtered = entries.filter(e => (e as any)[waveKey] > 0);
+        filtered.sort((a, b) => ((b as any)[waveKey] || 0) - ((a as any)[waveKey] || 0));
       } else {
-        entries.sort((a, b) => b.portalLevel - a.portalLevel || b.highestWave - a.highestWave);
+        // "level" type
+        filtered = entries.filter(e => e.portalLevel > 1);
+        filtered.sort((a, b) => b.portalLevel - a.portalLevel || b.highestWave - a.highestWave);
       }
 
-      sendSuccess(res, { leaderboard: entries.slice(0, 50).map((e, i) => ({ ...e, rank: i + 1 })) });
+      sendSuccess(res, { leaderboard: filtered.slice(0, 50).map((e, i) => ({ ...e, rank: i + 1, waveValue: waveKey ? (e as any)[waveKey] : undefined })) });
       return;
     }
 
@@ -5753,6 +5768,10 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
         const pData = charExtra.portal || { level: 1, shards: 0, highest_wave: 0 };
         if (rewards.portalShards > 0) pData.shards = (pData.shards || 0) + rewards.portalShards;
         if (wave > (pData.highest_wave || 0)) pData.highest_wave = wave;
+        // Track highest wave per group size for rankings
+        const groupSize = members.length;
+        const groupKey = groupSize === 1 ? "highest_wave_solo" : `highest_wave_${groupSize}p`;
+        if (wave > (pData[groupKey] || 0)) pData[groupKey] = wave;
         if (rewards.dustType && rewards.dustAmount > 0) {
           charExtra[rewards.dustType] = (charExtra[rewards.dustType] || 0) + rewards.dustAmount;
         }
@@ -5774,6 +5793,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
               const mPortal = mExtra.portal || { level: 1, shards: 0, highest_wave: 0 };
               if (rewards.portalShards > 0) mPortal.shards = (mPortal.shards || 0) + rewards.portalShards;
               if (wave > (mPortal.highest_wave || 0)) mPortal.highest_wave = wave;
+              const mGroupKey = groupSize === 1 ? "highest_wave_solo" : `highest_wave_${groupSize}p`;
+              if (wave > (mPortal[mGroupKey] || 0)) mPortal[mGroupKey] = wave;
               if (rewards.dustType && rewards.dustAmount > 0) {
                 mExtra[rewards.dustType] = (mExtra[rewards.dustType] || 0) + rewards.dustAmount;
               }
@@ -5888,11 +5909,26 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
         const [session] = await db.select().from(portalSessionsTable).where(eq(portalSessionsTable.id, sessionId));
         if (session) {
           const members = (session.members as any[]) || [];
+          const leavingMember = members.find((m: any) => m.characterId === characterId);
           const remaining = members.filter((m: any) => m.characterId !== characterId);
+          const d = (session.data as any) || {};
+          d.combat_log = d.combat_log || [];
+          d.combat_log.push({ type: "system", text: `${leavingMember?.name || "A player"} has left the portal.` });
           if (remaining.length === 0 || session.ownerId === characterId) {
-            await db.update(portalSessionsTable).set({ status: "abandoned" }).where(eq(portalSessionsTable.id, sessionId));
+            d.combat_log.push({ type: "system", text: "The portal has been abandoned." });
+            await db.update(portalSessionsTable).set({ status: "abandoned", data: d }).where(eq(portalSessionsTable.id, sessionId));
           } else {
-            await db.update(portalSessionsTable).set({ members: remaining }).where(eq(portalSessionsTable.id, sessionId));
+            // Check if all remaining members are dead
+            const allDead = remaining.every((m: any) => m.hp <= 0);
+            if (allDead && d.status === "combat") {
+              const wave = session.wave || d.wave || 1;
+              d.combat_log.push({ type: "defeat", text: `All remaining players have fallen on Wave ${wave}!` });
+              d.status = "defeat";
+              d.finalWave = wave;
+              await db.update(portalSessionsTable).set({ status: "defeat", members: remaining, data: d }).where(eq(portalSessionsTable.id, sessionId));
+            } else {
+              await db.update(portalSessionsTable).set({ members: remaining, data: d }).where(eq(portalSessionsTable.id, sessionId));
+            }
           }
         }
       } else {

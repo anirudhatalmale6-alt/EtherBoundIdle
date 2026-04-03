@@ -69,6 +69,19 @@ function PortalCombat({ session: initialSession, character, onLeave }) {
     onLeave();
   };
 
+  // Poll for session updates every 2s (so all players see same enemies/state)
+  useEffect(() => {
+    if (!session?.id) return;
+    const interval = setInterval(async () => {
+      try {
+        const res = await base44.functions.invoke("portalAction", { action: "poll", characterId: character.id, sessionId: session.id });
+        if (res?.session) setSession(res.session);
+        if (res?.success === false) onLeave(); // session ended
+      } catch {}
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [session?.id, character.id]);
+
   // Auto-fight every 1.5s
   useEffect(() => {
     if (!autoFight || loading) return;
@@ -395,23 +408,25 @@ function PortalCombat({ session: initialSession, character, onLeave }) {
 function PortalLeaderboard({ character }) {
   const [tab, setTab] = useState("level");
 
-  const { data: levelBoard } = useQuery({
-    queryKey: ["portalLeaderboard", "level"],
-    queryFn: () => base44.functions.invoke("portalAction", { characterId: character.id, action: "leaderboard", leaderboardType: "level" }),
+  const TABS = [
+    { key: "level", label: "Portal Level", type: "level", valueKey: "portalLevel", valueLabel: "Lv." },
+    { key: "wave", label: "All Waves", type: "wave", valueKey: "highestWave", valueLabel: "Wave" },
+    { key: "solo", label: "Solo", type: "solo", valueKey: "waveValue", valueLabel: "Wave" },
+    { key: "2p", label: "2 Players", type: "2p", valueKey: "waveValue", valueLabel: "Wave" },
+    { key: "3p", label: "3 Players", type: "3p", valueKey: "waveValue", valueLabel: "Wave" },
+    { key: "4p", label: "4 Players", type: "4p", valueKey: "waveValue", valueLabel: "Wave" },
+  ];
+
+  const activeTab = TABS.find(t => t.key === tab) || TABS[0];
+
+  const { data: boardData } = useQuery({
+    queryKey: ["portalLeaderboard", activeTab.type],
+    queryFn: () => base44.functions.invoke("portalAction", { characterId: character.id, action: "leaderboard", leaderboardType: activeTab.type }),
     enabled: !!character?.id,
     staleTime: 30000,
   });
 
-  const { data: waveBoard } = useQuery({
-    queryKey: ["portalLeaderboard", "wave"],
-    queryFn: () => base44.functions.invoke("portalAction", { characterId: character.id, action: "leaderboard", leaderboardType: "wave" }),
-    enabled: !!character?.id,
-    staleTime: 30000,
-  });
-
-  const board = tab === "level" ? (levelBoard?.leaderboard || []) : (waveBoard?.leaderboard || []);
-  const valueKey = tab === "level" ? "portalLevel" : "highestWave";
-  const valueLabel = tab === "level" ? "Portal Lv." : "Wave";
+  const board = boardData?.leaderboard || [];
 
   return (
     <div className="bg-card/50 border border-violet-500/15 rounded-xl overflow-hidden">
@@ -422,9 +437,10 @@ function PortalLeaderboard({ character }) {
           </h3>
         </div>
         <Tabs value={tab} onValueChange={setTab}>
-          <TabsList className="bg-muted/50 h-7">
-            <TabsTrigger value="level" className="text-[10px] h-5 px-2">Highest Level</TabsTrigger>
-            <TabsTrigger value="wave" className="text-[10px] h-5 px-2">Highest Wave</TabsTrigger>
+          <TabsList className="bg-muted/50 h-7 flex-wrap">
+            {TABS.map(t => (
+              <TabsTrigger key={t.key} value={t.key} className="text-[10px] h-5 px-1.5">{t.label}</TabsTrigger>
+            ))}
           </TabsList>
         </Tabs>
       </div>
@@ -435,6 +451,7 @@ function PortalLeaderboard({ character }) {
           board.map((entry, i) => {
             const isMe = entry.id === character.id;
             const medalColors = ["text-yellow-400", "text-gray-300", "text-amber-600"];
+            const displayValue = entry.waveValue ?? entry[activeTab.valueKey] ?? 0;
             return (
               <div key={entry.id} className={`flex items-center gap-2 px-3 py-2 text-xs border-b border-border/20 ${isMe ? "bg-violet-500/10" : ""}`}>
                 <span className={`w-6 text-center font-bold ${i < 3 ? medalColors[i] : "text-muted-foreground"}`}>
@@ -444,8 +461,8 @@ function PortalLeaderboard({ character }) {
                   <span className={`font-semibold truncate ${isMe ? "text-violet-300" : ""}`}>{entry.name}</span>
                   <span className="text-muted-foreground ml-1 capitalize">({entry.class} Lv.{entry.level})</span>
                 </div>
-                <span className="font-mono font-bold text-violet-400">{entry[valueKey]}</span>
-                <span className="text-muted-foreground text-[10px]">{valueLabel}</span>
+                <span className="font-mono font-bold text-violet-400">{displayValue}</span>
+                <span className="text-muted-foreground text-[10px]">{activeTab.valueLabel}</span>
               </div>
             );
           })
