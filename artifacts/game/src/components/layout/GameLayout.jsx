@@ -274,6 +274,14 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               <Sparkles className="w-6 h-6 text-violet-400 group-hover:text-violet-300 transition-colors" />
               <span className="text-[8px] font-bold text-violet-400/80 group-hover:text-violet-300 mt-0.5 tracking-wide">PORTAL</span>
             </div>
+            <div
+              onClick={() => navigate("/worldboss")}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500/30 to-amber-600/20 border-2 border-red-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-red-400 hover:from-red-500/40 hover:to-amber-500/30 transition-all shadow-lg shadow-red-500/20 group"
+              title="World Boss"
+            >
+              <Skull className="w-6 h-6 text-red-400 group-hover:text-red-300 transition-colors" />
+              <span className="text-[8px] font-bold text-red-400/80 group-hover:text-red-300 mt-0.5 tracking-wide">BOSS</span>
+            </div>
           </div>
           <Outlet />
         </main>

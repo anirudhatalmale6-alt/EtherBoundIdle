@@ -445,6 +445,23 @@ export const portalSessionsTable = pgTable("portal_sessions", {
   index("idx_portal_sessions_status").on(table.status),
 ]);
 
+// World Boss — server-wide bosses per zone, spawning every 4 hours, all players attack simultaneously
+export const worldBossSessionsTable = pgTable("world_boss_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  zone: varchar("zone").notNull(),
+  bossKey: varchar("boss_key").notNull(),
+  status: varchar("status").notNull().default("active"),  // active, defeated, expired
+  participants: jsonb("participants").default([]),          // [{ characterId, name, class, level, totalDamage, hp, maxHp, claimed }]
+  data: jsonb("data").default({}),                         // boss_hp, boss_max_hp, combat_log, boss stats, rewards
+  spawnCycle: integer("spawn_cycle").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  index("idx_wb_sessions_zone_cycle").on(table.zone, table.spawnCycle),
+  index("idx_wb_sessions_status").on(table.status),
+]);
+
 export const userRolesTable = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey().references(() => usersTable.id),
   role: varchar("role").notNull().default("player"),
