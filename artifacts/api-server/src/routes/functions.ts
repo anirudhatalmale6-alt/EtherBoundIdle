@@ -30,6 +30,7 @@ import {
   petExpeditionsTable,
   petEquipmentTable,
   runesTable,
+  portalSessionsTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -5258,6 +5259,517 @@ router.post("/functions/runes", async (req: Request, res: Response) => {
     sendError(res, 400, `Unknown rune action: ${action}`);
   } catch (err: any) {
     req.log.error({ err }, "runes error");
+    sendError(res, 500, err.message);
+  }
+});
+
+// ========== INFINITE PORTAL ==========
+// Infinite wave dungeon with escalating difficulty, up to 4-player party, portal shard upgrades.
+// Portal level 1-100, enemies 1.25x stronger per level. Rewards: magic dust, portal shards, unique gear.
+
+const PORTAL_MAX_LEVEL = 100;
+const PORTAL_ENEMY_SCALE = 1.25; // per portal level
+const PORTAL_SHARD_UPGRADE_COST: Record<number, number> = {};
+// Upgrade costs: level 1→2 = 10 shards, scaling up to level 99→100 = ~500 shards
+for (let i = 1; i <= PORTAL_MAX_LEVEL; i++) {
+  PORTAL_SHARD_UPGRADE_COST[i] = Math.floor(10 + (i - 1) * 5 + Math.pow(i, 1.3));
+}
+
+const PORTAL_ENEMY_POOLS = [
+  { maxWave: 10, names: ["Portal Wisp", "Rift Crawler", "Void Beetle", "Phase Spider", "Warp Shade"] },
+  { maxWave: 25, names: ["Rift Stalker", "Dimensional Horror", "Chaos Imp", "Void Hound", "Phase Knight"] },
+  { maxWave: 50, names: ["Abyss Warden", "Rift Titan", "Void Executioner", "Chaos Golem", "Dimension Reaper"] },
+  { maxWave: 100, names: ["Omega Rift Lord", "Void Emperor", "Chaos Archon", "Dimension Shatter", "Abyssal Colossus"] },
+  { maxWave: Infinity, names: ["Eternal Void Walker", "Infinity Sentinel", "Rift God", "Chaos Incarnate", "The Boundless"] },
+];
+
+function getPortalEnemyPool(wave: number) {
+  return PORTAL_ENEMY_POOLS.find(p => wave <= p.maxWave) || PORTAL_ENEMY_POOLS[PORTAL_ENEMY_POOLS.length - 1];
+}
+
+function generatePortalWave(wave: number, portalLevel: number) {
+  const pool = getPortalEnemyPool(wave);
+  const levelMult = Math.pow(PORTAL_ENEMY_SCALE, portalLevel - 1); // 1.25^(level-1)
+  const waveMult = 1 + (wave - 1) * 0.15; // 15% stronger per wave
+  const baseHp = Math.floor((300 + wave * 40 + Math.pow(wave, 1.3) * 3) * levelMult * waveMult);
+  const baseDmg = Math.floor((15 + wave * 4 + Math.pow(wave, 1.15) * 0.8) * levelMult * waveMult);
+  const baseArmor = Math.floor((5 + wave * 2 + Math.pow(wave, 0.9)) * levelMult);
+
+  const isBossWave = wave % 10 === 0;
+  const enemyCount = isBossWave ? 1 : Math.min(3, 1 + Math.floor(wave / 15));
+  const elements = ["fire", "ice", "lightning", "poison", "blood", "sand"];
+  const element = wave >= 5 ? elements[(wave - 5) % elements.length] : null;
+
+  const enemies: any[] = [];
+  for (let i = 0; i < enemyCount; i++) {
+    const name = pool.names[(wave + i) % pool.names.length];
+    const hpMult = isBossWave ? 4.0 : (enemyCount > 1 ? 0.7 : 1.0);
+    const dmgMult = isBossWave ? 2.0 : (enemyCount > 1 ? 0.7 : 1.0);
+    enemies.push({
+      name: isBossWave ? `${name} [BOSS]` : name,
+      hp: Math.floor(baseHp * hpMult),
+      max_hp: Math.floor(baseHp * hpMult),
+      dmg: Math.floor(baseDmg * dmgMult),
+      armor: Math.floor(baseArmor * (isBossWave ? 2.0 : 1.0)),
+      element,
+      isBoss: isBossWave,
+    });
+  }
+  return { enemies, isBossWave };
+}
+
+function getPortalWaveRewards(wave: number, portalLevel: number) {
+  const isBoss = wave % 10 === 0;
+  const baseGold = 20 + wave * 5 + portalLevel * 2;
+  const baseExp = 15 + wave * 4 + portalLevel * 1.5;
+  // Portal shards: low chance on normal, guaranteed on boss waves
+  const portalShards = isBoss ? Math.floor(1 + wave / 20 + portalLevel / 25) : (Math.random() < 0.08 ? 1 : 0);
+  // Magic dust: every 3rd wave
+  const dustTypes = ["magic_dust", "heavens_dust", "void_dust"];
+  const dustType = wave % 3 === 0 ? dustTypes[Math.min(Math.floor(portalLevel / 35), 2)] : null;
+  const dustAmount = dustType ? Math.floor(1 + wave / 10 + portalLevel / 20) : 0;
+  // Unique gear: very rare, slightly higher on boss waves
+  const hasUniqueLoot = isBoss ? Math.random() < 0.12 : Math.random() < 0.03;
+  const hasLoot = isBoss || Math.random() < 0.10;
+  return {
+    gold: Math.floor(baseGold * (isBoss ? 3 : 1)),
+    exp: Math.floor(baseExp * (isBoss ? 3 : 1)),
+    portalShards,
+    dustType,
+    dustAmount,
+    hasLoot,
+    hasUniqueLoot,
+  };
+}
+
+router.post("/functions/portalAction", async (req: Request, res: Response) => {
+  try {
+    const { characterId, action, sessionId, skillId, targetIndex } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { sendError(res, 404, "Character not found"); return; }
+    const extraData = (char.extraData as any) || {};
+    const portalData = extraData.portal || { level: 1, shards: 0, highest_wave: 0 };
+
+    // === GET STATUS ===
+    if (action === "get_status") {
+      const activeSessions = await db.select().from(portalSessionsTable).where(
+        and(eq(portalSessionsTable.ownerId, characterId), sql`${portalSessionsTable.status} IN ('waiting', 'combat')`)
+      );
+      // Also find sessions where this character is a member
+      const memberSessions = await db.select().from(portalSessionsTable).where(
+        sql`${portalSessionsTable.status} IN ('waiting', 'combat') AND ${portalSessionsTable.members}::jsonb @> ${JSON.stringify([{ characterId }])}::jsonb`
+      );
+      const activeSession = activeSessions[0] || memberSessions[0] || null;
+      const nextUpgradeCost = portalData.level < PORTAL_MAX_LEVEL ? PORTAL_SHARD_UPGRADE_COST[portalData.level] : null;
+      sendSuccess(res, {
+        portalLevel: portalData.level || 1,
+        portalShards: portalData.shards || 0,
+        highestWave: portalData.highest_wave || 0,
+        nextUpgradeCost,
+        maxLevel: PORTAL_MAX_LEVEL,
+        activeSession: activeSession ? { id: activeSession.id, wave: activeSession.wave, status: activeSession.status, ...(activeSession.data as any), members: activeSession.members } : null,
+      });
+      return;
+    }
+
+    // === UPGRADE PORTAL ===
+    if (action === "upgrade") {
+      const level = portalData.level || 1;
+      if (level >= PORTAL_MAX_LEVEL) { sendError(res, 400, "Portal is already at max level!"); return; }
+      const cost = PORTAL_SHARD_UPGRADE_COST[level];
+      const shards = portalData.shards || 0;
+      if (shards < cost) { sendError(res, 400, `Not enough Portal Shards (need ${cost}, have ${shards})`); return; }
+      portalData.shards = shards - cost;
+      portalData.level = level + 1;
+      extraData.portal = portalData;
+      await db.update(charactersTable).set({ extraData }).where(eq(charactersTable.id, characterId));
+      sendSuccess(res, {
+        success: true,
+        newLevel: portalData.level,
+        shardsRemaining: portalData.shards,
+        nextUpgradeCost: portalData.level < PORTAL_MAX_LEVEL ? PORTAL_SHARD_UPGRADE_COST[portalData.level] : null,
+      });
+      return;
+    }
+
+    // === ENTER: create or join a portal session ===
+    if (action === "enter") {
+      // Clean old stuck sessions (> 2 hours)
+      await db.update(portalSessionsTable).set({ status: "abandoned" }).where(
+        and(sql`${portalSessionsTable.status} IN ('waiting', 'combat')`,
+          sql`${portalSessionsTable.createdAt} < NOW() - INTERVAL '2 hours'`)
+      );
+      // Check if already in a session
+      const existing = await db.select().from(portalSessionsTable).where(
+        and(eq(portalSessionsTable.ownerId, characterId), sql`${portalSessionsTable.status} IN ('waiting', 'combat')`)
+      );
+      if (existing.length > 0) {
+        const s = existing[0];
+        sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...(s.data as any), members: s.members } });
+        return;
+      }
+      // Also check if member of another session
+      const memberOf = await db.select().from(portalSessionsTable).where(
+        sql`${portalSessionsTable.status} IN ('waiting', 'combat') AND ${portalSessionsTable.members}::jsonb @> ${JSON.stringify([{ characterId }])}::jsonb`
+      );
+      if (memberOf.length > 0) {
+        const s = memberOf[0];
+        sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...(s.data as any), members: s.members } });
+        return;
+      }
+
+      const memberStats = await calculateDungeonMemberStats(characterId, char);
+      const level = portalData.level || 1;
+      const waveData = generatePortalWave(1, level);
+      const member = { characterId, name: char.name, class: char.class, level: char.level, ...memberStats };
+
+      const sessionData = {
+        portalLevel: level,
+        wave: 1,
+        enemies: waveData.enemies,
+        isBossWave: waveData.isBossWave,
+        status: "combat",
+        combat_log: [{ type: "system", text: `Entering the Infinite Portal (Lv.${level})... Wave 1 begins!` }],
+        currentEnemyIndex: 0,
+        totalRewards: { gold: 0, exp: 0, portalShards: 0, dust: {}, loot: [] },
+      };
+
+      const [session] = await db.insert(portalSessionsTable).values({
+        ownerId: characterId,
+        members: [member],
+        portalLevel: level,
+        wave: 1,
+        status: "combat",
+        data: sessionData,
+      }).returning();
+
+      sendSuccess(res, { success: true, session: { id: session.id, wave: 1, status: "combat", ...sessionData, members: [member] } });
+      return;
+    }
+
+    // === JOIN: join an existing portal session (party) ===
+    if (action === "join") {
+      const { targetSessionId } = req.body;
+      if (!targetSessionId) { sendError(res, 400, "targetSessionId required"); return; }
+      const [session] = await db.select().from(portalSessionsTable).where(eq(portalSessionsTable.id, targetSessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+      if (session.status !== "waiting" && session.status !== "combat") { sendError(res, 400, "Session not joinable"); return; }
+      const members = (session.members as any[]) || [];
+      if (members.length >= 4) { sendError(res, 400, "Portal is full (max 4 players)"); return; }
+      if (members.some((m: any) => m.characterId === characterId)) {
+        sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...(session.data as any), members } });
+        return;
+      }
+      const memberStats = await calculateDungeonMemberStats(characterId, char);
+      const newMember = { characterId, name: char.name, class: char.class, level: char.level, ...memberStats };
+      members.push(newMember);
+      const d = (session.data as any) || {};
+      d.combat_log = d.combat_log || [];
+      d.combat_log.push({ type: "system", text: `${char.name} has joined the portal!` });
+      await db.update(portalSessionsTable).set({ members, data: d }).where(eq(portalSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...d, members } });
+      return;
+    }
+
+    // === INVITE: share session ID with party members ===
+    if (action === "get_party_sessions") {
+      // Find active portal sessions from the player's party members
+      const party = await db.select().from(partiesTable).where(
+        sql`${partiesTable.members}::jsonb @> ${JSON.stringify([characterId])}::jsonb AND ${partiesTable.status} = 'active'`
+      );
+      if (party.length === 0) { sendSuccess(res, { sessions: [] }); return; }
+      const partyMembers = (party[0].members as string[]) || [];
+      const sessions = await db.select().from(portalSessionsTable).where(
+        sql`${portalSessionsTable.status} IN ('waiting', 'combat') AND ${portalSessionsTable.ownerId} = ANY(${partyMembers})`
+      );
+      sendSuccess(res, { sessions: sessions.map(s => ({ id: s.id, owner: s.ownerId, wave: s.wave, memberCount: ((s.members as any[]) || []).length, portalLevel: s.portalLevel })) });
+      return;
+    }
+
+    // === ATTACK / SKILL ===
+    if (action === "attack" || action === "skill") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(portalSessionsTable).where(eq(portalSessionsTable.id, sessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+      const d = (session.data as any) || {};
+      if (d.status !== "combat") { sendError(res, 400, "Not in combat"); return; }
+      const members = (session.members as any[]) || [];
+      const meIdx = members.findIndex((m: any) => m.characterId === characterId);
+      if (meIdx < 0) { sendError(res, 403, "Not in this portal session"); return; }
+      const me = members[meIdx];
+      if (!me || me.hp <= 0) { sendError(res, 400, "You are KO'd"); return; }
+
+      const enemies = d.enemies || [];
+      let tIdx = typeof targetIndex === "number" ? targetIndex : (d.currentEnemyIndex || 0);
+      if (!enemies[tIdx] || enemies[tIdx].hp <= 0) {
+        tIdx = enemies.findIndex((e: any) => e.hp > 0);
+        if (tIdx < 0) tIdx = 0;
+      }
+      const enemy = enemies[tIdx];
+      if (!enemy || enemy.hp <= 0) {
+        // All dead — advance wave
+        d.status = "wave_clear";
+        await db.update(portalSessionsTable).set({ data: d }).where(eq(portalSessionsTable.id, session.id));
+        sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...d, members } });
+        return;
+      }
+
+      // Calculate player damage (same as tower combat)
+      const totalStr = me.strength || 10;
+      const totalDex = me.dexterity || 8;
+      const totalInt = me.intelligence || 5;
+      const totalLuck = me.luck || 5;
+      const classScaling: Record<string, { primary: string; mult: number }> = {
+        warrior: { primary: "strength", mult: 1.3 },
+        mage: { primary: "intelligence", mult: 1.4 },
+        ranger: { primary: "dexterity", mult: 1.2 },
+        rogue: { primary: "dexterity", mult: 1.2 },
+      };
+      const scaling = classScaling[char.class || "warrior"] || classScaling.warrior;
+      const primaryStat = scaling.primary === "strength" ? totalStr : scaling.primary === "intelligence" ? totalInt : totalDex;
+      let baseDmg = primaryStat * scaling.mult + (me.damage || 0);
+
+      if (char.guildId) {
+        try {
+          const [g] = await db.select({ buffs: guildsTable.buffs }).from(guildsTable).where(eq(guildsTable.id, char.guildId));
+          if (g?.buffs && typeof g.buffs === "object") baseDmg *= (1 + ((g.buffs as any).damage_bonus || 0) / 100);
+        } catch {}
+      }
+
+      let dmgMult = 1.0;
+      let skillName = "Basic Attack";
+      if (action === "skill" && skillId && SKILL_DATA[skillId]) {
+        dmgMult = SKILL_DATA[skillId].damage || 1.0;
+        skillName = skillId.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+      }
+      const rawDmg = Math.max(1, Math.floor(baseDmg * dmgMult * (0.85 + Math.random() * 0.3)));
+      let playerDmg = Math.max(1, rawDmg - Math.floor((enemy.armor || 0) * 0.4));
+
+      // Elemental bonus
+      const memberElemDmg = me.elemental_damage || {};
+      const ELEM_MAP: Record<string, string> = { fire: "fire_dmg", ice: "ice_dmg", lightning: "lightning_dmg", poison: "poison_dmg", blood: "blood_dmg", sand: "sand_dmg" };
+      let elemBonusDmg = 0;
+      for (const [elem, statKey] of Object.entries(ELEM_MAP)) {
+        const val = memberElemDmg[statKey] || 0;
+        if (val <= 0) continue;
+        const weakness = getElementWeakness(enemy.element);
+        let elemMult = elem === weakness ? 1.5 : elem === enemy.element ? 0.5 : 1.0;
+        elemBonusDmg += Math.floor(val * elemMult);
+      }
+      if (elemBonusDmg > 0) playerDmg += elemBonusDmg;
+
+      // Crit
+      const effectiveCritChance = Math.min(0.5, ((me.crit_chance || 0) + totalLuck * 0.3 + totalDex * 0.1) / 100);
+      const isCrit = Math.random() < effectiveCritChance;
+      const critMultiplier = 1.5 + ((me.crit_dmg_pct || 0) / 100);
+      const finalDmg = isCrit ? Math.floor(playerDmg * critMultiplier) : playerDmg;
+
+      enemy.hp = Math.max(0, enemy.hp - finalDmg);
+      d.combat_log.push({
+        type: "player_attack",
+        text: `${me.name} uses ${skillName} on ${enemy.name} for ${finalDmg}${isCrit ? " (CRIT!)" : ""}${elemBonusDmg > 0 ? ` (+${elemBonusDmg} elem)` : ""}!`,
+      });
+
+      // Lifesteal
+      if ((me.lifesteal || 0) > 0 && finalDmg > 0) {
+        const rawHeal = Math.floor(finalDmg * me.lifesteal / 100);
+        const maxHeal = Math.floor(me.max_hp * 0.10);
+        const healAmt = Math.min(rawHeal, maxHeal);
+        if (healAmt > 0) {
+          me.hp = Math.min(me.max_hp, me.hp + healAmt);
+          d.combat_log.push({ type: "heal", text: `${me.name} leeches ${healAmt} HP!` });
+        }
+      }
+
+      if (enemy.hp <= 0) {
+        d.combat_log.push({ type: "system", text: `${enemy.name} defeated!` });
+      }
+
+      // Check if all enemies are dead — wave clear
+      const allDead = enemies.every((e: any) => e.hp <= 0);
+      if (allDead) {
+        const wave = session.wave || d.wave || 1;
+        const portalLevel = session.portalLevel || d.portalLevel || 1;
+        const rewards = getPortalWaveRewards(wave, portalLevel);
+        d.rewards = rewards;
+        d.combat_log.push({ type: "victory", text: `Wave ${wave} cleared!` });
+
+        // Apply rewards to the attacking character (owner gets rewards)
+        const updateSet: any = {
+          gold: sql`COALESCE(gold, 0) + ${rewards.gold}`,
+          exp: sql`COALESCE(exp, 0) + ${rewards.exp}`,
+        };
+        await db.update(charactersTable).set(updateSet).where(eq(charactersTable.id, characterId));
+
+        // Portal shards + dust go to extraData
+        const charExtra = (char.extraData as any) || {};
+        const pData = charExtra.portal || { level: 1, shards: 0, highest_wave: 0 };
+        if (rewards.portalShards > 0) pData.shards = (pData.shards || 0) + rewards.portalShards;
+        if (wave > (pData.highest_wave || 0)) pData.highest_wave = wave;
+        if (rewards.dustType && rewards.dustAmount > 0) {
+          charExtra[rewards.dustType] = (charExtra[rewards.dustType] || 0) + rewards.dustAmount;
+        }
+        charExtra.portal = pData;
+        await db.update(charactersTable).set({ extraData: charExtra }).where(eq(charactersTable.id, characterId));
+
+        // Also give rewards to other party members
+        for (const m of members) {
+          if (m.characterId === characterId) continue;
+          try {
+            await db.update(charactersTable).set({
+              gold: sql`COALESCE(gold, 0) + ${rewards.gold}`,
+              exp: sql`COALESCE(exp, 0) + ${rewards.exp}`,
+            }).where(eq(charactersTable.id, m.characterId));
+            // Give shards/dust to members too
+            const [memberChar] = await db.select().from(charactersTable).where(eq(charactersTable.id, m.characterId));
+            if (memberChar) {
+              const mExtra = (memberChar.extraData as any) || {};
+              const mPortal = mExtra.portal || { level: 1, shards: 0, highest_wave: 0 };
+              if (rewards.portalShards > 0) mPortal.shards = (mPortal.shards || 0) + rewards.portalShards;
+              if (wave > (mPortal.highest_wave || 0)) mPortal.highest_wave = wave;
+              if (rewards.dustType && rewards.dustAmount > 0) {
+                mExtra[rewards.dustType] = (mExtra[rewards.dustType] || 0) + rewards.dustAmount;
+              }
+              mExtra.portal = mPortal;
+              await db.update(charactersTable).set({ extraData: mExtra }).where(eq(charactersTable.id, m.characterId));
+            }
+          } catch {}
+        }
+
+        // Generate loot for owner
+        if (rewards.hasLoot) {
+          try {
+            const loot = generateLoot(wave + portalLevel * 2, char.luck || 5, rewards.hasUniqueLoot, null, char.class);
+            if (loot) {
+              await db.insert(itemsTable).values({
+                ownerId: characterId,
+                name: loot.name,
+                type: loot.type,
+                rarity: rewards.hasUniqueLoot ? "legendary" : loot.rarity,
+                level: Math.max(1, Math.floor((wave + portalLevel) / 5)),
+                stats: loot.stats || {},
+                extraData: { source: "portal", wave, portal_level: portalLevel, rune_slots: loot.rune_slots || 0 },
+              });
+              d.combat_log.push({ type: "system", text: `Loot: ${loot.name} (${rewards.hasUniqueLoot ? "legendary" : loot.rarity})` });
+              d.totalRewards.loot.push(loot.name);
+            }
+          } catch {}
+        }
+
+        // Reward summary
+        let rewardText = `+${rewards.gold}g, +${rewards.exp} exp`;
+        if (rewards.portalShards > 0) rewardText += `, +${rewards.portalShards} Portal Shards`;
+        if (rewards.dustType) rewardText += `, +${rewards.dustAmount} ${rewards.dustType.replace(/_/g, " ")}`;
+        d.combat_log.push({ type: "system", text: rewardText });
+
+        // Accumulate totals
+        d.totalRewards.gold = (d.totalRewards.gold || 0) + rewards.gold;
+        d.totalRewards.exp = (d.totalRewards.exp || 0) + rewards.exp;
+        d.totalRewards.portalShards = (d.totalRewards.portalShards || 0) + rewards.portalShards;
+        if (rewards.dustType) {
+          d.totalRewards.dust[rewards.dustType] = (d.totalRewards.dust[rewards.dustType] || 0) + rewards.dustAmount;
+        }
+
+        // Auto-advance to next wave
+        const nextWave = wave + 1;
+        const nextWaveData = generatePortalWave(nextWave, portalLevel);
+        d.enemies = nextWaveData.enemies;
+        d.isBossWave = nextWaveData.isBossWave;
+        d.wave = nextWave;
+        d.status = "combat";
+        d.currentEnemyIndex = 0;
+        d.combat_log.push({ type: "system", text: `Wave ${nextWave} begins!${nextWaveData.isBossWave ? " ⚠️ BOSS WAVE!" : ""}` });
+
+        members[meIdx] = me;
+        await db.update(portalSessionsTable).set({ wave: nextWave, data: d, members }).where(eq(portalSessionsTable.id, session.id));
+        sendSuccess(res, { success: true, session: { id: session.id, wave: nextWave, status: "combat", ...d, members } });
+        return;
+      }
+
+      // Enemies still alive — all alive enemies counter-attack ALL alive members
+      for (let ei = 0; ei < enemies.length; ei++) {
+        const e = enemies[ei];
+        if (e.hp <= 0) continue;
+        for (let mi = 0; mi < members.length; mi++) {
+          const m = members[mi];
+          if (m.hp <= 0) continue;
+          const eDmg = Math.max(1, Math.floor((e.dmg || 10) * (0.8 + Math.random() * 0.4) / Math.max(1, members.filter((x: any) => x.hp > 0).length)));
+          const memberDef = m.defense || 0;
+          const memberVit = m.vitality || 8;
+          const totalDefense = memberDef + memberVit * 0.5;
+          const memberEvasion = Math.min(0.4, (m.evasion || 0) / 100);
+          const evaded = Math.random() < memberEvasion;
+          const memberBlock = Math.min(0.35, (m.block_chance || 0) / 100);
+          const blocked = !evaded && Math.random() < memberBlock;
+
+          if (evaded) {
+            d.combat_log.push({ type: "boss_attack", text: `${m.name} evaded ${e.name}'s attack!` });
+          } else {
+            const mitigated = Math.max(1, eDmg - Math.floor(totalDefense * 0.3));
+            const actualDmg = blocked ? Math.floor(mitigated * 0.4) : mitigated;
+            m.hp = Math.max(0, m.hp - actualDmg);
+            d.combat_log.push({ type: "boss_attack", text: `${e.name} hits ${m.name} for ${actualDmg}${blocked ? " (BLOCKED!)" : ""}` });
+          }
+        }
+      }
+
+      // Check if ALL members are dead
+      const allMembersDead = members.every((m: any) => m.hp <= 0);
+      if (allMembersDead) {
+        const wave = session.wave || d.wave || 1;
+        d.combat_log.push({ type: "defeat", text: `All players have fallen on Wave ${wave}! The portal collapses...` });
+        d.status = "defeat";
+        d.finalWave = wave;
+        await db.update(portalSessionsTable).set({ status: "defeat", data: d, members }).where(eq(portalSessionsTable.id, session.id));
+        sendSuccess(res, { success: true, session: { id: session.id, wave, status: "defeat", ...d, members } });
+        return;
+      }
+
+      d.currentEnemyIndex = enemies.findIndex((e: any) => e.hp > 0);
+      if (d.currentEnemyIndex < 0) d.currentEnemyIndex = 0;
+      d.enemies = enemies;
+
+      members[meIdx] = me;
+      await db.update(portalSessionsTable).set({ data: d, members }).where(eq(portalSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...d, members } });
+      return;
+    }
+
+    // === LEAVE ===
+    if (action === "leave") {
+      if (sessionId) {
+        const [session] = await db.select().from(portalSessionsTable).where(eq(portalSessionsTable.id, sessionId));
+        if (session) {
+          const members = (session.members as any[]) || [];
+          const remaining = members.filter((m: any) => m.characterId !== characterId);
+          if (remaining.length === 0 || session.ownerId === characterId) {
+            await db.update(portalSessionsTable).set({ status: "abandoned" }).where(eq(portalSessionsTable.id, sessionId));
+          } else {
+            await db.update(portalSessionsTable).set({ members: remaining }).where(eq(portalSessionsTable.id, sessionId));
+          }
+        }
+      } else {
+        await db.update(portalSessionsTable).set({ status: "abandoned" }).where(
+          and(eq(portalSessionsTable.ownerId, characterId), sql`${portalSessionsTable.status} IN ('waiting', 'combat')`)
+        );
+      }
+      sendSuccess(res, { success: true });
+      return;
+    }
+
+    // === POLL: get updated session state (for party members) ===
+    if (action === "poll") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [s] = await db.select().from(portalSessionsTable).where(eq(portalSessionsTable.id, sessionId));
+      if (!s) { sendSuccess(res, { success: false, error: "Session ended" }); return; }
+      sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...(s.data as any), members: s.members } });
+      return;
+    }
+
+    sendSuccess(res, { success: true, action });
+  } catch (err: any) {
+    req.log.error({ err }, "portalAction error");
     sendError(res, 500, err.message);
   }
 });

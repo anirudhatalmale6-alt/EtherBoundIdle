@@ -429,6 +429,22 @@ export const runesTable = pgTable("runes", {
   index("idx_runes_item").on(table.itemId),
 ]);
 
+// Portal — infinite wave dungeon with escalating difficulty, party support (up to 4), portal shard upgrades
+export const portalSessionsTable = pgTable("portal_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerId: varchar("owner_id").notNull(),          // character who created the session
+  members: jsonb("members").default([]),            // array of { characterId, name, hp, max_hp, mp, max_mp, ... }
+  portalLevel: integer("portal_level").notNull().default(1),
+  wave: integer("wave").notNull().default(1),
+  status: varchar("status").default("waiting"),     // waiting, combat, defeat, abandoned
+  data: jsonb("data").default({}),                  // enemies, combat_log, rewards summary
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  index("idx_portal_sessions_owner").on(table.ownerId),
+  index("idx_portal_sessions_status").on(table.status),
+]);
+
 export const userRolesTable = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey().references(() => usersTable.id),
   role: varchar("role").notNull().default("player"),
