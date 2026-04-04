@@ -4,7 +4,7 @@ import {
   Swords, Shield, Backpack, Map, Users, ShoppingBag,
   Trophy, ScrollText, Menu, X, Coins, Gem, MessageCircle,
   LogOut, RotateCcw, Leaf, ChevronDown, BarChart3, Wrench, Skull, Zap, Settings,
-  ArrowUp, Star, PawPrint, Sparkles
+  ArrowUp, Star, PawPrint, Sparkles, Wheat
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { base44 } from "@/api/base44Client";
@@ -275,6 +275,14 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
             >
               <Sparkles className="w-6 h-6 text-violet-400 group-hover:text-violet-300 transition-colors" />
               <span className="text-[8px] font-bold text-violet-400/80 group-hover:text-violet-300 mt-0.5 tracking-wide">PORTAL</span>
+            </div>
+            <div
+              onClick={() => navigate("/fields")}
+              className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-600/20 border-2 border-green-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-green-400 hover:from-green-500/40 hover:to-emerald-500/30 transition-all shadow-lg shadow-green-500/20 group"
+              title="The Fields"
+            >
+              <Wheat className="w-6 h-6 text-green-400 group-hover:text-green-300 transition-colors" />
+              <span className="text-[8px] font-bold text-green-400/80 group-hover:text-green-300 mt-0.5 tracking-wide">FIELDS</span>
             </div>
             <div
               onClick={() => navigate("/worldboss")}

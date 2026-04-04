@@ -462,6 +462,25 @@ export const worldBossSessionsTable = pgTable("world_boss_sessions", {
   index("idx_wb_sessions_status").on(table.status),
 ]);
 
+// The Fields — multiplayer endless battle mode, up to 10 players, progressive difficulty with buff/debuff choices
+export const fieldSessionsTable = pgTable("field_sessions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  status: varchar("status").notNull().default("waiting"),   // waiting, combat, field_clear, defeated, abandoned
+  fieldNumber: integer("field_number").notNull().default(1),
+  element: varchar("element"),                               // fire, ice, lightning, poison, blood, sand, null=neutral
+  members: jsonb("members").default([]),                     // [{ characterId, name, class, level, hp, max_hp, mp, max_mp, alive, reviveTimer }]
+  enemies: jsonb("enemies").default([]),                     // [{ id, name, hp, max_hp, element, isElite, attackers[] }]
+  modifiers: jsonb("modifiers").default([]),                 // [{ id, name, description, type: "buff"|"debuff", effect }]
+  pathChoice: varchar("path_choice"),                        // "risk" | "safe" | null (pending choice)
+  rewards: jsonb("rewards").default({}),                     // cumulative { dublons, gold, exp, crystals, ascension_shards, ... }
+  combatLog: jsonb("combat_log").default([]),                // [{ ts, actor, action, target, value, ... }]
+  data: jsonb("data").default({}),                           // misc state (current_turn_index, turn_deadline, etc.)
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+}, (table) => [
+  index("idx_field_sessions_status").on(table.status),
+]);
+
 export const userRolesTable = pgTable("user_roles", {
   userId: varchar("user_id").primaryKey().references(() => usersTable.id),
   role: varchar("role").notNull().default("player"),

@@ -18,6 +18,10 @@ echo "=== Step 3: Building shared libraries (db) ==="
 npx tsc --build lib/db
 echo "DB lib built: $(ls lib/db/dist/schema/game.js 2>/dev/null && echo 'OK' || echo 'MISSING!')"
 
+echo "=== Step 3b: Pushing DB schema changes ==="
+cd "$REPO_DIR/lib/db"
+npx drizzle-kit push --config ./drizzle.config.ts --force 2>/dev/null || echo "DB push skipped (no DATABASE_URL or already up to date)"
+
 echo "=== Step 4: Building frontend (Vite) ==="
 cd "$REPO_DIR/artifacts/game"
 rm -rf dist node_modules/.vite
