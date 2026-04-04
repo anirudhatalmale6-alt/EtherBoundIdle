@@ -31,6 +31,7 @@ import SeasonPass from "./pages/SeasonPass";
 import Pets from "./pages/Pets";
 import Runes from "./pages/Runes";
 import Portal from "./pages/Portal";
+import Fields from "./pages/Fields";
 import WorldBoss from "./pages/WorldBoss";
 import ChatWindow from "./components/game/ChatWindow";
 import DailyLoginModal from "./components/game/DailyLoginModal";
@@ -142,6 +143,7 @@ const GameApp = () => {
             <Route path="/runes" element={<Runes character={character} onCharacterUpdate={handleCharacterUpdate} />} />
             <Route path="/portal" element={<Portal character={character} onCharacterUpdate={handleCharacterUpdate} />} />
             <Route path="/worldboss" element={<WorldBoss character={character} onCharacterUpdate={handleCharacterUpdate} />} />
+            <Route path="/fields" element={<Fields character={character} onCharacterUpdate={handleCharacterUpdate} />} />
             <Route path="/admin" element={<AdminPanel />} />
             <Route path="/gameconfig" element={<GameConfig />} />
             <Route path="*" element={<PageNotFound />} />

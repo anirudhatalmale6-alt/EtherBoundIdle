@@ -32,6 +32,7 @@ import {
   runesTable,
   portalSessionsTable,
   worldBossSessionsTable,
+  fieldSessionsTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
 
@@ -7604,6 +7605,812 @@ router.post("/functions/getPlayerFullState", async (req: Request, res: Response)
 
     sendSuccess(res, { character: char, equippedItems: items });
   } catch (err: any) {
+    sendError(res, 500, err.message);
+  }
+});
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// THE FIELDS — Multiplayer endless battle mode
+// ═══════════════════════════════════════════════════════════════════════════════
+
+const FIELD_ELEMENTS = ["fire", "ice", "lightning", "poison", "blood", "sand", "neutral"] as const;
+const FIELD_MAX_PLAYERS = 10;
+const FIELD_SESSION_MAX_AGE_MS = 3 * 60 * 60 * 1000; // 3 hours
+
+const FIELD_ENEMY_TEMPLATES: Record<string, any[]> = {
+  neutral: [
+    { name: "Wild Boar", element: null },
+    { name: "Forest Wolf", element: null },
+    { name: "Bandit Scout", element: null },
+    { name: "Cave Bat", element: null },
+    { name: "Stone Golem", element: null },
+  ],
+  fire: [
+    { name: "Flame Imp", element: "fire" },
+    { name: "Lava Hound", element: "fire" },
+    { name: "Fire Elemental", element: "fire" },
+    { name: "Infernal Warrior", element: "fire" },
+    { name: "Magma Serpent", element: "fire" },
+  ],
+  ice: [
+    { name: "Frost Sprite", element: "ice" },
+    { name: "Ice Golem", element: "ice" },
+    { name: "Snow Wraith", element: "ice" },
+    { name: "Glacial Knight", element: "ice" },
+    { name: "Frozen Revenant", element: "ice" },
+  ],
+  lightning: [
+    { name: "Spark Wisp", element: "lightning" },
+    { name: "Thunder Hawk", element: "lightning" },
+    { name: "Storm Elemental", element: "lightning" },
+    { name: "Volt Sentinel", element: "lightning" },
+    { name: "Lightning Drake", element: "lightning" },
+  ],
+  poison: [
+    { name: "Toxic Slime", element: "poison" },
+    { name: "Plague Rat", element: "poison" },
+    { name: "Venom Spider", element: "poison" },
+    { name: "Swamp Horror", element: "poison" },
+    { name: "Toxic Shaman", element: "poison" },
+  ],
+  blood: [
+    { name: "Blood Bat", element: "blood" },
+    { name: "Crimson Ghoul", element: "blood" },
+    { name: "Hemomancer", element: "blood" },
+    { name: "Blood Wraith", element: "blood" },
+    { name: "Sanguine Knight", element: "blood" },
+  ],
+  sand: [
+    { name: "Sand Scorpion", element: "sand" },
+    { name: "Dust Devil", element: "sand" },
+    { name: "Desert Mummy", element: "sand" },
+    { name: "Sandstone Colossus", element: "sand" },
+    { name: "Sand Worm", element: "sand" },
+  ],
+};
+
+const FIELD_ELITE_PREFIXES = ["Empowered", "Savage", "Corrupted", "Ancient", "Dreadful"];
+const FIELD_BOSS_SUFFIXES = ["Overlord", "Tyrant", "Devourer", "Colossus", "Harbinger"];
+
+const FIELD_MODIFIERS_POOL = {
+  buffs: [
+    { id: "dmg_up", name: "+20% Player Damage", description: "All players deal 20% more damage", effect: { player_dmg_mult: 1.2 } },
+    { id: "crit_up", name: "+15% Crit Chance", description: "All players gain 15% crit chance", effect: { player_crit_bonus: 15 } },
+    { id: "heal_on_kill", name: "Bloodthirst", description: "Killing an enemy heals 10% HP", effect: { heal_on_kill_pct: 0.10 } },
+    { id: "gold_up", name: "+50% Gold", description: "Enemies drop 50% more gold", effect: { gold_mult: 1.5 } },
+    { id: "exp_up", name: "+30% EXP", description: "Enemies give 30% more experience", effect: { exp_mult: 1.3 } },
+    { id: "defense_up", name: "+25% Defense", description: "All players take 25% less damage", effect: { player_def_mult: 0.75 } },
+    { id: "regen", name: "Rejuvenation", description: "Players regenerate 3% HP each turn", effect: { regen_pct: 0.03 } },
+    { id: "dublon_up", name: "+40% Dublons", description: "Earn 40% more Dublons", effect: { dublon_mult: 1.4 } },
+  ],
+  debuffs: [
+    { id: "enemy_hp_up", name: "Fortified Enemies", description: "Enemies have 200% more HP", effect: { enemy_hp_mult: 3.0 } },
+    { id: "enemy_dmg_up", name: "Enraged Enemies", description: "Enemies deal 50% more damage", effect: { enemy_dmg_mult: 1.5 } },
+    { id: "explode_on_death", name: "Volatile Enemies", description: "Enemies explode on death, dealing AoE damage", effect: { explode_on_death: true, explode_pct: 0.15 } },
+    { id: "skill_limit", name: "Skill Restriction", description: "You can only use 3 skills this run", effect: { max_skills: 3 } },
+    { id: "elem_only_fire", name: "Fire Domain", description: "Only fire skills deal damage", effect: { element_lock: "fire" } },
+    { id: "elem_only_ice", name: "Ice Domain", description: "Only ice skills deal damage", effect: { element_lock: "ice" } },
+    { id: "no_heal", name: "Cursed Ground", description: "All healing is reduced by 50%", effect: { heal_reduction: 0.5 } },
+    { id: "no_crit", name: "Suppressed Fate", description: "Critical hit chance reduced by 50%", effect: { crit_reduction: 0.5 } },
+    { id: "bleed", name: "Bleeding Thorns", description: "Players take 2% max HP damage each turn", effect: { bleed_pct: 0.02 } },
+    { id: "enemy_armor_up", name: "Hardened Enemies", description: "Enemies have 50% more armor", effect: { enemy_armor_mult: 1.5 } },
+  ],
+};
+
+function generateFieldEnemies(fieldNumber: number, element: string, isRiskPath: boolean, modifiers: any[]): any[] {
+  const count = Math.min(10, 3 + Math.floor(fieldNumber / 3) + (isRiskPath ? 1 : 0));
+  const templates = FIELD_ENEMY_TEMPLATES[element] || FIELD_ENEMY_TEMPLATES.neutral;
+  const enemies: any[] = [];
+
+  // Apply enemy modifiers
+  let hpMult = 1.0;
+  let dmgMult = 1.0;
+  let armorMult = 1.0;
+  for (const mod of modifiers) {
+    const eff = mod.effect || {};
+    if (eff.enemy_hp_mult) hpMult *= eff.enemy_hp_mult;
+    if (eff.enemy_dmg_mult) dmgMult *= eff.enemy_dmg_mult;
+    if (eff.enemy_armor_mult) armorMult *= eff.enemy_armor_mult;
+  }
+
+  const baseHp = 200 + fieldNumber * 80;
+  const baseDmg = 15 + fieldNumber * 6;
+  const baseArmor = 5 + fieldNumber * 3;
+
+  for (let i = 0; i < count; i++) {
+    const template = templates[Math.floor(Math.random() * templates.length)];
+    const isElite = isRiskPath ? Math.random() < 0.30 : Math.random() < 0.12;
+    const isBoss = !isElite && fieldNumber >= 5 && (fieldNumber % 5 === 0) && i === 0;
+    const eliteMult = isElite ? 2.5 : isBoss ? 4.0 : 1.0;
+    const prefix = isElite ? FIELD_ELITE_PREFIXES[Math.floor(Math.random() * FIELD_ELITE_PREFIXES.length)] + " " : "";
+    const suffix = isBoss ? " " + FIELD_BOSS_SUFFIXES[Math.floor(Math.random() * FIELD_BOSS_SUFFIXES.length)] : "";
+    const hp = Math.floor(baseHp * eliteMult * hpMult * (0.85 + Math.random() * 0.3));
+    enemies.push({
+      id: `enemy_${i}`,
+      name: `${prefix}${template.name}${suffix}`,
+      element: template.element,
+      hp,
+      max_hp: hp,
+      dmg: Math.floor(baseDmg * eliteMult * dmgMult * (0.85 + Math.random() * 0.3)),
+      armor: Math.floor(baseArmor * armorMult * (isElite ? 1.5 : isBoss ? 2.0 : 1.0)),
+      isElite,
+      isBoss,
+      attackers: [], // track who attacked this enemy
+    });
+  }
+  return enemies;
+}
+
+function pickFieldModifiers(fieldNumber: number, isRiskPath: boolean): any[] {
+  const numBuffs = 2;
+  const numDebuffs = Math.min(4, 2 + Math.floor(fieldNumber / 5));
+  const buffPool = [...FIELD_MODIFIERS_POOL.buffs];
+  const debuffPool = [...FIELD_MODIFIERS_POOL.debuffs];
+  const mods: any[] = [];
+  for (let i = 0; i < numBuffs && buffPool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * buffPool.length);
+    mods.push({ ...buffPool.splice(idx, 1)[0], type: "buff" });
+  }
+  for (let i = 0; i < numDebuffs && debuffPool.length > 0; i++) {
+    const idx = Math.floor(Math.random() * debuffPool.length);
+    mods.push({ ...debuffPool.splice(idx, 1)[0], type: "debuff" });
+  }
+  // Risk path adds an extra debuff but also an extra buff
+  if (isRiskPath && buffPool.length > 0 && debuffPool.length > 0) {
+    const bi = Math.floor(Math.random() * buffPool.length);
+    mods.push({ ...buffPool.splice(bi, 1)[0], type: "buff" });
+    const di = Math.floor(Math.random() * debuffPool.length);
+    mods.push({ ...debuffPool.splice(di, 1)[0], type: "debuff" });
+  }
+  return mods;
+}
+
+function getFieldRewards(fieldNumber: number, memberCount: number, isRiskPath: boolean, modifiers: any[]): any {
+  const riskMult = isRiskPath ? 1.5 : 1.0;
+  let goldMult = 1.0;
+  let expMult = 1.0;
+  let dublonMult = 1.0;
+  for (const mod of modifiers) {
+    const eff = mod.effect || {};
+    if (eff.gold_mult) goldMult *= eff.gold_mult;
+    if (eff.exp_mult) expMult *= eff.exp_mult;
+    if (eff.dublon_mult) dublonMult *= eff.dublon_mult;
+  }
+  const coopBonus = 1 + (memberCount - 1) * 0.05; // 5% per extra player
+  return {
+    gold: Math.floor((80 + fieldNumber * 30) * riskMult * goldMult * coopBonus),
+    exp: Math.floor((60 + fieldNumber * 25) * riskMult * expMult * coopBonus),
+    dublons: Math.floor((5 + fieldNumber * 2) * riskMult * dublonMult * coopBonus),
+    crystals: fieldNumber >= 10 && fieldNumber % 5 === 0 ? Math.floor(1 + fieldNumber / 10) : 0,
+    ascension_shards: fieldNumber >= 8 && Math.random() < 0.15 ? 1 : 0,
+    celestial_stones: fieldNumber >= 15 && fieldNumber % 10 === 0 ? 1 : 0,
+    incubators: Math.random() < (0.05 + fieldNumber * 0.003) ? 1 : 0,
+    sqrizzscrolls: fieldNumber >= 12 && fieldNumber % 6 === 0 ? 1 : 0,
+    rune_drop: fieldNumber >= 5 && Math.random() < 0.08 + fieldNumber * 0.002,
+    loot_drop: Math.random() < 0.10 + fieldNumber * 0.005,
+    boss_stone: fieldNumber >= 20 && fieldNumber % 10 === 0 && Math.random() < 0.25 ? 1 : 0,
+  };
+}
+
+router.post("/functions/fieldAction", async (req: Request, res: Response) => {
+  try {
+    const { characterId, action, sessionId, skillId, targetEnemyId, pathChoice } = req.body;
+    if (!(await requireCharacterOwner(req, res, characterId))) return;
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, characterId));
+    if (!char) { sendError(res, 404, "Character not found"); return; }
+
+    // === GET STATUS ===
+    if (action === "get_status") {
+      // Find active sessions where character is a member
+      const memberSessions = await db.select().from(fieldSessionsTable).where(
+        sql`${fieldSessionsTable.status} IN ('waiting', 'combat', 'field_clear') AND ${fieldSessionsTable.members}::jsonb @> ${JSON.stringify([{ characterId }])}::jsonb`
+      );
+      let activeSession = memberSessions[0] || null;
+      // Clean stuck sessions
+      if (activeSession && activeSession.createdAt && (Date.now() - new Date(activeSession.createdAt).getTime() > FIELD_SESSION_MAX_AGE_MS)) {
+        await db.update(fieldSessionsTable).set({ status: "abandoned" }).where(eq(fieldSessionsTable.id, activeSession.id));
+        activeSession = null;
+      }
+      sendSuccess(res, { session: activeSession ? { id: activeSession.id, status: activeSession.status, fieldNumber: activeSession.fieldNumber, element: activeSession.element, members: activeSession.members, enemies: activeSession.enemies, modifiers: activeSession.modifiers, rewards: activeSession.rewards, combatLog: ((activeSession.combatLog as any[]) || []).slice(-30), data: activeSession.data } : null });
+      return;
+    }
+
+    // === LIST ACTIVE SESSIONS ===
+    if (action === "list_active") {
+      const sessions = await db.select().from(fieldSessionsTable).where(
+        sql`${fieldSessionsTable.status} IN ('waiting', 'combat', 'field_clear') AND ${fieldSessionsTable.createdAt} > NOW() - INTERVAL '3 hours'`
+      );
+      sendSuccess(res, {
+        sessions: sessions.map(s => ({
+          id: s.id,
+          fieldNumber: s.fieldNumber,
+          element: s.element,
+          memberCount: ((s.members as any[]) || []).length,
+          maxPlayers: FIELD_MAX_PLAYERS,
+          status: s.status,
+          members: ((s.members as any[]) || []).map((m: any) => ({ name: m.name, class: m.class, level: m.level })),
+        })),
+      });
+      return;
+    }
+
+    // === ENTER (create new session) ===
+    if (action === "enter") {
+      // Check not already in a session
+      const existing = await db.select().from(fieldSessionsTable).where(
+        sql`${fieldSessionsTable.status} IN ('waiting', 'combat', 'field_clear') AND ${fieldSessionsTable.members}::jsonb @> ${JSON.stringify([{ characterId }])}::jsonb`
+      );
+      if (existing.length > 0) { sendError(res, 400, "Already in a Fields session"); return; }
+
+      const memberStats = await calculateDungeonMemberStats(characterId, char);
+      const element = FIELD_ELEMENTS[Math.floor(Math.random() * FIELD_ELEMENTS.length)];
+      const modifiers = pickFieldModifiers(1, false);
+      const enemies = generateFieldEnemies(1, element, false, modifiers);
+
+      const [session] = await db.insert(fieldSessionsTable).values({
+        status: "waiting",
+        fieldNumber: 1,
+        element,
+        members: [{ ...memberStats, alive: true, reviveTimer: 0, skillsUsed: 0 }],
+        enemies,
+        modifiers,
+        rewards: { dublons: 0, gold: 0, exp: 0, crystals: 0, ascension_shards: 0, celestial_stones: 0, incubators: 0, sqrizzscrolls: 0, boss_stones: 0, loot: [] },
+        combatLog: [{ type: "system", text: `${char.name} enters The Fields! Element: ${element}`, ts: Date.now() }],
+        data: { pathHistory: [] },
+      }).returning();
+
+      sendSuccess(res, { session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members: session.members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: session.combatLog, data: session.data } });
+      return;
+    }
+
+    // === JOIN ===
+    if (action === "join") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+      const members = (session.members as any[]) || [];
+      if (members.length >= FIELD_MAX_PLAYERS) { sendError(res, 400, "Session is full"); return; }
+      if (members.some((m: any) => m.characterId === characterId || m.character_id === characterId)) { sendError(res, 400, "Already in this session"); return; }
+      if (!["waiting", "combat", "field_clear"].includes(session.status)) { sendError(res, 400, "Session not joinable"); return; }
+
+      // Check not already in another session
+      const existing = await db.select().from(fieldSessionsTable).where(
+        sql`${fieldSessionsTable.status} IN ('waiting', 'combat', 'field_clear') AND ${fieldSessionsTable.id} != ${sessionId} AND ${fieldSessionsTable.members}::jsonb @> ${JSON.stringify([{ characterId }])}::jsonb`
+      );
+      if (existing.length > 0) { sendError(res, 400, "Already in another Fields session"); return; }
+
+      const memberStats = await calculateDungeonMemberStats(characterId, char);
+      members.push({ ...memberStats, alive: true, reviveTimer: 0, skillsUsed: 0 });
+      const combatLog = (session.combatLog as any[]) || [];
+      combatLog.push({ type: "system", text: `${char.name} has joined The Fields!`, ts: Date.now() });
+
+      await db.update(fieldSessionsTable).set({ members, combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      return;
+    }
+
+    // === START (begin combat) ===
+    if (action === "start") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+      if (session.status !== "waiting") { sendError(res, 400, "Session already started"); return; }
+
+      const combatLog = (session.combatLog as any[]) || [];
+      const members = (session.members as any[]) || [];
+      combatLog.push({ type: "system", text: `The battle begins! Field 1 — ${members.length} players enter the fray!`, ts: Date.now() });
+
+      await db.update(fieldSessionsTable).set({ status: "combat", combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, status: "combat", fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      return;
+    }
+
+    // === POLL ===
+    if (action === "poll") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session) { sendSuccess(res, { session: null }); return; }
+      sendSuccess(res, { session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members: session.members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: ((session.combatLog as any[]) || []).slice(-30), data: session.data } });
+      return;
+    }
+
+    // === ATTACK / SKILL ===
+    if (action === "attack" || action === "skill") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+      if (session.status !== "combat") { sendError(res, 400, "Not in combat"); return; }
+
+      const members = (session.members as any[]) || [];
+      const meIdx = members.findIndex((m: any) => m.characterId === characterId || m.character_id === characterId);
+      if (meIdx < 0) { sendError(res, 403, "Not in this session"); return; }
+      const me = members[meIdx];
+      if (!me.alive || me.hp <= 0) { sendError(res, 400, "You are KO'd — wait to be revived"); return; }
+
+      const enemies = (session.enemies as any[]) || [];
+      const combatLog = (session.combatLog as any[]) || [];
+      const modifiers = (session.modifiers as any[]) || [];
+      const data = (session.data as any) || {};
+
+      // Find target enemy
+      let target = enemies.find((e: any) => e.id === targetEnemyId && e.hp > 0);
+      if (!target) target = enemies.find((e: any) => e.hp > 0);
+      if (!target) {
+        // All enemies dead — shouldn't happen but handle gracefully
+        await db.update(fieldSessionsTable).set({ status: "field_clear", combatLog }).where(eq(fieldSessionsTable.id, session.id));
+        sendSuccess(res, { success: true, session: { id: session.id, status: "field_clear", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data } });
+        return;
+      }
+
+      // Apply modifiers
+      let playerDmgMult = 1.0;
+      let playerCritBonus = 0;
+      let healOnKillPct = 0;
+      let regenPct = 0;
+      let healReduction = 1.0;
+      let critReduction = 1.0;
+      let bleedPct = 0;
+      for (const mod of modifiers) {
+        const eff = mod.effect || {};
+        if (eff.player_dmg_mult) playerDmgMult *= eff.player_dmg_mult;
+        if (eff.player_crit_bonus) playerCritBonus += eff.player_crit_bonus;
+        if (eff.heal_on_kill_pct) healOnKillPct += eff.heal_on_kill_pct;
+        if (eff.regen_pct) regenPct += eff.regen_pct;
+        if (eff.heal_reduction) healReduction *= (1 - eff.heal_reduction);
+        if (eff.crit_reduction) critReduction *= (1 - eff.crit_reduction);
+        if (eff.bleed_pct) bleedPct += eff.bleed_pct;
+      }
+
+      // Calculate damage (same formula as portal)
+      const totalStr = me.strength || 10;
+      const totalDex = me.dexterity || 8;
+      const totalInt = me.intelligence || 5;
+      const totalLuck = me.luck || 5;
+      const classScaling: Record<string, { primary: string; mult: number }> = {
+        warrior: { primary: "strength", mult: 1.3 },
+        mage: { primary: "intelligence", mult: 1.4 },
+        ranger: { primary: "dexterity", mult: 1.2 },
+        rogue: { primary: "dexterity", mult: 1.2 },
+      };
+      const scaling = classScaling[char.class || "warrior"] || classScaling.warrior;
+      const primaryStat = scaling.primary === "strength" ? totalStr : scaling.primary === "intelligence" ? totalInt : totalDex;
+      let baseDmg = primaryStat * scaling.mult + (me.damage || 0);
+
+      let dmgSkillMult = 1.0;
+      let skillName = "Basic Attack";
+      if (action === "skill" && skillId && SKILL_DATA[skillId]) {
+        dmgSkillMult = SKILL_DATA[skillId].damage || 1.0;
+        skillName = skillId.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase());
+        me.skillsUsed = (me.skillsUsed || 0) + 1;
+      }
+
+      const rawDmg = Math.max(1, Math.floor(baseDmg * dmgSkillMult * playerDmgMult * (0.85 + Math.random() * 0.3)));
+      let playerDmg = Math.max(1, rawDmg - Math.floor((target.armor || 0) * 0.4));
+
+      // Elemental bonus
+      const memberElemDmg = me.elemental_damage || {};
+      const ELEM_MAP: Record<string, string> = { fire: "fire_dmg", ice: "ice_dmg", lightning: "lightning_dmg", poison: "poison_dmg", blood: "blood_dmg", sand: "sand_dmg" };
+      let elemBonusDmg = 0;
+      for (const [elem, statKey] of Object.entries(ELEM_MAP)) {
+        const val = memberElemDmg[statKey] || 0;
+        if (val <= 0) continue;
+        const weakness = getElementWeakness(target.element);
+        let elemMult = elem === weakness ? 1.5 : elem === target.element ? 0.5 : 1.0;
+        elemBonusDmg += Math.floor(val * elemMult);
+      }
+      if (elemBonusDmg > 0) playerDmg += elemBonusDmg;
+
+      // Field element bonus: matching element enemies deal more dmg TO players but also take more FROM matching element attacks
+      if (session.element && target.element === session.element) {
+        // Enemies in their home element are slightly tankier
+        playerDmg = Math.floor(playerDmg * 0.9);
+      }
+
+      // Crit
+      const effectiveCritChance = Math.min(0.6, ((me.crit_chance || 0) + playerCritBonus + totalLuck * 0.3 + totalDex * 0.1) / 100 * critReduction);
+      const isCrit = Math.random() < effectiveCritChance;
+      const critMultiplier = 1.5 + ((me.crit_dmg_pct || 0) / 100);
+      const finalDmg = isCrit ? Math.floor(playerDmg * critMultiplier) : playerDmg;
+
+      // 3+ players attacking same enemy = better loot bonus
+      if (!target.attackers.includes(characterId)) target.attackers.push(characterId);
+
+      target.hp = Math.max(0, target.hp - finalDmg);
+      combatLog.push({
+        type: "player_attack",
+        actor: me.name,
+        target: target.name,
+        damage: finalDmg,
+        isCrit,
+        text: `${me.name} uses ${skillName} on ${target.name} for ${finalDmg}${isCrit ? " (CRIT!)" : ""}${elemBonusDmg > 0 ? ` (+${elemBonusDmg} elem)` : ""}!`,
+        ts: Date.now(),
+      });
+
+      // Lifesteal
+      if ((me.lifesteal || 0) > 0 && finalDmg > 0) {
+        const rawHeal = Math.floor(finalDmg * me.lifesteal / 100);
+        const healAmt = Math.floor(Math.min(rawHeal, me.max_hp * 0.10) * healReduction);
+        if (healAmt > 0) {
+          me.hp = Math.min(me.max_hp, me.hp + healAmt);
+        }
+      }
+
+      // Regen from modifier
+      if (regenPct > 0) {
+        const regenAmt = Math.floor(me.max_hp * regenPct * healReduction);
+        if (regenAmt > 0) me.hp = Math.min(me.max_hp, me.hp + regenAmt);
+      }
+
+      // Enemy killed
+      if (target.hp <= 0) {
+        combatLog.push({ type: "system", text: `${target.name} defeated!`, ts: Date.now() });
+
+        // Heal on kill modifier
+        if (healOnKillPct > 0) {
+          const healAmt = Math.floor(me.max_hp * healOnKillPct * healReduction);
+          me.hp = Math.min(me.max_hp, me.hp + healAmt);
+        }
+
+        // Explode on death modifier — AoE damage to all players
+        const explodeMod = modifiers.find((m: any) => m.effect?.explode_on_death);
+        if (explodeMod) {
+          const explodeDmg = Math.floor(target.max_hp * (explodeMod.effect.explode_pct || 0.15));
+          for (const m of members) {
+            if (!m.alive || m.hp <= 0) continue;
+            m.hp = Math.max(0, m.hp - explodeDmg);
+            if (m.hp <= 0) {
+              m.alive = false;
+              combatLog.push({ type: "system", text: `${m.name} was killed by ${target.name}'s explosion!`, ts: Date.now() });
+            }
+          }
+          combatLog.push({ type: "system", text: `${target.name} explodes for ${explodeDmg} AoE damage!`, ts: Date.now() });
+        }
+      }
+
+      // Bleed modifier — damage to acting player
+      if (bleedPct > 0 && me.alive && me.hp > 0) {
+        const bleedDmg = Math.floor(me.max_hp * bleedPct);
+        me.hp = Math.max(0, me.hp - bleedDmg);
+        if (me.hp <= 0) {
+          me.alive = false;
+          combatLog.push({ type: "system", text: `${me.name} succumbed to bleeding!`, ts: Date.now() });
+        }
+      }
+
+      // Enemies counter-attack this player
+      for (const e of enemies) {
+        if (e.hp <= 0) continue;
+        if (!me.alive || me.hp <= 0) break;
+
+        // Warrior aggro: if a warrior used aggro skill, enemies prefer them
+        const eDmg = Math.max(1, Math.floor((e.dmg || 10) * (0.8 + Math.random() * 0.4)));
+        // Field element bonus: enemies in their home element deal 30% more damage
+        const elemDmgMult = (session.element && e.element === session.element) ? 1.3 : 1.0;
+        const playerDefMult = modifiers.reduce((acc: number, m: any) => (m.effect?.player_def_mult ? acc * m.effect.player_def_mult : acc), 1.0);
+        const memberDef = me.defense || 0;
+        const memberVit = me.vitality || 8;
+        const totalDefense = memberDef + memberVit * 0.5;
+        const memberEvasion = Math.min(0.4, (me.evasion || 0) / 100);
+        const evaded = Math.random() < memberEvasion;
+        const memberBlock = Math.min(0.35, (me.block_chance || 0) / 100);
+        const blocked = !evaded && Math.random() < memberBlock;
+
+        if (evaded) {
+          combatLog.push({ type: "enemy_attack", text: `${me.name} evaded ${e.name}'s attack!`, ts: Date.now() });
+        } else {
+          const mitigated = Math.max(1, Math.floor(eDmg * elemDmgMult * playerDefMult - totalDefense * 0.3));
+          const actualDmg = blocked ? Math.floor(mitigated * 0.4) : mitigated;
+          me.hp = Math.max(0, me.hp - actualDmg);
+          if (actualDmg > 0) {
+            combatLog.push({ type: "enemy_attack", text: `${e.name} hits ${me.name} for ${actualDmg}${blocked ? " (BLOCKED!)" : ""}`, ts: Date.now() });
+          }
+        }
+      }
+
+      if (me.hp <= 0) {
+        me.alive = false;
+        combatLog.push({ type: "system", text: `${me.name} has been knocked out!`, ts: Date.now() });
+      }
+
+      members[meIdx] = me;
+
+      // Check if all enemies dead — field clear
+      const allEnemiesDead = enemies.every((e: any) => e.hp <= 0);
+      if (allEnemiesDead) {
+        const fieldNum = session.fieldNumber || 1;
+        const memberCount = members.filter((m: any) => m.alive || m.hp > 0).length || 1;
+        const isRiskPath = (data.pathHistory || []).includes("risk");
+        const fieldRewards = getFieldRewards(fieldNum, memberCount, isRiskPath, modifiers);
+        const totalRewards = (session.rewards as any) || {};
+
+        // Accumulate rewards
+        totalRewards.dublons = (totalRewards.dublons || 0) + fieldRewards.dublons;
+        totalRewards.gold = (totalRewards.gold || 0) + fieldRewards.gold;
+        totalRewards.exp = (totalRewards.exp || 0) + fieldRewards.exp;
+        totalRewards.crystals = (totalRewards.crystals || 0) + fieldRewards.crystals;
+        totalRewards.ascension_shards = (totalRewards.ascension_shards || 0) + fieldRewards.ascension_shards;
+        totalRewards.celestial_stones = (totalRewards.celestial_stones || 0) + fieldRewards.celestial_stones;
+        totalRewards.incubators = (totalRewards.incubators || 0) + fieldRewards.incubators;
+        totalRewards.sqrizzscrolls = (totalRewards.sqrizzscrolls || 0) + fieldRewards.sqrizzscrolls;
+        totalRewards.boss_stones = (totalRewards.boss_stones || 0) + fieldRewards.boss_stone;
+
+        // Cooperative bonus: 3+ attackers on same enemy
+        const coopEnemies = enemies.filter((e: any) => (e.attackers || []).length >= 3);
+        if (coopEnemies.length > 0) {
+          const coopBonusDublons = coopEnemies.length * 3;
+          totalRewards.dublons += coopBonusDublons;
+          combatLog.push({ type: "system", text: `Cooperative bonus! +${coopBonusDublons} Dublons from teamwork!`, ts: Date.now() });
+        }
+
+        let rewardText = `Field ${fieldNum} cleared! +${fieldRewards.gold}g, +${fieldRewards.exp} exp, +${fieldRewards.dublons} Dublons`;
+        if (fieldRewards.crystals > 0) rewardText += `, +${fieldRewards.crystals} Crystals`;
+        if (fieldRewards.ascension_shards > 0) rewardText += `, +1 Ascension Shard`;
+        if (fieldRewards.sqrizzscrolls > 0) rewardText += `, +1 Sqrizzscroll`;
+        if (fieldRewards.boss_stone > 0) rewardText += `, +1 Boss Stone`;
+        combatLog.push({ type: "victory", text: rewardText, ts: Date.now() });
+
+        // Apply gold and exp to all alive members
+        for (const m of members) {
+          try {
+            await db.update(charactersTable).set({
+              gold: sql`COALESCE(gold, 0) + ${fieldRewards.gold}`,
+              exp: sql`COALESCE(exp, 0) + ${fieldRewards.exp}`,
+            }).where(eq(charactersTable.id, m.characterId || m.character_id));
+            // Store dublons, crystals, etc. in extraData
+            const [mc] = await db.select().from(charactersTable).where(eq(charactersTable.id, m.characterId || m.character_id));
+            if (mc) {
+              const mExtra = (mc.extraData as any) || {};
+              mExtra.dublons = (mExtra.dublons || 0) + fieldRewards.dublons;
+              if (fieldRewards.crystals > 0) mExtra.crystals = (mExtra.crystals || 0) + fieldRewards.crystals;
+              if (fieldRewards.ascension_shards > 0) mExtra.ascension_shards = (mExtra.ascension_shards || 0) + fieldRewards.ascension_shards;
+              if (fieldRewards.celestial_stones > 0) mExtra.celestial_stones = (mExtra.celestial_stones || 0) + fieldRewards.celestial_stones;
+              if (fieldRewards.incubators > 0) mExtra.incubators = (mExtra.incubators || 0) + fieldRewards.incubators;
+              if (fieldRewards.sqrizzscrolls > 0) mExtra.sqrizzscrolls = (mExtra.sqrizzscrolls || 0) + fieldRewards.sqrizzscrolls;
+              if (fieldRewards.boss_stone > 0) mExtra.boss_stones = (mExtra.boss_stones || 0) + fieldRewards.boss_stone;
+              await db.update(charactersTable).set({ extraData: mExtra }).where(eq(charactersTable.id, m.characterId || m.character_id));
+            }
+          } catch {}
+        }
+
+        // Generate loot drop
+        if (fieldRewards.loot_drop) {
+          try {
+            const loot = generateLoot(char.level || 1, char.luck || 5, true, null, char.class);
+            if (loot) {
+              await db.insert(itemsTable).values({
+                ownerId: characterId, name: loot.name, type: loot.type, rarity: loot.rarity,
+                level: loot.item_level || 1, stats: loot.stats || {},
+                extraData: { source: "fields", field_number: fieldNum, subtype: loot.subtype || null, level_req: loot.level_req || 1, sell_price: loot.sell_price || 0, proc_effects: loot.proc_effects || null, rune_slots: loot.rune_slots || 0 },
+              });
+              combatLog.push({ type: "system", text: `Loot: ${loot.name} (${loot.rarity})`, ts: Date.now() });
+              if (!totalRewards.loot) totalRewards.loot = [];
+              totalRewards.loot.push(loot.name);
+            }
+          } catch {}
+        }
+
+        combatLog.push({ type: "system", text: "Choose your path: Risk (harder, better rewards) or Safe (easier)", ts: Date.now() });
+
+        await db.update(fieldSessionsTable).set({
+          status: "field_clear", enemies, members, rewards: totalRewards, combatLog,
+          data: { ...data, pendingPathChoice: true },
+        }).where(eq(fieldSessionsTable.id, session.id));
+
+        sendSuccess(res, { success: true, session: { id: session.id, status: "field_clear", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: { ...data, pendingPathChoice: true } } });
+        return;
+      }
+
+      // Check if ALL members are dead — defeat
+      const allMembersDead = members.every((m: any) => !m.alive || m.hp <= 0);
+      if (allMembersDead) {
+        const totalRewards = (session.rewards as any) || {};
+        combatLog.push({ type: "defeat", text: `All players have fallen on Field ${session.fieldNumber}! The Fields claim another party...`, ts: Date.now() });
+
+        await db.update(fieldSessionsTable).set({
+          status: "defeated", members, enemies, combatLog,
+          data: { ...data, finalField: session.fieldNumber },
+        }).where(eq(fieldSessionsTable.id, session.id));
+
+        sendSuccess(res, { success: true, session: { id: session.id, status: "defeated", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: { ...data, finalField: session.fieldNumber } } });
+        return;
+      }
+
+      await db.update(fieldSessionsTable).set({ enemies, members, combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data } });
+      return;
+    }
+
+    // === REVIVE ===
+    if (action === "revive") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const { targetCharacterId } = req.body;
+      if (!targetCharacterId) { sendError(res, 400, "targetCharacterId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session || session.status !== "combat") { sendError(res, 400, "Not in combat"); return; }
+
+      const members = (session.members as any[]) || [];
+      const meIdx = members.findIndex((m: any) => m.characterId === characterId || m.character_id === characterId);
+      const targetIdx = members.findIndex((m: any) => m.characterId === targetCharacterId || m.character_id === targetCharacterId);
+      if (meIdx < 0 || targetIdx < 0) { sendError(res, 400, "Player not found"); return; }
+      const me = members[meIdx];
+      const target = members[targetIdx];
+      if (!me.alive || me.hp <= 0) { sendError(res, 400, "You are KO'd"); return; }
+      if (target.alive && target.hp > 0) { sendError(res, 400, "Target is not KO'd"); return; }
+
+      // Reviving costs 3 turns (the reviver can't attack while reviving)
+      target.reviveTimer = (target.reviveTimer || 0) + 1;
+      const combatLog = (session.combatLog as any[]) || [];
+
+      if (target.reviveTimer >= 3) {
+        // Revive complete
+        target.alive = true;
+        target.hp = Math.floor(target.max_hp * 0.3); // Revive with 30% HP
+        target.reviveTimer = 0;
+        combatLog.push({ type: "system", text: `${me.name} revived ${target.name}! (30% HP)`, ts: Date.now() });
+      } else {
+        combatLog.push({ type: "system", text: `${me.name} is reviving ${target.name}... (${target.reviveTimer}/3)`, ts: Date.now() });
+      }
+
+      // Reviver still takes enemy hits
+      const enemies = (session.enemies as any[]) || [];
+      const modifiers = (session.modifiers as any[]) || [];
+      for (const e of enemies) {
+        if (e.hp <= 0 || !me.alive || me.hp <= 0) continue;
+        const eDmg = Math.max(1, Math.floor((e.dmg || 10) * (0.8 + Math.random() * 0.4)));
+        const elemDmgMult = (session.element && e.element === session.element) ? 1.3 : 1.0;
+        const playerDefMult = modifiers.reduce((acc: number, m: any) => (m.effect?.player_def_mult ? acc * m.effect.player_def_mult : acc), 1.0);
+        const memberDef = me.defense || 0;
+        const totalDefense = memberDef + (me.vitality || 8) * 0.5;
+        const evaded = Math.random() < Math.min(0.4, (me.evasion || 0) / 100);
+        if (!evaded) {
+          const mitigated = Math.max(1, Math.floor(eDmg * elemDmgMult * playerDefMult - totalDefense * 0.3));
+          me.hp = Math.max(0, me.hp - mitigated);
+          if (me.hp <= 0) {
+            me.alive = false;
+            combatLog.push({ type: "system", text: `${me.name} was knocked out while reviving!`, ts: Date.now() });
+          }
+        }
+      }
+
+      members[meIdx] = me;
+      members[targetIdx] = target;
+      await db.update(fieldSessionsTable).set({ members, combatLog, enemies }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      return;
+    }
+
+    // === CHOOSE PATH ===
+    if (action === "choose_path") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      if (!pathChoice || !["risk", "safe"].includes(pathChoice)) { sendError(res, 400, "pathChoice must be 'risk' or 'safe'"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session || session.status !== "field_clear") { sendError(res, 400, "Not in field_clear state"); return; }
+
+      const data = (session.data as any) || {};
+      const nextField = (session.fieldNumber || 1) + 1;
+      const isRisk = pathChoice === "risk";
+
+      // Pick new element (may change every 3-5 fields)
+      let newElement = session.element || "neutral";
+      if (nextField % 4 === 0 || Math.random() < 0.2) {
+        newElement = FIELD_ELEMENTS[Math.floor(Math.random() * FIELD_ELEMENTS.length)];
+      }
+
+      const pathHistory = [...(data.pathHistory || []), pathChoice];
+      const modifiers = pickFieldModifiers(nextField, isRisk);
+      const enemies = generateFieldEnemies(nextField, newElement, isRisk, modifiers);
+
+      const members = (session.members as any[]) || [];
+      const combatLog = (session.combatLog as any[]) || [];
+      combatLog.push({ type: "system", text: `Advancing to Field ${nextField} via ${isRisk ? "RISK" : "SAFE"} path! Element: ${newElement}`, ts: Date.now() });
+
+      await db.update(fieldSessionsTable).set({
+        status: "combat",
+        fieldNumber: nextField,
+        element: newElement,
+        enemies,
+        modifiers,
+        members,
+        combatLog,
+        pathChoice,
+        data: { ...data, pathHistory, pendingPathChoice: false },
+      }).where(eq(fieldSessionsTable.id, session.id));
+
+      sendSuccess(res, { success: true, session: { id: session.id, status: "combat", fieldNumber: nextField, element: newElement, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: { ...data, pathHistory, pendingPathChoice: false } } });
+      return;
+    }
+
+    // === LEAVE ===
+    if (action === "leave") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session) { sendError(res, 404, "Session not found"); return; }
+
+      const members = (session.members as any[]) || [];
+      const combatLog = (session.combatLog as any[]) || [];
+      const newMembers = members.filter((m: any) => m.characterId !== characterId && m.character_id !== characterId);
+      combatLog.push({ type: "system", text: `${char.name} has left The Fields.`, ts: Date.now() });
+
+      if (newMembers.length === 0) {
+        await db.update(fieldSessionsTable).set({ status: "abandoned", members: newMembers, combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      } else {
+        await db.update(fieldSessionsTable).set({ members: newMembers, combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      }
+      sendSuccess(res, { success: true });
+      return;
+    }
+
+    // === WARRIOR AGGRO ===
+    if (action === "aggro") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      if (char.class !== "warrior") { sendError(res, 400, "Only warriors can use aggro"); return; }
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session || session.status !== "combat") { sendError(res, 400, "Not in combat"); return; }
+
+      const members = (session.members as any[]) || [];
+      const combatLog = (session.combatLog as any[]) || [];
+      const data = (session.data as any) || {};
+      data.aggro_target = characterId;
+      combatLog.push({ type: "system", text: `${char.name} taunts all enemies! (Aggro active)`, ts: Date.now() });
+
+      await db.update(fieldSessionsTable).set({ combatLog, data }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true });
+      return;
+    }
+
+    // === MAGE HEAL ===
+    if (action === "heal_ally") {
+      if (!sessionId) { sendError(res, 400, "sessionId required"); return; }
+      if (char.class !== "mage") { sendError(res, 400, "Only mages can heal allies"); return; }
+      const { targetCharacterId } = req.body;
+      const [session] = await db.select().from(fieldSessionsTable).where(eq(fieldSessionsTable.id, sessionId));
+      if (!session || session.status !== "combat") { sendError(res, 400, "Not in combat"); return; }
+
+      const members = (session.members as any[]) || [];
+      const meIdx = members.findIndex((m: any) => m.characterId === characterId || m.character_id === characterId);
+      const targetIdx = members.findIndex((m: any) => m.characterId === targetCharacterId || m.character_id === targetCharacterId);
+      if (meIdx < 0) { sendError(res, 403, "Not in session"); return; }
+      if (targetIdx < 0) { sendError(res, 400, "Target not found"); return; }
+      const me = members[meIdx];
+      const target = members[targetIdx];
+      if (!me.alive || me.hp <= 0) { sendError(res, 400, "You are KO'd"); return; }
+      if (!target.alive || target.hp <= 0) { sendError(res, 400, "Target is KO'd — use revive instead"); return; }
+
+      const combatLog = (session.combatLog as any[]) || [];
+      const modifiers = (session.modifiers as any[]) || [];
+      let healReduction = 1.0;
+      for (const mod of modifiers) { if (mod.effect?.heal_reduction) healReduction *= (1 - mod.effect.heal_reduction); }
+
+      const healAmt = Math.floor((me.intelligence || 10) * 2 * healReduction);
+      target.hp = Math.min(target.max_hp, target.hp + healAmt);
+      combatLog.push({ type: "system", text: `${me.name} heals ${target.name} for ${healAmt} HP!`, ts: Date.now() });
+
+      // Mage also takes hits while healing
+      const enemies = (session.enemies as any[]) || [];
+      for (const e of enemies) {
+        if (e.hp <= 0 || !me.alive || me.hp <= 0) continue;
+        const eDmg = Math.max(1, Math.floor((e.dmg || 10) * (0.8 + Math.random() * 0.4)));
+        const evaded = Math.random() < Math.min(0.4, (me.evasion || 0) / 100);
+        if (!evaded) {
+          const mitigated = Math.max(1, Math.floor(eDmg - ((me.defense || 0) + (me.vitality || 8) * 0.5) * 0.3));
+          me.hp = Math.max(0, me.hp - mitigated);
+          if (me.hp <= 0) {
+            me.alive = false;
+            combatLog.push({ type: "system", text: `${me.name} was knocked out while healing!`, ts: Date.now() });
+          }
+        }
+      }
+
+      members[meIdx] = me;
+      members[targetIdx] = target;
+      await db.update(fieldSessionsTable).set({ members, combatLog }).where(eq(fieldSessionsTable.id, session.id));
+      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      return;
+    }
+
+    sendError(res, 400, `Unknown field action: ${action}`);
+  } catch (err: any) {
+    req.log.error({ err }, "fieldAction error");
     sendError(res, 500, err.message);
   }
 });
