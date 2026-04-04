@@ -16,6 +16,12 @@ import {
   Package,
   Hand,
   Sword,
+  Hourglass,
+  ScrollText,
+  Ticket,
+  Egg,
+  Sparkles,
+  Wrench,
 } from "lucide-react";
 
 // Subtype -> icon
@@ -32,6 +38,19 @@ const SUBTYPE_ICONS = {
   heavy:    ShieldCheck,
   medium:   ShieldCheck,
   light:    ShieldCheck,
+};
+
+// Consumable type -> icon (matched via extraData.consumableType or extraData.materialType)
+const CONSUMABLE_ICONS = {
+  hourglass:       Hourglass,
+  scroll_exp:      ScrollText,
+  scroll_gold:     ScrollText,
+  scroll_dmg:      ScrollText,
+  scroll_loot:     ScrollText,
+  dungeon_ticket:  Ticket,
+  pet_egg_shiny:   Egg,
+  pet_egg:         Egg,
+  upgrade_stone:   Wrench,
 };
 
 // Type -> fallback icon (when no subtype)
@@ -56,6 +75,12 @@ export function getItemIcon(item) {
   if (!item) return Package;
   if (item.subtype && SUBTYPE_ICONS[item.subtype]) {
     return SUBTYPE_ICONS[item.subtype];
+  }
+  // Check consumable/material subtype from extraData
+  const extra = item.extraData || item.extra_data || {};
+  const consumableType = extra.consumableType || extra.materialType;
+  if (consumableType && CONSUMABLE_ICONS[consumableType]) {
+    return CONSUMABLE_ICONS[consumableType];
   }
   return TYPE_ICONS[item.type] || Package;
 }

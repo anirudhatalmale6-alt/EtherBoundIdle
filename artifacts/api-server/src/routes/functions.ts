@@ -567,6 +567,95 @@ router.post("/functions/sellItem", async (req: Request, res: Response) => {
   }
 });
 
+// === USE CONSUMABLE ITEM ===
+router.post("/functions/useItem", async (req: Request, res: Response) => {
+  if (!requireAuth(req, res)) return;
+  try {
+    const { itemId } = req.body;
+    const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
+    if (!item) { sendError(res, 404, "Item not found"); return; }
+    if (!(await verifyCharacterOwner(req, item.ownerId))) { sendError(res, 403, "Not your item"); return; }
+    if (item.type !== "consumable") { sendError(res, 400, "Item is not consumable"); return; }
+
+    const extra = (item.extraData as any) || {};
+    const consumableType = extra.consumableType || "";
+    const [char] = await db.select().from(charactersTable).where(eq(charactersTable.id, item.ownerId));
+    if (!char) { sendError(res, 404, "Character not found"); return; }
+    const charExtra = (char.extraData as any) || {};
+    let message = "";
+    let effectApplied: any = null;
+
+    // --- SCROLLS: apply timed buff ---
+    if (consumableType.startsWith("scroll_")) {
+      const stats = (item.stats as any) || {};
+      const bonus = stats.bonus_value || 25;
+      const duration = (stats.duration || 7200) * 1000; // convert seconds to ms
+      const buffTypeMap: Record<string, string> = {
+        scroll_exp: "exp_bonus",
+        scroll_gold: "gold_bonus",
+        scroll_dmg: "dmg_bonus",
+        scroll_loot: "loot_bonus",
+      };
+      const buffType = buffTypeMap[consumableType] || "exp_bonus";
+      const activeBuffs = (charExtra.active_buffs || []).filter(
+        (b: any) => new Date(b.expires_at).getTime() > Date.now()
+      );
+      activeBuffs.push({
+        type: buffType,
+        value: bonus,
+        expires_at: new Date(Date.now() + duration).toISOString(),
+        source: item.name,
+      });
+      await db.update(charactersTable).set({ extraData: { ...charExtra, active_buffs: activeBuffs } }).where(eq(charactersTable.id, char.id));
+      const durationMin = Math.round(duration / 60000);
+      message = `${item.name} activated! +${bonus}% ${buffType.replace("_bonus", "").toUpperCase()} for ${durationMin} minutes.`;
+      effectApplied = { type: buffType, value: bonus, duration: durationMin };
+    }
+    // --- HOURGLASS: refill dungeon entries ---
+    else if (consumableType === "hourglass") {
+      const dungeonExtra = charExtra.dungeon_data || {};
+      dungeonExtra.entries = [];
+      await db.update(charactersTable).set({ extraData: { ...charExtra, dungeon_data: dungeonExtra } }).where(eq(charactersTable.id, char.id));
+      message = "Hourglass of Eternity used! Dungeon entries have been reset.";
+      effectApplied = { type: "dungeon_reset" };
+    }
+    // --- DUNGEON TICKET: add bonus dungeon entry ---
+    else if (consumableType === "dungeon_ticket") {
+      const bonusEntries = (charExtra.bonus_dungeon_entries || 0) + 1;
+      await db.update(charactersTable).set({ extraData: { ...charExtra, bonus_dungeon_entries: bonusEntries } }).where(eq(charactersTable.id, char.id));
+      message = "Dungeon Ticket used! You have 1 extra dungeon entry.";
+      effectApplied = { type: "dungeon_entry", entries: bonusEntries };
+    }
+    // --- PET EGG: hatch a pet ---
+    else if (consumableType === "pet_egg" || consumableType === "pet_egg_shiny") {
+      // Store egg for pet system to handle — add to pending_eggs
+      const pendingEggs = charExtra.pending_eggs || [];
+      pendingEggs.push({
+        type: consumableType,
+        guaranteed_shiny: extra.guaranteed_shiny || false,
+        source: extra.source || "unknown",
+      });
+      await db.update(charactersTable).set({ extraData: { ...charExtra, pending_eggs: pendingEggs } }).where(eq(charactersTable.id, char.id));
+      message = consumableType === "pet_egg_shiny"
+        ? "Shiny Pet Egg cracked open! Check your Pets page to see your new companion!"
+        : "Pet Egg cracked open! Check your Pets page to see your new companion!";
+      effectApplied = { type: "pet_egg", shiny: consumableType === "pet_egg_shiny" };
+    }
+    else {
+      sendError(res, 400, `Unknown consumable type: ${consumableType}`);
+      return;
+    }
+
+    // Delete the consumed item (or reduce stack if stacked)
+    await db.delete(itemsTable).where(eq(itemsTable.id, itemId));
+
+    sendSuccess(res, { success: true, message, effect: effectApplied });
+  } catch (err: any) {
+    req.log.error({ err }, "useItem error");
+    sendError(res, 500, err.message);
+  }
+});
+
 router.post("/functions/upgradeItemSafe", async (req: Request, res: Response) => {
   if (!requireAuth(req, res)) return;
   try {
