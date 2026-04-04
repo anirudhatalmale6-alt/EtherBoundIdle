@@ -140,7 +140,7 @@ function ItemCard({ item, character, equipped, onSelect, rarity, canEquip, isNew
             </Badge>
           )}
           {!levelOk && <Badge className="text-xs bg-destructive/20 text-destructive border-destructive/30">Req. {item.level_req}</Badge>}
-          {levelOk && !classOk && <Badge className="text-xs bg-destructive/20 text-destructive border-destructive/30">Wrong Class</Badge>}
+          {levelOk && !classOk && item.type !== "consumable" && item.type !== "material" && <Badge className="text-xs bg-destructive/20 text-destructive border-destructive/30">Wrong Class</Badge>}
         </div>
         {isUnique && (
           <span className="absolute bottom-1 right-1 bg-orange-500 text-white text-[9px] font-bold rounded w-[16px] h-[16px] flex items-center justify-center leading-none">
@@ -413,6 +413,21 @@ export default function Inventory({ character, onCharacterUpdate }) {
     },
   });
 
+  const useItemMutation = useMutation({
+    mutationFn: async (itemIdToUse) => {
+      const response = await base44.functions.invoke('useItem', { itemId: itemIdToUse });
+      if (response?.success) {
+        queryClient.invalidateQueries({ queryKey: ["items"] });
+        queryClient.invalidateQueries({ queryKey: ["characters"] });
+        setSelectedItem(null);
+        toast({ title: response.message || "Item used!" });
+      } else if (response?.error) {
+        toast({ title: response.error, variant: 'destructive' });
+      }
+      return response;
+    },
+  });
+
   const sellAllMutation = useMutation({
     mutationFn: async () => {
       const unequipped = items.filter(i => !i.equipped && SLOT_ORDER.includes(i.type));
@@ -639,6 +654,16 @@ export default function Inventory({ character, onCharacterUpdate }) {
                             {!levelOk ? `Req. Lv.${selectedItem.level_req}` : !classCheck.allowed ? "Wrong Class" : "Equip"}
                           </Button>
                         )
+                      )}
+                      {selectedItem.type === "consumable" && (
+                        <Button
+                          size="sm"
+                          className="flex-1 gap-1 bg-emerald-600 hover:bg-emerald-700"
+                          disabled={useItemMutation.isPending}
+                          onClick={() => useItemMutation.mutate(selectedItem.stackIds ? selectedItem.stackIds[0] : selectedItem.id)}
+                        >
+                          <Sparkles className="w-3.5 h-3.5" /> Use
+                        </Button>
                       )}
                       <Button variant="destructive" size="sm" onClick={() => sellMutation.mutate(selectedItem.stackIds ? selectedItem.stackIds[0] : selectedItem.id)}>
                         <Coins className="w-3.5 h-3.5 mr-1" /> Sell {selectedItem.stackIds ? "1" : ""} ({selectedItem.sell_price || 5}g)
