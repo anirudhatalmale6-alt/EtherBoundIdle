@@ -184,7 +184,8 @@ export default function Runes({ character, onCharacterUpdate }) {
     const rarity = RARITY_COLORS[rune.rarity] || RARITY_COLORS.common;
     const category = RUNE_CATEGORY_COLORS[rune.runeType] || RUNE_CATEGORY_COLORS.offensive;
     const isSelected = selectedRune?.id === rune.id;
-    const runeSprite = `/sprites/runes/rune_${rune.rarity || "common"}.png`;
+    const runeName = (rune.name || "").toLowerCase().replace(/ /g, "_");
+    const runeSprite = `/sprites/runes/${runeName}.png`;
 
     return (
       <motion.div
@@ -267,7 +268,7 @@ export default function Runes({ character, onCharacterUpdate }) {
                 className={`flex items-center gap-2 p-1.5 rounded-lg border ${runeRarity.border} ${runeRarity.bg} cursor-pointer hover:brightness-110`}
                 onClick={() => setSelectedRune(rune)}
               >
-                <img src={`/sprites/runes/rune_${rune.rarity || "common"}.png`} alt="" className="w-4 h-4 flex-shrink-0" style={{ imageRendering: "pixelated" }} />
+                <img src={`/sprites/runes/${(rune.name || "").toLowerCase().replace(/ /g, "_")}.png`} alt="" className="w-4 h-4 flex-shrink-0" style={{ imageRendering: "pixelated" }} />
                 <div className="flex-1 min-w-0">
                   <span className="text-[10px] font-semibold text-white truncate block">{rune.name}</span>
                   <span className={`text-[9px] ${runeRarity.text}`}>
