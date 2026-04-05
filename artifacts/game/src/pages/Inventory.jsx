@@ -274,7 +274,11 @@ function CharacterEquipmentPanel({ character, equipped, onSelectItem }) {
         }`}
         title={item ? item.name : SLOT_LABELS[slot]}
       >
-        <Icon className={`w-5 h-5 flex-shrink-0 ${item ? rarity?.color : "text-gray-600"}`} />
+        {item && getItemSprite(item) ? (
+          <img src={getItemSprite(item)} alt="" className="w-5 h-5 flex-shrink-0" style={{ imageRendering: "pixelated" }} />
+        ) : (
+          <Icon className={`w-5 h-5 flex-shrink-0 ${item ? rarity?.color : "text-gray-600"}`} />
+        )}
         <div className="flex-1 min-w-0 text-left">
           <span className={`text-[10px] font-semibold truncate block leading-tight ${item ? rarity?.color : "text-gray-600"}`}>
             {item ? item.name : SLOT_LABELS[slot]}
