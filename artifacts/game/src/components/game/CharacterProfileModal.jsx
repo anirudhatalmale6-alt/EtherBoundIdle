@@ -180,8 +180,8 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
           {/* Header */}
           <div className="flex items-center justify-between p-5 border-b border-border bg-gradient-to-r from-primary/10 to-transparent">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-                <Shield className="w-7 h-7 text-primary" />
+              <div className="w-14 h-14 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center overflow-hidden">
+                <img src={`/sprites/class_${character.class || "warrior"}.png`} alt={character.class} className="w-12 h-12" style={{ imageRendering: "pixelated" }} />
               </div>
               <div>
                 <h2 className="font-orbitron font-bold text-xl">{character.name}</h2>

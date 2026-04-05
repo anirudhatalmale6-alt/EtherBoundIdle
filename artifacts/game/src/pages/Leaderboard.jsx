@@ -132,6 +132,7 @@ export default function Leaderboard({ character }) {
             <div className="w-8 text-center">
               {idx < 3 ? medals[idx] : <span className="text-sm text-muted-foreground font-medium">#{idx + 1}</span>}
             </div>
+            <img src={`/sprites/class_${char.class || "warrior"}.png`} alt={char.class} className="w-8 h-8" style={{ imageRendering: "pixelated" }} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-semibold truncate">{char.name}</span>

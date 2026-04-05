@@ -9,13 +9,7 @@ import {
 } from "lucide-react";
 import { CLASSES } from "@/lib/gameData";
 import { useAuth } from "@/lib/AuthContext";
-
-const CLASS_ICONS = {
-  warrior: Shield,
-  mage: Star,
-  ranger: Swords,
-  rogue: Swords,
-};
+import { CLASS_SPRITE_URLS } from "@/lib/pixelSprites";
 
 export default function CharacterSelection({ onCharacterSelected }) {
   const [deleteConfirm, setDeleteConfirm] = useState(null);
@@ -85,7 +79,7 @@ export default function CharacterSelection({ onCharacterSelected }) {
           <AnimatePresence>
             {characters.map((char) => {
               const cls = CLASSES[char.class];
-              const Icon = CLASS_ICONS[char.class] || Shield;
+              const spriteUrl = CLASS_SPRITE_URLS[char.class] || CLASS_SPRITE_URLS.warrior;
               return (
                 <motion.div
                   key={char.id}
@@ -95,8 +89,8 @@ export default function CharacterSelection({ onCharacterSelected }) {
                   className="bg-card border border-border rounded-xl p-4 flex items-center justify-between hover:border-primary/50 transition-all"
                 >
                   <div className="flex items-center gap-4 flex-1">
-                    <div className={`w-12 h-12 rounded-lg ${cls?.color} bg-opacity-20 border border-current border-opacity-30 flex items-center justify-center`}>
-                      <Icon className={`w-6 h-6 ${cls?.color}`} />
+                    <div className={`w-12 h-12 rounded-lg ${cls?.color} bg-opacity-20 border border-current border-opacity-30 flex items-center justify-center overflow-hidden`}>
+                      <img src={spriteUrl} alt={char.class} className="w-10 h-10" style={{ imageRendering: "pixelated" }} />
                     </div>
                     <div>
                       <h3 className="font-bold text-lg">{char.name}</h3>

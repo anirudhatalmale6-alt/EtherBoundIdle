@@ -341,7 +341,7 @@ function getElementPalette(spriteKey, element) {
 // ─── PUBLIC API ─────────────────────────────────────────────────────
 
 // Use custom pixel art sprites from /sprites/ folder
-const CLASS_SPRITE_URLS = {
+export const CLASS_SPRITE_URLS = {
   warrior: "/sprites/class_warrior.png",
   mage: "/sprites/class_mage.png",
   ranger: "/sprites/class_ranger.png",

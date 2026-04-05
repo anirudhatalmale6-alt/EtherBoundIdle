@@ -144,8 +144,8 @@ export default function Profile({ character, onCharacterUpdate }) {
       {/* Character Card */}
       <div className="bg-card border border-border rounded-xl p-5">
         <div className="flex items-center gap-4 mb-4">
-          <div className="w-16 h-16 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center">
-            <Shield className="w-8 h-8 text-primary" />
+          <div className="w-16 h-16 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center overflow-hidden">
+            <img src={`/sprites/class_${character.class || "warrior"}.png`} alt={character.class} className="w-14 h-14" style={{ imageRendering: "pixelated" }} />
           </div>
           <div>
             <h3 className="font-bold text-2xl">{character.name}</h3>
