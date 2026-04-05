@@ -62,13 +62,20 @@ export default function PlayerProfileModal({ characterId, characterName, onClose
       >
         {/* Header */}
         <div className="flex items-start justify-between">
-          <div>
-            <h2 className="font-orbitron text-lg font-bold">{char?.name || characterName}</h2>
+          <div className="flex items-center gap-3">
             {char && (
-              <p className={`text-sm font-medium ${CLASS_COLORS[char.class]}`}>
-                Lv.{char.level} {classData?.name}
-              </p>
+              <div className="w-12 h-12 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center overflow-hidden">
+                <img src={`/sprites/class_${char.class || "warrior"}.png`} alt={char.class} className="w-10 h-10" style={{ imageRendering: "pixelated" }} />
+              </div>
             )}
+            <div>
+              <h2 className="font-orbitron text-lg font-bold">{char?.name || characterName}</h2>
+              {char && (
+                <p className={`text-sm font-medium ${CLASS_COLORS[char.class]}`}>
+                  Lv.{char.level} {classData?.name}
+                </p>
+              )}
+            </div>
           </div>
           <div className="flex gap-2 items-center">
             {onInviteToParty && (

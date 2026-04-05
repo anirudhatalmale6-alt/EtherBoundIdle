@@ -107,8 +107,8 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               onClick={() => setProfileOpen(true)}
               className="flex items-center gap-3 w-full hover:bg-muted/50 rounded-lg p-1 -m-1 transition-colors group"
             >
-              <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center group-hover:border-primary/60 transition-colors">
-                <Shield className="w-5 h-5 text-primary" />
+              <div className="w-10 h-10 rounded-lg bg-primary/20 border border-primary/30 flex items-center justify-center group-hover:border-primary/60 transition-colors overflow-hidden">
+                <img src={`/sprites/class_${character.class || "warrior"}.png`} alt={character.class} className="w-9 h-9" style={{ imageRendering: "pixelated" }} />
               </div>
               <div className="flex-1 min-w-0 text-left">
                 <div className="flex items-center gap-1.5">

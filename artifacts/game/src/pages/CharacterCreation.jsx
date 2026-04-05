@@ -7,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Shield, Sparkles, Target, Swords, ChevronRight } from "lucide-react";
 import { CLASSES } from "@/lib/gameData";
 import { calculateFinalStats, CLASS_BASE_HP, CLASS_BASE_MP, HP_PER_LEVEL, MP_PER_LEVEL, VIT_TO_HP, INT_TO_MP } from "@/lib/statSystem";
-
-const CLASS_ICONS = { warrior: Shield, mage: Sparkles, ranger: Target, rogue: Swords };
+import { CLASS_SPRITE_URLS } from "@/lib/pixelSprites";
 
 export default function CharacterCreation({ onCreated }) {
   const [name, setName] = useState("");
@@ -89,7 +88,7 @@ export default function CharacterCreation({ onCreated }) {
             <label className="text-sm font-medium text-muted-foreground mb-3 block">Choose Your Class</label>
             <div className="grid grid-cols-2 gap-3">
               {Object.entries(CLASSES).map(([key, cls]) => {
-                const Icon = CLASS_ICONS[key];
+                const spriteUrl = CLASS_SPRITE_URLS[key] || CLASS_SPRITE_URLS.warrior;
                 const active = selectedClass === key;
                 return (
                   <motion.button
@@ -104,8 +103,8 @@ export default function CharacterCreation({ onCreated }) {
                     }`}
                   >
                     <div className="flex items-center gap-3 mb-2">
-                      <div className={`p-2 rounded-lg ${active ? "bg-primary/20" : "bg-muted"}`}>
-                        <Icon className={`w-5 h-5 ${cls.color}`} />
+                      <div className={`p-1 rounded-lg ${active ? "bg-primary/20" : "bg-muted"} overflow-hidden`}>
+                        <img src={spriteUrl} alt={key} className="w-8 h-8" style={{ imageRendering: "pixelated" }} />
                       </div>
                       <span className={`font-bold ${cls.color}`}>{cls.name}</span>
                     </div>

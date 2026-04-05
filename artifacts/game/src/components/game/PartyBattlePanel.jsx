@@ -97,7 +97,7 @@ export default function PartyBattlePanel({ party, selfId, onPartyAction }) {
               </Badge>
             </div>
             <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
-              <Shield className="w-2.5 h-2.5" />
+              <img src={`/sprites/class_${m.class || "warrior"}.png`} alt={m.class} className="w-4 h-4" style={{ imageRendering: "pixelated" }} />
               <span className="capitalize">{m.class}</span>
               <span className="ml-auto text-green-400 flex items-center gap-0.5">
                 <Zap className="w-2 h-2" /> Active

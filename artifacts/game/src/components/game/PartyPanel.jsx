@@ -9,14 +9,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import PlayerProfileModal from "@/components/game/PlayerProfileModal";
 import { REGIONS } from "@/lib/gameData";
 import { useSmartPolling, POLL_INTERVALS } from "@/hooks/useSmartPolling";
+import { CLASS_SPRITE_URLS } from "@/lib/pixelSprites";
 
 const CLASS_COLORS = {
   warrior: "text-red-400", mage: "text-blue-400",
   ranger: "text-green-400", rogue: "text-purple-400"
-};
-
-const CLASS_ICONS = {
-  warrior: "⚔️", mage: "🔮", ranger: "🏹", rogue: "🗡️"
 };
 
 export default function PartyPanel({ character }) {
@@ -316,7 +313,7 @@ export default function PartyPanel({ character }) {
                                   >
                                     <div className="flex items-center gap-1.5">
                                       {m.character_id === partyData.leader_id && <Crown className="w-3 h-3 text-accent flex-shrink-0" />}
-                                      <span className="text-sm">{CLASS_ICONS[memberClass] || "⚔️"}</span>
+                                      <img src={CLASS_SPRITE_URLS[memberClass] || CLASS_SPRITE_URLS.warrior} alt={memberClass} className="w-6 h-6" style={{ imageRendering: "pixelated" }} />
                                       <span className={`font-medium truncate ${CLASS_COLORS[memberClass] || "text-foreground"}`}>
                                         {m.name}
                                       </span>
