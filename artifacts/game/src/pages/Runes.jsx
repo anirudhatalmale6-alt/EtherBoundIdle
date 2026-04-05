@@ -65,6 +65,45 @@ const ITEM_TYPE_LABELS = {
   cape: "Cape", belt: "Belt",
 };
 
+// All known rune base names (without rarity/category prefix)
+const RUNE_BASE_NAMES = [
+  "fury_rune", "wrath_rune", "rage_rune", "storm_rune", "havoc_rune", "slayer_rune",
+  "ward_rune", "bastion_rune", "aegis_rune", "fortitude_rune", "sentinel_rune", "guardian_rune",
+  "fortune_rune", "insight_rune", "prosperity_rune",
+  "ember_rune", "frost_rune", "spark_rune", "venom_rune", "crimson_rune", "dust_rune",
+];
+
+// Map mainStat to a rune sprite name (fallback for old-format names like "Legendary Defensive Rune")
+const STAT_TO_SPRITE = {
+  attack_pct: "fury_rune", crit_chance: "wrath_rune", crit_dmg_pct: "rage_rune",
+  attack_speed: "storm_rune", boss_dmg_pct: "havoc_rune", lifesteal: "slayer_rune",
+  defense_pct: "ward_rune", hp_flat: "bastion_rune", block_chance: "aegis_rune",
+  hp_regen: "fortitude_rune", evasion: "sentinel_rune", mp_flat: "guardian_rune",
+  gold_pct: "fortune_rune", exp_pct: "insight_rune", drop_chance: "prosperity_rune",
+  fire_dmg: "ember_rune", ice_dmg: "frost_rune", lightning_dmg: "spark_rune",
+  poison_dmg: "venom_rune", blood_dmg: "crimson_rune", sand_dmg: "dust_rune",
+};
+
+function getRuneSprite(rune) {
+  // Try exact name match first (new format: "Fury Rune")
+  const nameKey = (rune.name || "").toLowerCase().replace(/ /g, "_");
+  if (RUNE_BASE_NAMES.includes(nameKey)) {
+    return `/sprites/runes/${nameKey}.png`;
+  }
+  // Try extracting base name from old format ("Legendary Defensive Rune" → look for known name)
+  for (const base of RUNE_BASE_NAMES) {
+    if (nameKey.includes(base.replace("_rune", ""))) {
+      return `/sprites/runes/${base}.png`;
+    }
+  }
+  // Fallback: use mainStat to determine sprite
+  if (rune.mainStat && STAT_TO_SPRITE[rune.mainStat]) {
+    return `/sprites/runes/${STAT_TO_SPRITE[rune.mainStat]}.png`;
+  }
+  // Final fallback: rarity-based sprite
+  return `/sprites/runes/rune_${rune.rarity || "common"}.png`;
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 export default function Runes({ character, onCharacterUpdate }) {
@@ -184,8 +223,8 @@ export default function Runes({ character, onCharacterUpdate }) {
     const rarity = RARITY_COLORS[rune.rarity] || RARITY_COLORS.common;
     const category = RUNE_CATEGORY_COLORS[rune.runeType] || RUNE_CATEGORY_COLORS.offensive;
     const isSelected = selectedRune?.id === rune.id;
-    const runeName = (rune.name || "").toLowerCase().replace(/ /g, "_");
-    const runeSprite = `/sprites/runes/${runeName}.png`;
+    const runeSprite = getRuneSprite(rune);
+    const isHighTier = ["legendary", "mythic", "set", "shiny"].includes(rune.rarity);
 
     return (
       <motion.div
@@ -202,7 +241,7 @@ export default function Runes({ character, onCharacterUpdate }) {
       >
         <div className="flex items-center gap-2 mb-1.5">
           <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${category.bg} border ${category.border}`}>
-            <img src={runeSprite} alt={rune.name} className="w-6 h-6" style={{ imageRendering: "pixelated" }} />
+            <img src={isHighTier ? `/sprites/runes/rune_${rune.rarity}.png` : runeSprite} alt="" className="w-6 h-6" style={{ imageRendering: "pixelated" }} />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-xs font-semibold text-white truncate">{rune.name}</p>
@@ -268,7 +307,7 @@ export default function Runes({ character, onCharacterUpdate }) {
                 className={`flex items-center gap-2 p-1.5 rounded-lg border ${runeRarity.border} ${runeRarity.bg} cursor-pointer hover:brightness-110`}
                 onClick={() => setSelectedRune(rune)}
               >
-                <img src={`/sprites/runes/${(rune.name || "").toLowerCase().replace(/ /g, "_")}.png`} alt="" className="w-4 h-4 flex-shrink-0" style={{ imageRendering: "pixelated" }} />
+                <img src={["legendary","mythic","set","shiny"].includes(rune.rarity) ? `/sprites/runes/rune_${rune.rarity}.png` : getRuneSprite(rune)} alt="" className="w-4 h-4 flex-shrink-0" style={{ imageRendering: "pixelated" }} />
                 <div className="flex-1 min-w-0">
                   <span className="text-[10px] font-semibold text-white truncate block">{rune.name}</span>
                   <span className={`text-[9px] ${runeRarity.text}`}>
