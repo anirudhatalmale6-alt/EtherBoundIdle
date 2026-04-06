@@ -4664,11 +4664,16 @@ router.post("/functions/petAction", async (req: Request, res: Response) => {
     const { characterId, action, petId } = req.body;
     if (!(await requireCharacterOwner(req, res, characterId))) return;
 
-    // === LIST PETS ===
+    // === LIST PETS (pets only, no static data — saves ~1MB per call) ===
     if (action === "list") {
       const pets = await db.select().from(petsTable).where(eq(petsTable.characterId, characterId));
+      sendSuccess(res, { pets });
+      return;
+    }
+
+    // === GET PET META (static data — cache on client, never changes) ===
+    if (action === "get_meta") {
       sendSuccess(res, {
-        pets,
         skillTrees: PET_SKILL_TREES,
         bondLevels: BOND_LEVELS,
         evolutionStages: PET_EVOLUTION_STAGES,

@@ -410,7 +410,7 @@ function PetsInner({ character, onCharacterUpdate }) {
   // Auras state
   const [auraData, setAuraData] = useState(null);
 
-  // ── Pets query ──
+  // ── Pets query (pets only, no static data) ──
   const { data: petData, isLoading: petsLoading, error: petsError } = useQuery({
     queryKey: ["pets", character?.id],
     queryFn: () => base44.functions.invoke("petAction", { characterId: character.id, action: "list" }),
@@ -418,8 +418,17 @@ function PetsInner({ character, onCharacterUpdate }) {
     retry: 1,
   });
 
+  // ── Pet meta (static data — cached indefinitely, ~1MB saved per pet list call) ──
+  const { data: petMeta } = useQuery({
+    queryKey: ["petMeta"],
+    queryFn: () => base44.functions.invoke("petAction", { characterId: character.id, action: "get_meta" }),
+    enabled: !!character?.id,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+
   const pets = petData?.pets || [];
-  const skillTrees = petData?.skillTrees || {};
+  const skillTrees = petMeta?.skillTrees || {};
   const equippedPet = pets.find(p => p.equipped);
   const unequippedPets = pets.filter(p => !p.equipped);
 
@@ -2018,9 +2027,9 @@ function PetsInner({ character, onCharacterUpdate }) {
               <Star className="w-3.5 h-3.5 text-amber-400" /> Secret Combos Reference
             </p>
             <p className="text-[10px] text-muted-foreground mb-3">Breed these pairs for a 25% chance to unlock a special pet!</p>
-            {(petData?.secretCombos || []).length > 0 ? (
+            {(petMeta?.secretCombos || []).length > 0 ? (
               <div className="space-y-2">
-                {(petData.secretCombos).map((combo, i) => (
+                {(petMeta.secretCombos).map((combo, i) => (
                   <div key={i} className="flex items-center gap-2 text-xs bg-gray-900/50 rounded-lg px-3 py-2">
                     <span className="text-lg">{SPECIES_ICONS[combo.parent1] || "🐾"}</span>
                     <span className="text-muted-foreground">{combo.parent1}</span>
