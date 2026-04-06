@@ -3787,21 +3787,7 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
         }
       } catch {}
 
-      // 4. Pet eggs ONLY drop from bosses (not regular monsters)
-      // Regular battle screen monsters do NOT drop pet eggs
-      try {
-        if (serverIsBoss) {
-          const petDropChance = 0.15 + (charLuck + petLuckBonus) * 0.0005;
-          if (Math.random() < petDropChance) {
-            const eggRarity = rollPetEggRarity(charLuck + petLuckBonus);
-            const eggDef = PET_EGG_TIERS[eggRarity];
-            await db.insert(itemsTable).values({
-              ownerId: characterId, name: eggDef.name, type: "consumable", rarity: eggRarity,
-              level: 1, stats: {}, extraData: { consumableType: "pet_egg", eggRarity, source: "boss_drop" },
-            });
-          }
-        }
-      } catch {}
+      // Pet eggs do NOT drop from normal battles — only from Dungeons, World Boss, Portal, Fields
     } catch (lootErr: any) {
       req.log.error({ err: lootErr }, "fight loot generation error");
     }
@@ -5276,15 +5262,7 @@ router.post("/functions/petExpedition", async (req: Request, res: Response) => {
         }).where(eq(petsTable.id, pet.id));
       }
 
-      // Generate pet egg item if rewarded (not direct pet)
-      if (rewards.petEgg) {
-        const eggRarity = Math.random() > 0.8 ? "rare" : Math.random() > 0.5 ? "uncommon" : "common";
-        const eggDef = PET_EGG_TIERS[eggRarity] || PET_EGG_TIERS.common;
-        await db.insert(itemsTable).values({
-          ownerId: characterId, name: eggDef.name, type: "consumable", rarity: eggRarity,
-          level: 1, stats: {}, extraData: { consumableType: "pet_egg", eggRarity, source: "expedition" },
-        });
-      }
+      // Pet eggs no longer drop from expeditions — only from Dungeons, World Boss, Portal, Fields
 
       // Equipment drop — chance based on expedition duration
       const equipDropChance = 0.1 + (expedition.duration / 86400) * 0.3; // 10% base + up to 30% for 24h
@@ -6428,6 +6406,23 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
               });
               d.combat_log.push({ type: "system", text: `Unique Loot: ${loot.name} (${portalRarity})` });
               d.totalRewards.loot.push(loot.name);
+            }
+          } catch {}
+        }
+
+        // Pet egg drop on boss waves (every 10th wave)
+        if (rewards.gold > 0) {
+          try {
+            const isBossWaveForEgg = wave % 10 === 0;
+            const eggChance = isBossWaveForEgg ? 0.20 : 0.05;
+            if (Math.random() < eggChance) {
+              const eggRarity = rollPetEggRarity(char.luck || 5);
+              const eggDef = PET_EGG_TIERS[eggRarity];
+              await db.insert(itemsTable).values({
+                ownerId: characterId, name: eggDef.name, type: "consumable", rarity: eggRarity,
+                level: 1, stats: {}, extraData: { consumableType: "pet_egg", eggRarity, source: "portal" },
+              });
+              d.combat_log.push({ type: "system", text: `Pet Egg drop: ${eggDef.name}!` });
             }
           } catch {}
         }
@@ -8295,6 +8290,20 @@ router.post("/functions/fieldAction", async (req: Request, res: Response) => {
             }
           } catch {}
         }
+
+        // Pet egg drop from fields (higher chance on risk path)
+        try {
+          const eggChance = isRiskPath ? 0.12 : 0.06;
+          if (Math.random() < eggChance) {
+            const eggRarity = rollPetEggRarity(char.luck || 5);
+            const eggDef = PET_EGG_TIERS[eggRarity];
+            await db.insert(itemsTable).values({
+              ownerId: characterId, name: eggDef.name, type: "consumable", rarity: eggRarity,
+              level: 1, stats: {}, extraData: { consumableType: "pet_egg", eggRarity, source: "fields" },
+            });
+            combatLog.push({ type: "system", text: `Pet Egg drop: ${eggDef.name}!`, ts: Date.now() });
+          }
+        } catch {}
 
         combatLog.push({ type: "system", text: "Choose your path: Risk (harder, better rewards) or Safe (easier). Select your modifiers!", ts: Date.now() });
 
