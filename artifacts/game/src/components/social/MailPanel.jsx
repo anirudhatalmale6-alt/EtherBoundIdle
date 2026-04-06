@@ -22,14 +22,14 @@ export default function MailPanel({ character, onCharacterUpdate }) {
 
   const { data: inbox = [] } = useQuery({
     queryKey: ["mail_inbox", character.id],
-    queryFn: () => base44.entities.Mail.filter({ to_character_id: character.id }),
+    queryFn: () => base44.entities.Mail.filter({ to_character_id: character.id }, "-created_date", 50),
     refetchInterval: pollInterval,
     staleTime: POLL_INTERVALS.GAME_STATE,
   });
 
   const { data: sent = [] } = useQuery({
     queryKey: ["mail_sent", character.id],
-    queryFn: () => base44.entities.Mail.filter({ from_character_id: character.id }),
+    queryFn: () => base44.entities.Mail.filter({ from_character_id: character.id }, "-created_date", 50),
   });
 
   const sendMutation = useMutation({

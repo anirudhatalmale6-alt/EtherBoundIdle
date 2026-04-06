@@ -52,8 +52,8 @@ export default function ChatWindow({ character, channel = "global", guildId = nu
     queryFn: async () => {
       if (!character?.id) return [];
       const [sent, received] = await Promise.all([
-        base44.entities.PrivateMessage.filter({ from_character_id: character.id }),
-        base44.entities.PrivateMessage.filter({ to_character_id: character.id }),
+        base44.entities.PrivateMessage.filter({ from_character_id: character.id }, "-created_date", 50),
+        base44.entities.PrivateMessage.filter({ to_character_id: character.id }, "-created_date", 50),
       ]);
       return [...sent, ...received].sort(
         (a, b) => new Date(a.created_at || 0) - new Date(b.created_at || 0)
@@ -61,7 +61,7 @@ export default function ChatWindow({ character, channel = "global", guildId = nu
     },
     refetchInterval: pollInterval,
     staleTime: POLL_INTERVALS.SOCIAL,
-    enabled: !!character?.id,
+    enabled: !!character?.id && activeTab === "whisper",
   });
 
   // --- Send chat message mutation ---
