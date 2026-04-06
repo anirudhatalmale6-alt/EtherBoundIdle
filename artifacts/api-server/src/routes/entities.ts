@@ -408,16 +408,17 @@ router.get("/entities/:entity", async (req: Request, res: Response) => {
       }
     }
 
-    // Force a max limit on PartyActivity and Presence to prevent huge payloads
-    if (entity === "PartyActivity") {
-      const cap = limitParam ? Math.min(Number(limitParam), 20) : 20;
-      query = (query as any).limit(cap);
-    } else if (entity === "Presence") {
-      const cap = limitParam ? Math.min(Number(limitParam), 30) : 30;
-      query = (query as any).limit(cap);
-    } else if (limitParam) {
-      query = (query as any).limit(Number(limitParam));
-    }
+    // Enforce query limits to prevent egress explosions
+    const ENTITY_MAX_LIMITS: Record<string, number> = {
+      PartyActivity: 20,
+      Presence: 30,
+      ChatMessage: 100,
+      PrivateMessage: 50,
+      Mail: 50,
+    };
+    const maxLimit = ENTITY_MAX_LIMITS[entity] || 200; // global default cap
+    const requestedLimit = limitParam ? Number(limitParam) : maxLimit;
+    query = (query as any).limit(Math.min(requestedLimit, maxLimit));
 
     const rows = await query;
     sendSuccess(res, rows.map((r: any) => toClient(entity, r)));

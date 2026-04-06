@@ -33,7 +33,7 @@ export default function PartyPanel({ character }) {
       const led = await base44.entities.Party.filter({ leader_id: character.id });
       const active = led.find(p => p.status !== 'disbanded');
       if (active) return active;
-      const all = await base44.entities.Party.list('-updated_date', 50);
+      const all = await base44.entities.Party.list('-updated_date', 20);
       return all.find(p => p.status !== 'disbanded' && p.members?.some(m => m.character_id === character.id)) || null;
     },
     enabled: !!character?.id,

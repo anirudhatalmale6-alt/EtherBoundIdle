@@ -106,10 +106,11 @@ export default function AdminPanel() {
   const { data: allGuilds = [] } = useQuery({
     queryKey: ["allGuilds"],
     queryFn: async () => {
-      const res = await base44.entities.Guild.list();
+      const res = await base44.entities.Guild.list(undefined, 50);
       return res || [];
     },
     enabled: isAdmin,
+    staleTime: 120000,
   });
 
   const deleteGuildMutation = useMutation({
@@ -125,8 +126,7 @@ export default function AdminPanel() {
     queryKey: ["serverPlayers"],
     queryFn: () => base44.entities.Character.list("-level", 100),
     enabled: isAdmin,
-    refetchInterval: pollInterval,
-    staleTime: POLL_INTERVALS.BACKGROUND,
+    staleTime: 120000,
   });
 
   const updateStatsMutation = useMutation({
