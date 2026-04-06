@@ -127,9 +127,10 @@ const RARITY_TO_TIER = {
 
 // Number of sprites available per item subtype per tier
 const WEAPON_SPRITE_COUNTS = {
-  staff:    { common: 64, rare: 64, legendary: 32 },
-  wand:     { common: 64, rare: 64, legendary: 32 },
-  light:    { common: 29, rare: 22, legendary: 20 },
+  staff:      { common: 64, rare: 64, legendary: 32 },
+  wand:       { common: 64, rare: 64, legendary: 32 },
+  light:      { common: 29, rare: 22, legendary: 20 },
+  cloth_helm: { common: 63, rare: 34, legendary: 26 },
 };
 
 // Simple hash from item ID or name to get a consistent sprite index
@@ -147,7 +148,8 @@ function spriteHash(str) {
  */
 function getEquipmentSprite(item) {
   if (!item) return null;
-  const subtype = item.subtype;
+  const extra = item.extraData || item.extra_data || {};
+  const subtype = item.subtype || extra.subtype;
   if (!subtype || !WEAPON_SPRITE_COUNTS[subtype]) return null;
   const tier = RARITY_TO_TIER[item.rarity] || "common";
   const count = WEAPON_SPRITE_COUNTS[subtype][tier];
