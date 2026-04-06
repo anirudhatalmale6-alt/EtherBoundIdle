@@ -98,7 +98,7 @@ function PortalCombat({ session: initialSession, character, onLeave }) {
         if (res?.session) setSession(res.session);
         if (res?.success === false) onLeave(); // session ended
       } catch {}
-    }, combatPollInterval || 5000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [session?.id, character.id]);
 
@@ -116,7 +116,7 @@ function PortalCombat({ session: initialSession, character, onLeave }) {
       }
       const timer = setTimeout(() => {
         if (autoFightRef.current) doAction("attack");
-      }, 1500);
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [autoFight, session, loading, doAction, character.id]);
@@ -536,7 +536,7 @@ function PortalLobby({ session: initialSession, character, onLeave, onStart }) {
           if (res.session.status === "combat") onStart(res.session);
         }
       } catch {}
-    }, 3000);
+    }, 15000);
     return () => clearInterval(interval);
   }, [session.id, session.status, character.id]);
 
