@@ -131,6 +131,8 @@ const WEAPON_SPRITE_COUNTS = {
   wand:       { common: 64, rare: 64, legendary: 32 },
   light:      { common: 29, rare: 22, legendary: 20 },
   cloth_helm: { common: 63, rare: 34, legendary: 26 },
+  heavy:      { common: 30, rare: 31, legendary: 29 },
+  plate_helm: { common: 23, rare: 27, legendary: 20 },
 };
 
 // Simple hash from item ID or name to get a consistent sprite index
