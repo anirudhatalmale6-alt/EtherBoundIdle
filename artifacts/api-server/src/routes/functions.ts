@@ -6251,7 +6251,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
         // All dead — advance wave
         d.status = "wave_clear";
         await db.update(portalSessionsTable).set({ data: d }).where(eq(portalSessionsTable.id, session.id));
-        sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...d, members } });
+        const _ta1 = { ...d, combat_log: (d.combat_log || []).slice(-10) };
+        sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ..._ta1, members } });
         return;
       }
 
@@ -6462,7 +6463,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
 
         members[meIdx] = me;
         await db.update(portalSessionsTable).set({ wave: nextWave, data: d, members }).where(eq(portalSessionsTable.id, session.id));
-        sendSuccess(res, { success: true, session: { id: session.id, wave: nextWave, status: "combat", ...d, members } });
+        const _ta2 = { ...d, combat_log: (d.combat_log || []).slice(-10) };
+        sendSuccess(res, { success: true, session: { id: session.id, wave: nextWave, status: "combat", ..._ta2, members } });
         return;
       }
 
@@ -6504,7 +6506,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
         d.status = "defeat";
         d.finalWave = wave;
         await db.update(portalSessionsTable).set({ status: "defeat", data: d, members }).where(eq(portalSessionsTable.id, session.id));
-        sendSuccess(res, { success: true, session: { id: session.id, wave, status: "defeat", ...d, members } });
+        const _ta3 = { ...d, combat_log: (d.combat_log || []).slice(-10) };
+        sendSuccess(res, { success: true, session: { id: session.id, wave, status: "defeat", ..._ta3, members } });
         return;
       }
 
@@ -6525,7 +6528,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
       d.enemies = enemies;
 
       await db.update(portalSessionsTable).set({ data: d, members }).where(eq(portalSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ...d, members } });
+      const _ta4 = { ...d, combat_log: (d.combat_log || []).slice(-10) };
+      sendSuccess(res, { success: true, session: { id: session.id, wave: session.wave, status: session.status, ..._ta4, members } });
       return;
     }
 
@@ -6687,7 +6691,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
 
                 pMembers[turnIdx] = afkMember;
                 await db.update(portalSessionsTable).set({ wave: nextWave, data: pd, members: pMembers }).where(eq(portalSessionsTable.id, s.id));
-                sendSuccess(res, { success: true, session: { id: s.id, wave: nextWave, status: "combat", ...pd, members: pMembers } });
+                const _tp1 = { ...pd, combat_log: (pd.combat_log || []).slice(-10) };
+                sendSuccess(res, { success: true, session: { id: s.id, wave: nextWave, status: "combat", ..._tp1, members: pMembers } });
                 return;
               } else {
                 // Enemy counter-attacks the AFK player
@@ -6722,7 +6727,8 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
                   pd.status = "defeat";
                   pd.finalWave = wave;
                   await db.update(portalSessionsTable).set({ status: "defeat", data: pd, members: pMembers }).where(eq(portalSessionsTable.id, s.id));
-                  sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: "defeat", ...pd, members: pMembers } });
+                  const _tp2 = { ...pd, combat_log: (pd.combat_log || []).slice(-10) };
+                  sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: "defeat", ..._tp2, members: pMembers } });
                   return;
                 }
               }
@@ -6739,14 +6745,17 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
               pd.enemies = enemies;
               pMembers[turnIdx] = afkMember;
               await db.update(portalSessionsTable).set({ data: pd, members: pMembers }).where(eq(portalSessionsTable.id, s.id));
-              sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...pd, members: pMembers } });
+              const _tp3 = { ...pd, combat_log: (pd.combat_log || []).slice(-10) };
+              sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ..._tp3, members: pMembers } });
               return;
             }
           }
         }
       }
 
-      sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...pd, members: pMembers } });
+      // Trim combat_log to last 10 entries to reduce payload (was 28kB+)
+      const trimmedPd = { ...pd, combat_log: (pd.combat_log || []).slice(-10) };
+      sendSuccess(res, { success: true, session: { id: s.id, wave: s.wave, status: s.status, ...trimmedPd, members: pMembers } });
       return;
     }
 
