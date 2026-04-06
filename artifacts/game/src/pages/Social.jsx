@@ -89,28 +89,25 @@ export default function Social({ character, onCharacterUpdate }) {
   // Unread mail count
   const { data: unreadMail = [] } = useQuery({
     queryKey: ["mail_unread", character?.id],
-    queryFn: () => base44.entities.Mail.filter({ to_character_id: character?.id, is_read: false }),
+    queryFn: () => base44.entities.Mail.filter({ to_character_id: character?.id, is_read: false }, undefined, 20),
     enabled: !!character?.id,
-    refetchInterval: bgPollInterval,
-    staleTime: POLL_INTERVALS.BACKGROUND,
+    staleTime: 60000,
   });
 
   // Pending trade count
   const { data: pendingTrades = [] } = useQuery({
     queryKey: ["trades_pending", character?.id],
-    queryFn: () => base44.entities.TradeSession.filter({ receiver_id: character?.id, status: "pending" }),
+    queryFn: () => base44.entities.TradeSession.filter({ receiver_id: character?.id, status: "pending" }, undefined, 10),
     enabled: !!character?.id,
-    refetchInterval: socialPollInterval,
-    staleTime: POLL_INTERVALS.SOCIAL,
+    staleTime: 60000,
   });
 
   // Friend requests count — reuses same query key as FriendPanel, no duplicate fetch
   const { data: pendingRequests = [] } = useQuery({
     queryKey: ["friend_requests_in", character?.id],
-    queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character?.id, status: "pending" }),
+    queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character?.id, status: "pending" }, undefined, 20),
     enabled: !!character?.id,
-    refetchInterval: socialPollInterval,
-    staleTime: POLL_INTERVALS.SOCIAL,
+    staleTime: 60000,
   });
 
   if (!character) return null;

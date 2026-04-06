@@ -59,8 +59,7 @@ export default function Leaderboard({ character }) {
       const res = await base44.functions.invoke("getLeaderboard", { type: "level" });
       return res?.leaderboard || [];
     },
-    refetchInterval: pollInterval,
-    staleTime: POLL_INTERVALS.BACKGROUND,
+    staleTime: 120000,
   });
 
   const { data: playerRoles = {} } = useQuery({
@@ -69,8 +68,7 @@ export default function Leaderboard({ character }) {
       const res = await base44.functions.invoke("getPlayerRoles", {});
       return res || {};
     },
-    refetchInterval: pollInterval,
-    staleTime: POLL_INTERVALS.BACKGROUND,
+    staleTime: 120000,
   });
 
   useQuery({

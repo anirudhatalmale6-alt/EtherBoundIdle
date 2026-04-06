@@ -25,8 +25,12 @@ export const base44 = {
             method: "DELETE",
           });
         },
-        async list() {
-          return apiFetch(`/entities/${entity}`);
+        async list(sort, limit) {
+          const params = new URLSearchParams();
+          if (sort) params.set("sort", sort);
+          if (limit) params.set("limit", String(limit));
+          const qs = params.toString();
+          return apiFetch(`/entities/${entity}${qs ? `?${qs}` : ""}`);
         },
         async filter(query = {}, sort, limit) {
           const params = new URLSearchParams();

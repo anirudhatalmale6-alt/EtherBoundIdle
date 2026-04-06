@@ -35,30 +35,28 @@ export default function FriendPanel({ character, onWhisper }) {
 
   const { data: friends = [] } = useQuery({
     queryKey: ["friends", character.id],
-    queryFn: () => base44.entities.Friendship.filter({ character_id: character.id }),
-    refetchInterval: socialPollInterval,
-    staleTime: POLL_INTERVALS.SOCIAL,
+    queryFn: () => base44.entities.Friendship.filter({ character_id: character.id }, undefined, 50),
+    staleTime: 60000,
   });
 
   const { data: presences = [] } = useQuery({
     queryKey: ["presences"],
-    queryFn: () => base44.entities.Presence.list("-last_seen", 100),
+    queryFn: () => base44.entities.Presence.list("-last_seen", 30),
     refetchInterval: socialPollInterval,
-    staleTime: POLL_INTERVALS.SOCIAL,
+    staleTime: 60000,
   });
 
   const { data: incomingRequests = [] } = useQuery({
     queryKey: ["friend_requests_in", character.id],
-    queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character.id, status: "pending" }),
+    queryFn: () => base44.entities.FriendRequest.filter({ to_character_id: character.id, status: "pending" }, undefined, 20),
     refetchInterval: socialPollInterval,
     staleTime: POLL_INTERVALS.SOCIAL,
   });
 
   const { data: outgoingRequests = [] } = useQuery({
     queryKey: ["friend_requests_out", character.id],
-    queryFn: () => base44.entities.FriendRequest.filter({ from_character_id: character.id, status: "pending" }),
-    refetchInterval: socialPollInterval,
-    staleTime: POLL_INTERVALS.SOCIAL,
+    queryFn: () => base44.entities.FriendRequest.filter({ from_character_id: character.id, status: "pending" }, undefined, 20),
+    staleTime: 60000,
   });
 
   // Polling already handles friend requests (15s) and friends (30s) — no-op subscribe removed
