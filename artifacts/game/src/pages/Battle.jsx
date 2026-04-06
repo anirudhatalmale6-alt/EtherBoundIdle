@@ -85,6 +85,8 @@ export default function Battle({ character, onCharacterUpdate }) {
   const enemyDeadRef = useRef(false);
   const lastBattleBroadcastRef = useRef(0);
   const lastPresenceUpdateRef = useRef(0);
+  const pendingDamageRef = useRef(0);
+  const lastDamageReportRef = useRef(0);
 
   const [lastPetInfo, setLastPetInfo] = useState(null);
   const queryClient = useQueryClient();
@@ -461,20 +463,30 @@ export default function Battle({ character, onCharacterUpdate }) {
     const mpRegenPerTurn = Math.max(Math.ceil(derived.mpRegen || 0), Math.floor(actualMaxMp * MP_REGEN_PER_TURN));
     setPlayerMp(prev => Math.min(actualMaxMp, prev + mpRegenPerTurn));
 
-    // In shared battle, report damage to server and use server HP
+    // In shared battle, accumulate damage and report every 10s (not every attack)
     let newEnemyHp;
     let serverKilled = false;
     if (isSharedBattle && partyData?.id) {
-      try {
-        const dmgRes = await base44.functions.invoke("partyBattleAction", {
-          action: "report_damage",
-          partyId: partyData.id,
-          characterId: character.id,
-          damage: totalDamageDealt,
-        });
-        newEnemyHp = dmgRes?.currentHp ?? Math.max(0, enemyHp - totalDamageDealt);
-        serverKilled = dmgRes?.killed || false;
-      } catch {
+      pendingDamageRef.current += totalDamageDealt;
+      const now = Date.now();
+      const shouldReport = now - lastDamageReportRef.current > 10000 || (enemyHp - totalDamageDealt) <= 0;
+      if (shouldReport && pendingDamageRef.current > 0) {
+        lastDamageReportRef.current = now;
+        const batchedDmg = pendingDamageRef.current;
+        pendingDamageRef.current = 0;
+        try {
+          const dmgRes = await base44.functions.invoke("partyBattleAction", {
+            action: "report_damage",
+            partyId: partyData.id,
+            characterId: character.id,
+            damage: batchedDmg,
+          });
+          newEnemyHp = dmgRes?.currentHp ?? Math.max(0, enemyHp - totalDamageDealt);
+          serverKilled = dmgRes?.killed || false;
+        } catch {
+          newEnemyHp = Math.max(0, enemyHp - totalDamageDealt);
+        }
+      } else {
         newEnemyHp = Math.max(0, enemyHp - totalDamageDealt);
       }
     } else {
@@ -1017,7 +1029,7 @@ export default function Battle({ character, onCharacterUpdate }) {
       } catch {}
     };
     poll();
-    const interval = setInterval(poll, 15000);
+    const interval = setInterval(poll, 30000);
     return () => clearInterval(interval);
   }, [isSharedBattle, partyData?.id, character?.id, enemy?.key, enemy?.spawned_at, combatPhase, handleEnemyDefeat]);
 
