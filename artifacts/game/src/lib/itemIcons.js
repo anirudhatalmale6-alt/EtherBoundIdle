@@ -129,7 +129,7 @@ const RARITY_TO_TIER = {
 const WEAPON_SPRITE_COUNTS = {
   wand:       { common: 64, rare: 62, legendary: 64 },
   light:      { common: 64, rare: 64, legendary: 64 },
-  cloth_helm: { common: 63, rare: 34, legendary: 26 },
+  cloth_helm: { common: 48, rare: 64, legendary: 64 },
   heavy:      { common: 30, rare: 31, legendary: 29 },
   plate_helm: { common: 23, rare: 27, legendary: 20 },
   sword:      { common: 32, rare: 32, legendary: 32 },
