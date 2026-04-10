@@ -2131,6 +2131,8 @@ async function calculateDungeonMemberStats(charId: number, char: any) {
     fire_dmg: "fire_dmg", ice_dmg: "ice_dmg", lightning_dmg: "lightning_dmg",
     poison_dmg: "poison_dmg", blood_dmg: "blood_dmg", sand_dmg: "sand_dmg",
     boss_dmg_pct: "boss_dmg_pct",
+    hp_regen: "hp_regen", mp_regen: "mp_regen",
+    exp_pct: "exp_gain_pct", gold_pct: "gold_gain_pct", drop_chance: "drop_chance",
   };
   let bossDmgPct = 0;
   try {
@@ -2676,9 +2678,9 @@ function generateTowerFloor(floor: number) {
   const isCentennial = floor % 100 === 0;
   const tier = getTowerEnemyTier(floor);
   const multiEnemy = floor >= TOWER_MULTI_ENEMY_FLOOR && !isBoss;
-  const baseHp = 200 + floor * 50 + Math.pow(floor, 1.4) * 2;
-  const baseDmg = 10 + floor * 3 + Math.pow(floor, 1.2) * 0.5;
-  const baseArmor = Math.floor(floor * 0.5 + Math.pow(floor, 0.8));
+  const baseHp = 200 + floor * 50 + Math.pow(floor, 1.6) * 3;
+  const baseDmg = 10 + floor * 3 + Math.pow(floor, 1.4) * 1;
+  const baseArmor = Math.floor(floor * 0.5 + Math.pow(floor, 1.0));
 
   if (isCentennial) {
     return {
@@ -6025,6 +6027,7 @@ router.post("/functions/portalAction", async (req: Request, res: Response) => {
       d.isBossWave = waveData.isBossWave;
       d.wave = 1;
       d.status = "combat";
+      d.portalLevel = level;
       d.currentEnemyIndex = 0;
       // Turn-based only for groups (2+ players)
       if (members.length > 1) {
@@ -7393,6 +7396,9 @@ router.post("/functions/worldBossAction", async (req: Request, res: Response) =>
               subtype: gear.subtype || undefined,
               class_restriction: gear.class_restriction || null,
               level_req: gearLevel,
+              proc_effects: gear.proc_effects || [],
+              uniqueEffect: gear.uniqueEffect || null,
+              lore: gear.lore || null,
             },
           });
           rewardItems.push(`${gear.name} (${gearRarity})`);
@@ -7832,9 +7838,9 @@ function generateFieldEnemies(fieldNumber: number, element: string, isRiskPath: 
     if (eff.enemy_armor_mult) armorMult *= eff.enemy_armor_mult;
   }
 
-  const baseHp = 200 + fieldNumber * 80;
-  const baseDmg = 15 + fieldNumber * 6;
-  const baseArmor = 5 + fieldNumber * 3;
+  const baseHp = 200 + fieldNumber * 80 + Math.pow(fieldNumber, 1.4) * 5;
+  const baseDmg = 15 + fieldNumber * 6 + Math.pow(fieldNumber, 1.3) * 1.5;
+  const baseArmor = 5 + fieldNumber * 3 + Math.pow(fieldNumber, 1.1) * 0.5;
 
   for (let i = 0; i < count; i++) {
     const template = templates[Math.floor(Math.random() * templates.length)];

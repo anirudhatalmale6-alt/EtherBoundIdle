@@ -93,6 +93,14 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
     enabled: !!character?.id,
     staleTime: 60000,
   });
+
+  const { data: runeData } = useQuery({
+    queryKey: ["runesForStats", character?.id],
+    queryFn: () => base44.functions.invoke("runes", { characterId: character.id, action: "list" }),
+    enabled: !!character?.id,
+    staleTime: 60000,
+  });
+  const equippedRunes = (runeData?.runes || []).filter(r => r.itemId);
   const equippedPetForStats = (petData?.pets || []).find(p => p.equipped);
 
   const statMutation = useMutation({
@@ -103,7 +111,7 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
         updates[key] = (character[key] || 10) + val;
       }
       const tempChar = { ...character, ...updates };
-      const { derived } = calculateFinalStats(tempChar, equippedItems);
+      const { derived } = calculateFinalStats(tempChar, equippedItems, null, equippedRunes);
       updates.max_hp = derived.maxHp;
       updates.max_mp = derived.maxMp;
       updates.hp = derived.maxHp;
@@ -141,7 +149,7 @@ export default function CharacterProfileModal({ character, onCharacterUpdate, on
   for (const [k, v] of Object.entries(pendingStats)) {
     previewChar[k] = (character[k] || 10) + v;
   }
-  const { base, equipBonus, total, derived } = calculateFinalStats(previewChar, equippedItems);
+  const { base, equipBonus, total, derived } = calculateFinalStats(previewChar, equippedItems, null, equippedRunes);
   derived.lootBonus = Math.min(50, Math.round((total.luck || 0) * 0.5));
 
   // Add guild + pet bonuses to EXP/Gold display so player sees total

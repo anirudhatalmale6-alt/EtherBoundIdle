@@ -1022,7 +1022,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         // Load a NEW shared enemy (different from current)
         if (se.key && se.currentHp > 0 && (!enemy || enemy.key !== se.key || enemy.spawned_at !== se.spawned_at)) {
           // Don't swap enemies mid-fight — only load when idle or enemy_dead
-          if (enemy && combatPhase === "player_turn" || combatPhase === "enemy_turn") {
+          if (enemy && (combatPhase === "player_turn" || combatPhase === "enemy_turn")) {
             // If we're fighting our own pre-party enemy, let it finish naturally
             if (enemy.spawned_at !== se.spawned_at) return;
           }
