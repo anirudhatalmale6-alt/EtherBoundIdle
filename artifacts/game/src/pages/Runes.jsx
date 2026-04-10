@@ -452,8 +452,8 @@ export default function Runes({ character, onCharacterUpdate }) {
               <div className="grid grid-cols-2 gap-3 mb-3">
                 <div className="bg-gray-900/50 rounded-lg p-2.5">
                   <p className="text-[9px] text-muted-foreground mb-1">MAIN STAT</p>
-                  <p className={`text-sm font-bold ${RARITY_COLORS[selectedRune.rarity]?.text}`}>
-                    {RUNE_STAT_LABELS[selectedRune.mainStat]} +{selectedRune.mainValue}
+                  <p className={`text-sm font-bold ${RARITY_COLORS[selectedRune.rarity]?.text || "text-gray-400"}`}>
+                    {RUNE_STAT_LABELS[selectedRune.mainStat] || selectedRune.mainStat || "Unknown"} +{selectedRune.mainValue || 0}
                   </p>
                 </div>
                 <div className="bg-gray-900/50 rounded-lg p-2.5">

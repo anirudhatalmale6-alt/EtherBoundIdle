@@ -67,9 +67,10 @@ export default function Quests({ character, onCharacterUpdate }) {
     },
   });
 
-  const dailyQuests = quests.filter(q => q.type === "daily" && (q.status === "active" || q.status === "completed"));
-  const weeklyQuests = quests.filter(q => q.type === "weekly" && (q.status === "active" || q.status === "completed"));
-  const storyQuests = quests.filter(q => q.type === "story" && (q.status === "active" || q.status === "completed"));
+  const sortByCompleted = (a, b) => (b.status === "completed" ? 1 : 0) - (a.status === "completed" ? 1 : 0);
+  const dailyQuests = quests.filter(q => q.type === "daily" && (q.status === "active" || q.status === "completed")).sort(sortByCompleted);
+  const weeklyQuests = quests.filter(q => q.type === "weekly" && (q.status === "active" || q.status === "completed")).sort(sortByCompleted);
+  const storyQuests = quests.filter(q => q.type === "story" && (q.status === "active" || q.status === "completed")).sort(sortByCompleted);
 
   const QuestCard = ({ quest, idx }) => {
     const targetCount = quest.target || 1;

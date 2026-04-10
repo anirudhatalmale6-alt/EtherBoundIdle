@@ -583,14 +583,23 @@ export default function Inventory({ character, onCharacterUpdate }) {
     }, {});
   const stackedConsumables = Object.values(consumableStacks);
 
-  // Special items: materials, stones, tammablocks, tower shards, pet eggs
-  const specialItems = items.filter(i =>
-    i.type === "material" || i.type === "pet_egg" || i.type === "stone" ||
-    i.name?.toLowerCase().includes("tammablocks") ||
-    i.name?.toLowerCase().includes("tower shard") ||
-    i.name?.toLowerCase().includes("celestial stone") ||
-    i.name?.toLowerCase().includes("egg")
-  );
+  // Special items: materials, stones, tammablocks, tower shards, pet eggs — stacked by name
+  const specialStacks = items
+    .filter(i =>
+      i.type === "material" || i.type === "pet_egg" || i.type === "stone" ||
+      i.name?.toLowerCase().includes("tammablocks") ||
+      i.name?.toLowerCase().includes("tower shard") ||
+      i.name?.toLowerCase().includes("celestial stone") ||
+      i.name?.toLowerCase().includes("egg")
+    )
+    .reduce((acc, item) => {
+      const key = item.name;
+      if (!acc[key]) acc[key] = { ...item, stackCount: 0, stackIds: [] };
+      acc[key].stackCount++;
+      acc[key].stackIds.push(item.id);
+      return acc;
+    }, {});
+  const specialItems = Object.values(specialStacks);
 
   // Virtual currency items from character.extraData — displayed in Special tab
   const extraData = character?.extraData || character?.extra_data || {};

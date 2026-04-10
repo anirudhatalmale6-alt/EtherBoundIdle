@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +25,14 @@ export default function GuildBoss({ guild, myMemberEntry, character, onAttack, o
   const myDmgToday = myMemberEntry?.boss_damage_today || 0;
 
   const expiresAt = guild.boss_expires_at ? new Date(guild.boss_expires_at) : null;
-  const timeLeft = expiresAt ? Math.max(0, Math.floor((expiresAt - Date.now()) / 1000 / 60)) : 0;
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  const timeLeftSec = expiresAt ? Math.max(0, Math.floor((expiresAt - now) / 1000)) : 0;
+  const timeLeft = Math.floor(timeLeftSec / 60);
+  const timeLeftStr = timeLeftSec >= 60 ? `${timeLeft}m ${timeLeftSec % 60}s` : `${timeLeftSec}s`;
 
   const members = guild.members || [];
   const topDamage = [...members].sort((a, b) => (b.boss_damage_today || 0) - (a.boss_damage_today || 0)).slice(0, 5);
@@ -44,7 +51,7 @@ export default function GuildBoss({ guild, myMemberEntry, character, onAttack, o
                 <div className="flex items-center gap-2 mt-1">
                   <Badge className="bg-destructive/20 text-destructive border-destructive/30 text-xs">ACTIVE</Badge>
                   <span className="text-xs text-muted-foreground flex items-center gap-1">
-                    <Timer className="w-3 h-3" /> {timeLeft}m left
+                    <Timer className="w-3 h-3" /> {timeLeftStr} left
                   </span>
                 </div>
               </div>
