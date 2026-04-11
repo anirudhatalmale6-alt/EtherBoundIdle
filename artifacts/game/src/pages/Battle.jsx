@@ -860,7 +860,14 @@ export default function Battle({ character, onCharacterUpdate }) {
           const cs = localCombat.combatState;
           const enemyData = ENEMIES[cs.enemy_key];
           if (enemyData && cs.enemy_hp > 0 && (cs.phase === 'player_turn' || cs.phase === 'enemy_turn')) {
-            setEnemy({ ...enemyData, key: cs.enemy_key, maxHp: cs.enemy_max_hp });
+            setEnemy({
+              ...enemyData, key: cs.enemy_key, maxHp: cs.enemy_max_hp,
+              level: cs.enemy_level || 1,
+              dmg: cs.enemy_dmg || enemyData.baseDmg || 10,
+              defense: cs.enemy_defense || enemyData.defense || 0,
+              isElite: cs.enemy_is_elite || enemyData.isElite || false,
+              isEmpowered: cs.enemy_is_empowered || false,
+            });
             setEnemyHp(cs.enemy_hp);
             setPlayerHp(cs.player_hp > 0 ? cs.player_hp : actualMaxHp);
             setPlayerMp(cs.player_mp >= 0 ? cs.player_mp : actualMaxMp);
@@ -880,7 +887,14 @@ export default function Battle({ character, onCharacterUpdate }) {
           const cs = session.combat_state;
           const enemyData = ENEMIES[cs.enemy_key];
           if (enemyData && cs.enemy_hp > 0 && (cs.phase === 'player_turn' || cs.phase === 'enemy_turn')) {
-            setEnemy({ ...enemyData, key: cs.enemy_key, maxHp: cs.enemy_max_hp });
+            setEnemy({
+              ...enemyData, key: cs.enemy_key, maxHp: cs.enemy_max_hp,
+              level: cs.enemy_level || 1,
+              dmg: cs.enemy_dmg || enemyData.baseDmg || 10,
+              defense: cs.enemy_defense || enemyData.defense || 0,
+              isElite: cs.enemy_is_elite || enemyData.isElite || false,
+              isEmpowered: cs.enemy_is_empowered || false,
+            });
             setEnemyHp(cs.enemy_hp);
             setPlayerHp(cs.player_hp > 0 ? cs.player_hp : actualMaxHp);
             setPlayerMp(cs.player_mp >= 0 ? cs.player_mp : actualMaxMp);
@@ -1152,6 +1166,11 @@ export default function Battle({ character, onCharacterUpdate }) {
         enemy_key: enemy.key,
         enemy_hp: enemyHp,
         enemy_max_hp: enemy.maxHp,
+        enemy_level: enemy.level,
+        enemy_dmg: enemy.dmg,
+        enemy_defense: enemy.defense,
+        enemy_is_elite: enemy.isElite,
+        enemy_is_empowered: enemy.isEmpowered,
         player_hp: playerHp,
         player_mp: playerMp,
         phase: combatPhase,
