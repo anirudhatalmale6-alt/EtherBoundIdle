@@ -41,12 +41,15 @@ import { useCharacterAutoSave } from "./hooks/useCharacterAutoSave";
 import { idleEngine } from "@/lib/idleEngine";
 
 const GameApp = () => {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
 
   const [character, setCharacterState] = useState(() => {
     try {
       const saved = sessionStorage.getItem('activeCharacter');
-      return saved ? JSON.parse(saved) : null;
+      if (!saved) return null;
+      const parsed = JSON.parse(saved);
+      // Will be validated against current user in useEffect below
+      return parsed;
     } catch { return null; }
   });
   const [showCharacterSelection, setShowCharacterSelection] = useState(() => {
@@ -55,6 +58,17 @@ const GameApp = () => {
       return !saved;
     } catch { return true; }
   });
+
+  // Validate cached character belongs to current user — prevents cross-account leaks
+  useEffect(() => {
+    if (!user?.id || !character) return;
+    if (character.created_by && character.created_by !== user.id) {
+      // Cached character belongs to a different account — clear it
+      try { sessionStorage.removeItem('activeCharacter'); } catch {}
+      setCharacterState(null);
+      setShowCharacterSelection(true);
+    }
+  }, [user?.id, character?.created_by]);
 
   useEffect(() => {
     if (!character?.id) return;
