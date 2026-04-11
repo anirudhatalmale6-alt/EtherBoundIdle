@@ -35,6 +35,7 @@ import {
   fieldSessionsTable,
 } from "@workspace/db";
 import { eq, desc, and, or, sql } from "drizzle-orm";
+import { emitToCharacter, emitToGuild, emitToAll } from "../lib/socketio.js";
 
 const router: IRouter = Router();
 
@@ -575,6 +576,10 @@ router.post("/functions/sellItem", async (req: Request, res: Response) => {
     }
     await db.delete(itemsTable).where(eq(itemsTable.id, itemId));
     const newGold = (char?.gold || 0) + goldValue;
+    if (char) {
+      emitToCharacter(String(char.id), "character:update", { gold: newGold });
+      emitToCharacter(String(char.id), "inventory:update", null);
+    }
     sendSuccess(res, { success: true, gold_earned: goldValue, newGold, sellPrice: goldValue });
   } catch (err: any) {
     req.log.error({ err }, "sellItem error");
@@ -1173,6 +1178,9 @@ router.post("/functions/lifeSkills", async (req: Request, res: Response) => {
       lifeSkills[sType] = skill;
       await db.update(charactersTable).set({ lifeSkills }).where(eq(charactersTable.id, charId));
 
+      if (droppedResources.length > 0) {
+        emitToCharacter(charId, "resources:update", null);
+      }
       sendSuccess(res, {
           success: true,
           resources: droppedResources,
@@ -3899,17 +3907,26 @@ router.post("/functions/fight", async (req: Request, res: Response) => {
       req.log.error({ err: smErr }, "fight season mission update error");
     }
 
+    // ── Real-time push via Socket.IO ──
+    const fightDelta = {
+      exp: newExp, level: newLevel, exp_to_next: newExpToNext,
+      gold: newGold, stat_points: newStatPoints, skill_points: newSkillPoints,
+      total_kills: newTotalKills, total_damage: newTotalDamage,
+      max_hp: newMaxHp, max_mp: newMaxMp,
+    };
+    emitToCharacter(characterId, "character:update", fightDelta);
+    if (lootItem) {
+      emitToCharacter(characterId, "loot:drop", lootItem);
+    }
+    emitToCharacter(characterId, "quest:update", null);
+    emitToCharacter(characterId, "season:update", null);
+
     // Return minimal delta instead of full character to reduce egress
     sendSuccess(res, {
         success: true,
         rewards: { exp: expGain, gold: goldGain },
         partyBonuses: partyMembers > 0 ? { expPct: Math.round(partyExpBonus * 100), goldPct: Math.round(partyGoldBonus * 100) } : null,
-        delta: {
-          exp: newExp, level: newLevel, exp_to_next: newExpToNext,
-          gold: newGold, stat_points: newStatPoints, skill_points: newSkillPoints,
-          total_kills: newTotalKills, total_damage: newTotalDamage,
-          max_hp: newMaxHp, max_mp: newMaxMp,
-        },
+        delta: fightDelta,
         levelsGained,
         loot: lootItem,
         droppedRune,
@@ -7215,6 +7232,7 @@ router.post("/functions/worldBossAction", async (req: Request, res: Response) =>
         d.boss_hp = 0;
         d.combat_log.push({ type: "victory", text: `${d.boss_name || boss.name} has been defeated! All participants can claim rewards!` });
         await db.update(worldBossSessionsTable).set({ status: "defeated", data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
+        emitToAll("worldboss:update", { zone, status: "defeated" });
         sendSuccess(res, {
           success: true,
           session: { id: session.id, zone, status: "defeated", ...d, participants },
@@ -7223,6 +7241,9 @@ router.post("/functions/worldBossAction", async (req: Request, res: Response) =>
         });
         return;
       }
+
+      // Push real-time world boss update to all connected players
+      emitToAll("worldboss:update", { zone, bossHp: d.boss_hp, bossMaxHp: boss.hp });
 
       await db.update(worldBossSessionsTable).set({ data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
       sendSuccess(res, {
