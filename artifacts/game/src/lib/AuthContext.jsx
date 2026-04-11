@@ -116,6 +116,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try { await base44.auth.logout(); } catch {}
     localStorage.removeItem('eb_session_id');
+    try { sessionStorage.removeItem('activeCharacter'); } catch {}
     setUser(null);
     setIsAuthenticated(false);
     window.location.reload();
