@@ -27,6 +27,7 @@ import {
 import { eq, and, desc, asc, lt, sql, inArray } from "drizzle-orm";
 import { requireAuth } from "../middlewares/authMiddleware";
 import { sendSuccess, sendError } from "../lib/response";
+import { emitToCharacter, emitToGuild } from "../lib/socketio.js";
 
 const router: IRouter = Router();
 
@@ -615,6 +616,33 @@ async function handleEntityUpdate(req: Request, res: Response) {
       sendError(res, 404, "Not found");
       return;
     }
+
+    // ── Real-time push via Socket.IO ──
+    try {
+      if (entity === "Guild") {
+        // Notify all guild members about guild updates (boss damage, level up, etc.)
+        emitToGuild(String(id), "guild:update", { guildId: id });
+        // If boss_hp changed, emit specific boss-hit event
+        if (req.body.boss_hp !== undefined) {
+          emitToGuild(String(id), "guild:boss-hit", {
+            bossHp: req.body.boss_hp,
+            bossMaxHp: (row as any).bossMaxHp,
+          });
+          if (req.body.boss_hp <= 0 || req.body.boss_active === false) {
+            emitToGuild(String(id), "guild:boss-defeated", { guildId: id });
+          }
+        }
+      } else if (entity === "Character") {
+        emitToCharacter(String(id), "character:update", toClient(entity, row));
+      } else if (entity === "Item") {
+        const ownerId = (row as any).ownerId;
+        if (ownerId) emitToCharacter(String(ownerId), "inventory:update", null);
+      } else if (entity === "Quest") {
+        const charId = (row as any).characterId;
+        if (charId) emitToCharacter(String(charId), "quest:update", null);
+      }
+    } catch {}
+
     sendSuccess(res, toClient(entity, row));
   } catch (err: any) {
     req.log.error({ err }, "Entity update error");

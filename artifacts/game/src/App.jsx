@@ -4,6 +4,7 @@ import { queryClientInstance } from "@/lib/query-client";
 import { BrowserRouter as Router, Route, Routes } from "react-router-dom";
 import PageNotFound from "./lib/PageNotFound";
 import { AuthProvider, useAuth } from "@/lib/AuthContext";
+import { SocketProvider } from "@/lib/SocketContext";
 import React, { useState, useEffect } from "react";
 
 import GameLayout from "./components/layout/GameLayout";
@@ -120,7 +121,7 @@ const GameApp = () => {
 
   if (character) {
     return (
-      <>
+      <SocketProvider character={character} onCharacterUpdate={handleCharacterUpdate}>
         <Routes>
           <Route element={<GameLayout character={character} onCharacterUpdate={handleCharacterUpdate} onBackToSelection={handleBackToSelection} />}>
             <Route path="/" element={<Battle character={character} onCharacterUpdate={handleCharacterUpdate} />} />
@@ -152,7 +153,7 @@ const GameApp = () => {
         <ChatWindow character={character} channel="global" />
         <DailyLoginModal character={character} onCharacterUpdate={handleCharacterUpdate} />
         <PartyPanel character={character} />
-      </>
+      </SocketProvider>
     );
   }
 };

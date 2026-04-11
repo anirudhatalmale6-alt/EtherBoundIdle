@@ -19,6 +19,7 @@ import { idleEngine } from "@/lib/idleEngine";
 import { calculateFinalStats, rollDamage } from "@/lib/statSystem";
 import { useToast } from "@/components/ui/use-toast";
 import { useSmartPolling, POLL_INTERVALS } from "@/hooks/useSmartPolling";
+import { useSocket } from "@/lib/SocketContext";
 
 // Each boss template has 3 raid tiers with increasing HP and token multipliers
 const GUILD_BOSSES = [
@@ -56,13 +57,31 @@ export default function GuildPage({ character, onCharacterUpdate }) {
     staleTime: POLL_INTERVALS.GAME_STATE,
   });
 
+  const { joinGuild, leaveGuild } = useSocket();
+
   const myGuild = guilds.find(g => g.id === character?.guild_id);
   const myMemberEntry = myGuild?.members?.find(m => m.character_id === character?.id);
   const myRole = myMemberEntry?.role || (myGuild?.leader_id === character?.id ? "leader" : "member");
 
   const refetch = () => queryClient.invalidateQueries({ queryKey: ["guilds"] });
 
-  // Polling handles real-time updates via refetchInterval above
+  // Join guild socket room for real-time boss damage feed
+  useEffect(() => {
+    if (!myGuild?.id) return;
+    joinGuild(myGuild.id);
+    return () => leaveGuild(myGuild.id);
+  }, [myGuild?.id, joinGuild, leaveGuild]);
+
+  // Listen for real-time guild updates (boss hits from other members)
+  useEffect(() => {
+    const handleGuildUpdate = () => refetch();
+    window.addEventListener("guild-boss-hit", handleGuildUpdate);
+    window.addEventListener("guild-boss-defeated", handleGuildUpdate);
+    return () => {
+      window.removeEventListener("guild-boss-hit", handleGuildUpdate);
+      window.removeEventListener("guild-boss-defeated", handleGuildUpdate);
+    };
+  }, []);
 
   const createMutation = useMutation({
     mutationFn: async () => {

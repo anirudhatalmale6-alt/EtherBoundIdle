@@ -13,6 +13,7 @@ import RoleBadge from "@/components/game/RoleBadge";
 import CharacterProfileModal from "@/components/game/CharacterProfileModal";
 import IdleStatusBar from "@/components/game/IdleStatusBar";
 import ActiveBuffsBar from "@/components/game/ActiveBuffsBar";
+import { useSocket } from "@/lib/SocketContext";
 
 const NAV_ITEMS = [
   { path: "/", icon: Swords, label: "Battle" },
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
 
 export default function GameLayout({ character, onCharacterUpdate, onBackToSelection }) {
   const { logout } = useAuth();
+  const { connected } = useSocket();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -115,7 +117,10 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
                   <p className="font-semibold text-sm truncate">{character.name}</p>
                   <RoleBadge role={currentUserRole} />
                 </div>
-                <p className="text-xs text-muted-foreground">Lv.{character.level} {character.class}</p>
+                <p className="text-xs text-muted-foreground flex items-center gap-1">
+                  <span className={`inline-block w-1.5 h-1.5 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} title={connected ? "Connected" : "Reconnecting..."} />
+                  Lv.{character.level} {character.class}
+                </p>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-muted-foreground group-hover:text-foreground transition-colors" />
             </button>
