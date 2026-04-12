@@ -36,7 +36,7 @@ const NAV_ITEMS = [
 
 export default function GameLayout({ character, onCharacterUpdate, onBackToSelection }) {
   const { logout } = useAuth();
-  const { connected } = useSocket();
+  const { connected, onlineCount } = useSocket();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [currentUserRole, setCurrentUserRole] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -100,7 +100,15 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
           <h1 className="font-orbitron text-xl font-bold text-primary tracking-wider">
             IDLE REALM
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">Online MMORPG</p>
+          <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
+            Online MMORPG
+            {onlineCount > 0 && (
+              <span className="flex items-center gap-1 text-green-400">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                {onlineCount.toLocaleString()} online
+              </span>
+            )}
+          </p>
         </div>
 
         {character && (
@@ -179,7 +187,15 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
       {/* Mobile Header */}
       <div className="flex flex-col flex-1 overflow-hidden">
         <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-card/50">
-          <h1 className="font-orbitron text-lg font-bold text-primary">IDLE REALM</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="font-orbitron text-lg font-bold text-primary">IDLE REALM</h1>
+            {onlineCount > 0 && (
+              <span className="flex items-center gap-1 text-[10px] text-green-400">
+                <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                {onlineCount.toLocaleString()}
+              </span>
+            )}
+          </div>
           <div className="flex items-center gap-2">
             {character && (
               <>
