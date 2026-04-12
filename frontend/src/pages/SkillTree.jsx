@@ -109,7 +109,8 @@ function SkillNode({ skill, learned, canLearn, locked, isSelected, isEquipped, i
         width: NODE_SIZE,
         height: NODE_SIZE,
         border: `3px solid ${color}`,
-        background: learned ? "#1e293b" : "#0f1520",
+        background: learned ? "#1e293b" : "#080b11",
+        opacity: learned ? 1 : 0.6,
         boxShadow: glow,
         display: "flex",
         alignItems: "center",
@@ -299,7 +300,7 @@ function SynergyPanel({ charClass, skills, learnedSkills, equippedSkills }) {
         <Sparkles className="w-4 h-4" /> Synergies
         <span className="text-xs text-amber-500/60 ml-auto">{activeSynergies.length}/{allSynergies.length}</span>
       </h3>
-      <div className="space-y-2.5 max-h-[70vh] overflow-y-auto scrollbar-hide">
+      <div className="space-y-2.5 max-h-[55vh] overflow-y-auto scrollbar-hide">
         {allSynergies.map(syn => {
           const isActive = activeSynergies.some(a => a.id === syn.id);
           const progress = syn.requires.filter(id => learnedSet.has(id)).length;
@@ -447,7 +448,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
       </AnimatePresence>
 
       {/* ═══ 3-COLUMN LAYOUT ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_260px] gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[300px_1fr_300px] gap-2">
 
         {/* LEFT: Skill Preview + Element Stacks */}
         <div className="hidden lg:block">
