@@ -55,7 +55,7 @@ function computeLayout(filteredSkills) {
 
   const tierNums = Object.keys(tiers).map(Number).sort();
   const maxPerRow = Math.max(...tierNums.map(t => tiers[t].length), 1);
-  const containerW = Math.max(maxPerRow * (NODE_SIZE + H_GAP) + PADDING * 2, 400);
+  const containerW = Math.max(maxPerRow * (NODE_SIZE + H_GAP) + PADDING * 2, 400) + 200;
 
   const positions = {};
   tierNums.forEach((tier, tierIdx) => {
