@@ -16,169 +16,190 @@ const ELEM_BORDER = {
   blood: "#ef4444", sand: "#fbbf24", arcane: "#c084fc", physical: "#9ca3af", none: "#6b7280",
 };
 
-// Gold ring colors for the node border (like the reference)
-const GOLD_RING = "#c8a84e";
-const GOLD_RING_INNER = "#a08030";
-const GOLD_GLOW = "0 0 10px rgba(200,168,78,0.3)";
-
 const EFFECT_LABELS = {
-  shield: "🛡️", dot: "🔥", stun: "⚡", slow: "🌀", buff: "✨",
+  shield: { icon: "🛡️", label: "Shield", desc: (e) => `Absorbs ${e.value}% max HP for ${e.duration}T` },
+  dot: { icon: "🔥", label: "DoT", desc: (e) => `${e.value}% dmg/turn for ${e.duration}T` },
+  stun: { icon: "⚡", label: "Stun", desc: (e) => `Skip ${e.duration} turn${e.duration > 1 ? "s" : ""}` },
+  slow: { icon: "🌀", label: "Slow", desc: (e) => `+50% dmg taken ${e.duration}T` },
+  buff: { icon: "✨", label: "Buff", desc: (e) => `+${e.value}% ${(e.stat || "").toUpperCase()} ${e.duration}T` },
 };
 
-// ── Circular Skill Node Component ──
-function SkillNode({ skill, learned, canLearn, locked, isSelected, isEquipped, onClick }) {
-  const elemCfg = skill.element ? ELEMENT_CONFIG[skill.element] : { icon: "🛡️", color: "text-gray-400" };
-  const elemColor = ELEM_BORDER[skill.element] || ELEM_BORDER.physical;
-  const effectIcon = skill.effect ? EFFECT_LABELS[skill.effect.type] : null;
+// ── Skill Preview Panel (left column) ──
+function SkillPreview({ skill, skills, learnedSkills, skillPoints, charLevel, elemStats, onLearn, isPending }) {
+  if (!skill) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full text-center p-4 opacity-40">
+        <Zap className="w-8 h-8 text-gray-600 mb-2" />
+        <p className="text-xs text-gray-500">Select a skill to preview</p>
+      </div>
+    );
+  }
+
+  const elemCfg = skill.element ? ELEMENT_CONFIG[skill.element] : { icon: "🛡️", label: "Utility", color: "text-gray-400" };
+  const elemColor = ELEM_BORDER[skill.element] || "#666";
+  const learned = learnedSkills.includes(skill.id);
+  const prereqMet = !skill.requires || learnedSkills.includes(skill.requires);
+  const levelOk = charLevel >= skill.levelReq;
+  const canLearn = !learned && prereqMet && levelOk && skillPoints >= skill.cost;
+  const effectInfo = skill.effect ? EFFECT_LABELS[skill.effect.type] : null;
 
   return (
-    <motion.div
-      className="flex flex-col items-center cursor-pointer select-none"
-      style={{ width: 80 }}
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.93 }}
-      onClick={onClick}
-    >
-      {/* Outer gold ring */}
-      <div
-        className="relative"
-        style={{
-          width: 56,
-          height: 56,
-          borderRadius: "50%",
-          padding: 3,
-          background: learned
-            ? `linear-gradient(135deg, ${GOLD_RING}, #e8c84e, ${GOLD_RING_INNER})`
-            : canLearn
-            ? `linear-gradient(135deg, #8b5cf6, #a78bfa, #7c3aed)`
-            : `linear-gradient(135deg, #333, #444, #333)`,
-          boxShadow: learned ? GOLD_GLOW
-            : canLearn ? "0 0 10px rgba(139,92,246,0.4)"
-            : isSelected ? "0 0 10px rgba(255,255,255,0.2)" : "none",
-          opacity: locked ? 0.3 : 1,
-        }}
-      >
-        {/* Inner circle */}
+    <div className="p-3 space-y-3">
+      {/* Icon + name */}
+      <div className="flex flex-col items-center text-center">
         <div
-          className="w-full h-full rounded-full flex items-center justify-center"
+          className="w-16 h-16 rounded-full flex items-center justify-center mb-2"
           style={{
-            background: learned
-              ? `radial-gradient(circle at 30% 30%, ${elemColor}44, #1a1020 70%)`
-              : "radial-gradient(circle at 30% 30%, #2a2a35, #111118 70%)",
+            border: `3px solid ${learned ? elemColor : "#555"}`,
+            background: `radial-gradient(circle, ${elemColor}33, #1a1020 70%)`,
+            boxShadow: learned ? `0 0 14px ${elemColor}44` : "none",
           }}
         >
-          <span className="text-2xl leading-none drop-shadow-lg">{elemCfg.icon}</span>
+          <span className="text-3xl">{elemCfg.icon}</span>
         </div>
-
-        {/* Status indicators */}
-        {learned && (
-          <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center"
-            style={{ background: "linear-gradient(135deg, #22c55e, #16a34a)", border: "2px solid #111" }}
-          >
-            <CheckCircle2 className="w-3 h-3 text-white" />
-          </div>
-        )}
-        {!learned && canLearn && (
-          <div className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center animate-pulse"
-            style={{ background: "linear-gradient(135deg, #8b5cf6, #a855f7)", border: "2px solid #111" }}
-          >
-            <Star className="w-3 h-3 text-white" />
-          </div>
-        )}
-        {locked && !learned && (
-          <div className="absolute -top-0.5 -right-0.5">
-            <Lock className="w-3.5 h-3.5 text-gray-600" />
-          </div>
-        )}
-
-        {/* Effect badge bottom-left */}
-        {effectIcon && learned && (
-          <div className="absolute -bottom-0.5 -left-0.5 w-5 h-5 rounded-full bg-gray-900 border border-gray-700 flex items-center justify-center text-[10px]">
-            {effectIcon}
-          </div>
-        )}
-
-        {/* Equipped indicator */}
-        {isEquipped && (
-          <div className="absolute -bottom-0.5 -right-0.5 px-1 py-0.5 rounded text-[6px] font-bold bg-primary text-primary-foreground border border-black">
-            EQ
-          </div>
-        )}
-
-        {/* Selected ring */}
-        {isSelected && (
-          <div className="absolute inset-[-4px] rounded-full border-2 border-white/40 pointer-events-none" />
+        <h3 className="font-bold text-sm">{skill.name}</h3>
+        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground mt-0.5">
+          <span className={SKILL_TIERS[skill.tier]?.color}>T{skill.tier} {SKILL_TIERS[skill.tier]?.label}</span>
+          <span>· Lv.{skill.levelReq}</span>
+        </div>
+        {skill.element && (
+          <span className={`text-[10px] mt-0.5 ${elemCfg.color}`}>{elemCfg.label}</span>
         )}
       </div>
 
-      {/* Skill name below node */}
-      <span className={`text-[10px] font-bold text-center leading-tight mt-1.5 line-clamp-2 ${
-        learned ? "text-gray-200" : locked ? "text-gray-600" : "text-gray-400"
-      }`} style={{ maxWidth: 78 }}>
-        {skill.name}
-      </span>
+      {/* Stats */}
+      <div className="flex flex-wrap justify-center gap-2 text-[11px]">
+        {skill.damage > 0 ? (
+          <span className="text-orange-400 flex items-center gap-0.5"><Swords className="w-3 h-3" /> {Math.round(skill.damage * 100)}%</span>
+        ) : (
+          <span className="text-blue-300 flex items-center gap-0.5"><Shield className="w-3 h-3" /> Utility</span>
+        )}
+        <span className="text-blue-400">{skill.mp} MP</span>
+        <span className="text-gray-400">{skill.cooldown}T CD</span>
+        <span className="text-amber-300">{skill.cost} SP</span>
+      </div>
 
-      {/* Stats below name */}
-      <span className={`text-[8px] ${learned ? "text-gray-400" : "text-gray-600"}`}>
-        {skill.damage > 0 ? `${Math.round(skill.damage * 100)}%` : "Util"} · {skill.mp}MP
-        {!learned && ` · ${skill.cost}SP`}
-      </span>
-    </motion.div>
+      {/* Effect */}
+      {effectInfo && (
+        <div className="text-[10px] px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10 text-gray-300 text-center">
+          {effectInfo.icon} {effectInfo.label} — {effectInfo.desc(skill.effect)}
+        </div>
+      )}
+
+      {/* Description */}
+      <p className="text-[11px] text-muted-foreground leading-relaxed text-center">{skill.description}</p>
+
+      {skill.synergy && (
+        <p className="text-[10px] text-amber-400/70 italic text-center">💡 {skill.synergy}</p>
+      )}
+
+      {/* Prerequisite */}
+      {skill.requires && (() => {
+        const prereq = skills.find(s => s.id === skill.requires);
+        const met = learnedSkills.includes(skill.requires);
+        return (
+          <p className="text-[11px] text-center">
+            Requires: <span className={met ? "text-emerald-400" : "text-red-400"}>{prereq?.name || skill.requires}</span>
+          </p>
+        );
+      })()}
+
+      {/* Element bonus */}
+      {skill.element && ELEMENT_CONFIG[skill.element]?.stat && (() => {
+        const bonus = elemStats[ELEMENT_CONFIG[skill.element].stat] || 0;
+        return bonus > 0 ? (
+          <p className={`text-[10px] font-bold text-center ${ELEMENT_CONFIG[skill.element].color}`}>
+            Your {ELEMENT_CONFIG[skill.element].label}: +{bonus}%
+          </p>
+        ) : null;
+      })()}
+
+      {/* Action */}
+      <div className="pt-1">
+        {learned && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs w-full justify-center">Learned</Badge>}
+        {!learned && !levelOk && <p className="text-[11px] text-red-400 text-center">Requires Level {skill.levelReq}</p>}
+        {!learned && levelOk && !prereqMet && <p className="text-[11px] text-red-400 text-center">Prerequisite not met</p>}
+        {!learned && levelOk && prereqMet && skillPoints < skill.cost && <p className="text-[11px] text-red-400 text-center">Need {skill.cost - skillPoints} more SP</p>}
+        {canLearn && (
+          <Button
+            size="sm"
+            className="w-full h-8 text-xs gap-1 bg-violet-600 hover:bg-violet-500 text-white font-bold"
+            onClick={() => onLearn(skill)}
+            disabled={isPending}
+          >
+            <Zap className="w-3.5 h-3.5" /> Learn — {skill.cost} SP
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
-// ── SVG connection lines between nodes in a tier ──
-function TierConnections({ tierSkills, positions, learnedSkills, allSkills }) {
-  if (!positions || Object.keys(positions).length === 0) return null;
+// ── Synergy Panel (right column) ──
+function SynergyPanel({ synergies, activeSynergies, learnedSkills, skills }) {
+  const learnedSet = new Set(learnedSkills);
 
-  const lines = [];
-  for (const skill of tierSkills) {
-    if (!skill.requires) continue;
-    const fromPos = positions[skill.requires];
-    const toPos = positions[skill.id];
-    if (!fromPos || !toPos) continue;
-
-    const learned = learnedSkills.includes(skill.id);
-    const prereqLearned = learnedSkills.includes(skill.requires);
-    const elemColor = ELEM_BORDER[skill.element] || "#666";
-
-    lines.push(
-      <line
-        key={`${skill.requires}-${skill.id}`}
-        x1={fromPos.x} y1={fromPos.y}
-        x2={toPos.x} y2={toPos.y}
-        stroke={learned ? elemColor : prereqLearned ? "#555" : "#2a2a2a"}
-        strokeWidth={learned ? 3 : 2}
-        strokeLinecap="round"
-        opacity={learned ? 0.8 : prereqLearned ? 0.4 : 0.15}
-      />
+  if (synergies.length === 0) {
+    return (
+      <div className="p-3 text-center opacity-40">
+        <p className="text-[10px] text-gray-500">No synergies for this class</p>
+      </div>
     );
-
-    // Add a small dot at connection point
-    if (learned || prereqLearned) {
-      const midX = (fromPos.x + toPos.x) / 2;
-      const midY = (fromPos.y + toPos.y) / 2;
-      lines.push(
-        <circle
-          key={`dot-${skill.requires}-${skill.id}`}
-          cx={midX} cy={midY} r={3}
-          fill={learned ? elemColor : "#444"}
-          opacity={learned ? 0.6 : 0.3}
-        />
-      );
-    }
   }
 
-  return <>{lines}</>;
+  return (
+    <div className="p-2 space-y-1.5">
+      <div className="flex items-center justify-between px-1 mb-1">
+        <span className="text-[10px] font-orbitron font-bold text-amber-400 flex items-center gap-1">
+          <Sparkles className="w-3 h-3" /> Synergies
+        </span>
+        <span className="text-[9px] text-amber-300/60">{activeSynergies.length}/{synergies.length}</span>
+      </div>
+      {synergies.map(syn => {
+        const isActive = activeSynergies.some(a => a.id === syn.id);
+        const progress = syn.requires.filter(id => learnedSet.has(id)).length;
+        return (
+          <div
+            key={syn.id}
+            className={`p-2 rounded-lg border ${
+              isActive ? "border-amber-500/40 bg-amber-500/10" : "border-gray-700/30 bg-black/20 opacity-40"
+            }`}
+          >
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="text-sm">{syn.icon}</span>
+              <span className={`text-[10px] font-bold flex-1 truncate ${isActive ? "text-amber-300" : "text-gray-500"}`}>{syn.name}</span>
+              {isActive ? (
+                <CheckCircle2 className="w-3 h-3 text-amber-400 shrink-0" />
+              ) : (
+                <span className="text-[8px] text-gray-600 shrink-0">{progress}/{syn.requires.length}</span>
+              )}
+            </div>
+            <p className={`text-[8px] leading-tight ${isActive ? "text-amber-200/70" : "text-gray-600"}`}>{syn.description}</p>
+            <div className="flex gap-0.5 flex-wrap mt-1">
+              {syn.requires.map(id => {
+                const sk = skills.find(s => s.id === id);
+                const has = learnedSet.has(id);
+                return (
+                  <span key={id} className={`text-[7px] px-1 py-0.5 rounded ${
+                    has ? "bg-green-500/15 text-green-400" : "bg-gray-800 text-gray-600"
+                  }`}>{sk?.name || id}</span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
+// ── Main Component ──
 export default function SkillTree({ character, onCharacterUpdate }) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [expandedTier, setExpandedTier] = useState(1);
   const [activeElement, setActiveElement] = useState(null);
   const [selectedSkill, setSelectedSkill] = useState(null);
-  const [showSynergies, setShowSynergies] = useState(false);
 
   const charClass = character?.class || "warrior";
   const skills = CLASS_SKILLS[charClass] || [];
@@ -206,7 +227,6 @@ export default function SkillTree({ character, onCharacterUpdate }) {
     },
   });
 
-  // Group skills by tier
   const tierGroups = useMemo(() => {
     const groups = {};
     for (let t = 1; t <= 6; t++) groups[t] = [];
@@ -216,7 +236,6 @@ export default function SkillTree({ character, onCharacterUpdate }) {
     return groups;
   }, [skills]);
 
-  // Available elements
   const availableElements = useMemo(() => {
     const elems = new Set();
     for (const s of skills) elems.add(s.element || "none");
@@ -243,76 +262,20 @@ export default function SkillTree({ character, onCharacterUpdate }) {
   const getTierProgress = (tier) => {
     const ts = tierGroups[tier] || [];
     const filtered = getFilteredSkills(ts);
-    const learned = filtered.filter(s => learnedSkills.includes(s.id)).length;
-    return { learned, total: filtered.length };
+    return { learned: filtered.filter(s => learnedSkills.includes(s.id)).length, total: filtered.length };
   };
 
-  // Calculate positions for nodes within a tier (branching tree layout)
-  const calculateNodePositions = (tierSkills) => {
-    const positions = {};
-    if (tierSkills.length === 0) return { positions, width: 0, height: 0 };
-
-    const NODE_SIZE = 56;
-    const H_GAP = 16; // horizontal gap between nodes
-    const V_GAP = 24; // vertical gap between rows
-    const NODE_TOTAL_W = 80; // total width including label
-    const NODE_TOTAL_H = 90; // total height including label
-
-    // Group by element for visual clustering
-    const byElem = {};
-    for (const s of tierSkills) {
-      const e = s.element || "none";
-      if (!byElem[e]) byElem[e] = [];
-      byElem[e].push(s);
+  // Build prerequisite chain lookup for connection lines
+  const prereqMap = useMemo(() => {
+    const map = {};
+    for (const s of skills) {
+      if (s.requires) map[s.id] = s.requires;
     }
-
-    // Arrange in rows: max 4-5 nodes per row for readability
-    const MAX_PER_ROW = 5;
-    const totalNodes = tierSkills.length;
-    const numRows = Math.ceil(totalNodes / MAX_PER_ROW);
-
-    // Distribute nodes across rows, centered
-    let nodeIdx = 0;
-    let maxRowWidth = 0;
-
-    // Create a flat ordered list: sort by element for visual grouping
-    const ordered = [];
-    for (const e of ELEMENT_ORDER) {
-      if (byElem[e]) ordered.push(...byElem[e]);
-    }
-    if (byElem["none"]) ordered.push(...byElem["none"]);
-
-    for (let row = 0; row < numRows; row++) {
-      const rowStart = row * MAX_PER_ROW;
-      const rowEnd = Math.min(rowStart + MAX_PER_ROW, totalNodes);
-      const rowCount = rowEnd - rowStart;
-      const rowWidth = rowCount * NODE_TOTAL_W + (rowCount - 1) * H_GAP;
-      if (rowWidth > maxRowWidth) maxRowWidth = rowWidth;
-    }
-
-    nodeIdx = 0;
-    for (let row = 0; row < numRows; row++) {
-      const rowStart = row * MAX_PER_ROW;
-      const rowEnd = Math.min(rowStart + MAX_PER_ROW, totalNodes);
-      const rowCount = rowEnd - rowStart;
-      const rowWidth = rowCount * NODE_TOTAL_W + (rowCount - 1) * H_GAP;
-      const offsetX = (maxRowWidth - rowWidth) / 2;
-
-      for (let i = 0; i < rowCount; i++) {
-        const skill = ordered[nodeIdx];
-        const x = offsetX + i * (NODE_TOTAL_W + H_GAP) + NODE_TOTAL_W / 2;
-        const y = row * (NODE_TOTAL_H + V_GAP) + NODE_TOTAL_H / 2;
-        positions[skill.id] = { x, y };
-        nodeIdx++;
-      }
-    }
-
-    const totalHeight = numRows * NODE_TOTAL_H + (numRows - 1) * V_GAP;
-    return { positions, width: maxRowWidth + NODE_TOTAL_W, height: totalHeight };
-  };
+    return map;
+  }, [skills]);
 
   return (
-    <div className="p-3 md:p-4 max-w-2xl mx-auto space-y-3">
+    <div className="p-3 md:p-4 max-w-6xl mx-auto space-y-3">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -332,22 +295,12 @@ export default function SkillTree({ character, onCharacterUpdate }) {
       {/* Skill Hotbar */}
       <SkillHotbar character={character} onCharacterUpdate={onCharacterUpdate} />
 
-      {/* Synergies toggle + element filter in one row */}
-      <div className="flex items-center gap-2 overflow-x-auto scrollbar-hide">
-        <button
-          onClick={() => setShowSynergies(!showSynergies)}
-          className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold border shrink-0 transition-all ${
-            showSynergies ? "border-amber-500/50 bg-amber-500/10 text-amber-400" : "border-border text-gray-500 hover:border-amber-500/30"
-          }`}
-        >
-          <Sparkles className="w-3 h-3" />
-          {activeSynergies.length}/{allSynergies.length}
-        </button>
-        <div className="w-px h-5 bg-border shrink-0" />
+      {/* Element filter */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5 scrollbar-hide">
         <button
           onClick={() => setActiveElement(null)}
-          className={`px-2 py-1 rounded-full text-[10px] font-bold shrink-0 border ${
-            !activeElement ? "border-white/30 bg-white/10 text-white" : "border-transparent text-gray-500"
+          className={`px-2.5 py-1 rounded-full text-[11px] font-bold whitespace-nowrap border-2 shrink-0 ${
+            !activeElement ? "border-white/30 bg-white/10 text-white" : "border-transparent bg-white/5 text-gray-500"
           }`}
         >All</button>
         {availableElements.map(elem => {
@@ -359,236 +312,277 @@ export default function SkillTree({ character, onCharacterUpdate }) {
             <button
               key={elem}
               onClick={() => setActiveElement(isActive ? null : elem)}
-              className="flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
+              className="flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold whitespace-nowrap shrink-0"
               style={{
-                border: `1.5px solid ${isActive ? color : "transparent"}`,
-                background: isActive ? `${color}22` : "transparent",
+                border: `2px solid ${isActive ? color : "transparent"}`,
+                background: isActive ? `${color}22` : "rgba(255,255,255,0.03)",
                 color: isActive ? color : "#666",
               }}
             >
-              {cfg.icon} {c.learned}/{c.total}
+              {cfg.icon} <span className="hidden sm:inline">{cfg.label}</span> {c.learned}/{c.total}
             </button>
           );
         })}
       </div>
 
-      {/* Synergies Panel */}
-      <AnimatePresence>
-        {showSynergies && allSynergies.length > 0 && (
-          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: "auto", opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
-            <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-3 space-y-1.5">
+      {/* ═══ THREE COLUMN LAYOUT ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr_200px] gap-3">
+
+        {/* LEFT: Skill Preview */}
+        <div className="hidden lg:block border border-border rounded-xl bg-black/20 sticky top-4 self-start min-h-[300px]">
+          <div className="px-2 py-1.5 border-b border-border/50">
+            <span className="text-[10px] font-orbitron font-bold text-gray-400">SKILL PREVIEW</span>
+          </div>
+          <SkillPreview
+            skill={selectedSkill}
+            skills={skills}
+            learnedSkills={learnedSkills}
+            skillPoints={skillPoints}
+            charLevel={charLevel}
+            elemStats={elemStats}
+            onLearn={(s) => learnMutation.mutate(s)}
+            isPending={learnMutation.isPending}
+          />
+        </div>
+
+        {/* CENTER: Tier Accordions */}
+        <div className="space-y-1.5">
+          {[1, 2, 3, 4, 5, 6].map(tier => {
+            const meta = SKILL_TIERS[tier];
+            const tierUnlocked = charLevel >= meta.levelReq;
+            const isExpanded = expandedTier === tier;
+            const filtered = getFilteredSkills(tierGroups[tier] || []);
+            const { learned: tierLearned, total: tierTotal } = getTierProgress(tier);
+
+            return (
+              <div key={tier} className="border border-border rounded-xl overflow-hidden bg-black/20">
+                {/* Tier Header */}
+                <button
+                  onClick={() => setExpandedTier(isExpanded ? null : tier)}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 transition-all ${
+                    tierUnlocked ? "hover:bg-white/5" : "opacity-35"
+                  } ${isExpanded ? "bg-white/5" : ""}`}
+                >
+                  <span className={`text-xs font-orbitron font-bold px-2 py-0.5 rounded ${meta.color}`}>T{tier}</span>
+                  <span className={`text-sm font-bold flex-1 text-left ${tierUnlocked ? "text-gray-200" : "text-gray-600"}`}>{meta.label}</span>
+                  {!tierUnlocked && <span className="text-[10px] text-gray-500 flex items-center gap-1"><Lock className="w-3 h-3" /> Lv.{meta.levelReq}</span>}
+                  <span className={`text-[11px] font-bold ${tierLearned === tierTotal && tierTotal > 0 ? "text-emerald-400" : "text-gray-500"}`}>{tierLearned}/{tierTotal}</span>
+                  {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
+                </button>
+
+                {/* Expanded Skills */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div initial={{ height: 0 }} animate={{ height: "auto" }} exit={{ height: 0 }} className="overflow-hidden">
+                      <div className="px-3 pb-3 pt-1 space-y-1">
+                        {filtered.length === 0 && (
+                          <p className="text-xs text-gray-600 text-center py-3">No skills for this element.</p>
+                        )}
+                        {filtered.map((skill, idx) => {
+                          const learned = learnedSkills.includes(skill.id);
+                          const prereqMet = !skill.requires || learnedSkills.includes(skill.requires);
+                          const levelOk = charLevel >= skill.levelReq;
+                          const canLearn = !learned && prereqMet && levelOk && skillPoints >= skill.cost;
+                          const locked = !prereqMet || !levelOk;
+                          const elemCfg = skill.element ? ELEMENT_CONFIG[skill.element] : { icon: "🛡️", label: "Utility", color: "text-gray-400" };
+                          const elemColor = ELEM_BORDER[skill.element] || ELEM_BORDER.physical;
+                          const isEquipped = equippedSkills.includes(skill.id);
+                          const isSelected = selectedSkill?.id === skill.id;
+                          const effectInfo = skill.effect ? EFFECT_LABELS[skill.effect.type] : null;
+
+                          // Check if next skill in list requires this one (for connection line)
+                          const hasChild = filtered.some(s => s.requires === skill.id);
+                          const hasParent = skill.requires && filtered.some(s => s.id === skill.requires);
+
+                          return (
+                            <div key={skill.id} className="relative">
+                              {/* Connection line from parent */}
+                              {hasParent && (
+                                <div className="absolute left-6 -top-1 w-0.5 h-1.5 rounded-full" style={{ background: learned ? elemColor : "#333" }} />
+                              )}
+
+                              <motion.div
+                                layout
+                                onClick={() => setSelectedSkill(isSelected ? null : skill)}
+                                className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-all ${
+                                  learned ? "bg-white/5" : canLearn ? "border-violet-500/40 bg-violet-500/5 hover:bg-violet-500/10" : locked ? "border-gray-800 bg-black/20 opacity-35" : "border-gray-700/50 bg-black/10 hover:bg-white/5"
+                                } ${isSelected ? "ring-1 ring-primary/60 bg-primary/5" : ""}`}
+                                style={{ borderLeftWidth: learned ? 3 : 1, borderLeftColor: learned ? elemColor : undefined }}
+                              >
+                                {/* Element icon */}
+                                <div
+                                  className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
+                                  style={{
+                                    border: `2px solid ${learned ? elemColor : locked ? "#333" : "#555"}`,
+                                    background: learned ? `${elemColor}22` : "rgba(20,20,25,0.8)",
+                                    boxShadow: learned ? `0 0 6px ${elemColor}33` : "none",
+                                  }}
+                                >
+                                  <span className="text-base">{elemCfg.icon}</span>
+                                </div>
+
+                                {/* Skill info */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1.5 mb-0.5">
+                                    <span className={`text-[12px] font-bold truncate ${learned ? "text-gray-100" : locked ? "text-gray-600" : "text-gray-300"}`}>
+                                      {skill.name}
+                                    </span>
+                                    {isEquipped && (
+                                      <span className="text-[7px] px-1 py-0.5 rounded bg-primary/20 text-primary border border-primary/30 shrink-0 font-bold">EQ</span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className={`text-[10px] ${learned ? "text-orange-400" : "text-gray-500"}`}>
+                                      {skill.damage > 0 ? `⚔${Math.round(skill.damage * 100)}%` : "○ Utility"}
+                                    </span>
+                                    <span className={`text-[10px] ${learned ? "text-blue-400" : "text-gray-600"}`}>{skill.mp}MP</span>
+                                    <span className={`text-[10px] ${learned ? "text-gray-400" : "text-gray-600"}`}>{skill.cooldown}T</span>
+                                    {effectInfo && (
+                                      <span className={`text-[9px] px-1 py-0.5 rounded ${learned ? "bg-white/10 text-gray-300" : "bg-white/5 text-gray-600"}`}>
+                                        {effectInfo.icon}{effectInfo.label}
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Right: status */}
+                                <div className="shrink-0 flex flex-col items-center gap-0.5">
+                                  {learned && <CheckCircle2 className="w-5 h-5 text-emerald-400" />}
+                                  {!learned && canLearn && (
+                                    <div className="w-5 h-5 rounded-full bg-violet-500 flex items-center justify-center animate-pulse">
+                                      <Star className="w-3 h-3 text-white" />
+                                    </div>
+                                  )}
+                                  {locked && !learned && <Lock className="w-3.5 h-3.5 text-gray-600" />}
+                                  {!learned && <span className="text-[8px] text-gray-500">{skill.cost}SP</span>}
+                                </div>
+                              </motion.div>
+
+                              {/* Connection line to child */}
+                              {hasChild && (
+                                <div className="absolute left-6 -bottom-1 w-0.5 h-1.5 rounded-full" style={{ background: learned ? elemColor : "#333" }} />
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* RIGHT: Synergies */}
+        <div className="hidden lg:block border border-border rounded-xl bg-black/20 sticky top-4 self-start max-h-[80vh] overflow-y-auto scrollbar-hide">
+          <div className="px-3 py-1.5 border-b border-border/50">
+            <span className="text-[10px] font-orbitron font-bold text-amber-400">SKILL SYNERGY</span>
+          </div>
+          <SynergyPanel
+            synergies={allSynergies}
+            activeSynergies={activeSynergies}
+            learnedSkills={learnedSkills}
+            skills={skills}
+          />
+        </div>
+      </div>
+
+      {/* MOBILE: Skill Preview (shown below tree on small screens) */}
+      <div className="lg:hidden">
+        <AnimatePresence>
+          {selectedSkill && (
+            <motion.div
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              className="border rounded-xl bg-card p-4 space-y-2.5"
+              style={{ borderColor: `${ELEM_BORDER[selectedSkill.element] || "#555"}55` }}
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0"
+                    style={{ border: `2.5px solid ${ELEM_BORDER[selectedSkill.element] || "#666"}`, background: `${ELEM_BORDER[selectedSkill.element] || "#666"}22` }}
+                  >
+                    <span className="text-xl">{(selectedSkill.element && ELEMENT_CONFIG[selectedSkill.element]?.icon) || "🛡️"}</span>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-sm">{selectedSkill.name}</h3>
+                    <div className="text-[10px] text-muted-foreground">
+                      <span className={SKILL_TIERS[selectedSkill.tier]?.color}>T{selectedSkill.tier}</span> · Lv.{selectedSkill.levelReq}
+                      {selectedSkill.element && ` · ${ELEMENT_CONFIG[selectedSkill.element]?.label}`}
+                    </div>
+                  </div>
+                </div>
+                <button onClick={() => setSelectedSkill(null)} className="p-1"><X className="w-4 h-4 text-muted-foreground" /></button>
+              </div>
+              <div className="flex gap-2.5 text-xs flex-wrap">
+                {selectedSkill.damage > 0 ? <span className="text-orange-400">⚔ {Math.round(selectedSkill.damage * 100)}%</span> : <span className="text-blue-300">Utility</span>}
+                <span className="text-blue-400">{selectedSkill.mp}MP</span>
+                <span className="text-gray-400">{selectedSkill.cooldown}T</span>
+                <span className="text-amber-300">{selectedSkill.cost}SP</span>
+              </div>
+              {selectedSkill.effect && (() => {
+                const ei = EFFECT_LABELS[selectedSkill.effect.type];
+                return ei ? <div className="text-[10px] px-2 py-1.5 rounded bg-white/5 border border-white/10 text-gray-300">{ei.icon} {ei.label} — {ei.desc(selectedSkill.effect)}</div> : null;
+              })()}
+              <p className="text-[11px] text-muted-foreground">{selectedSkill.description}</p>
+              {selectedSkill.requires && (() => {
+                const prereq = skills.find(s => s.id === selectedSkill.requires);
+                const met = learnedSkills.includes(selectedSkill.requires);
+                return <p className="text-[11px]">Requires: <span className={met ? "text-emerald-400" : "text-red-400"}>{prereq?.name || selectedSkill.requires}</span></p>;
+              })()}
+              {(() => {
+                const learned = learnedSkills.includes(selectedSkill.id);
+                const prereqMet = !selectedSkill.requires || learnedSkills.includes(selectedSkill.requires);
+                const levelOk = charLevel >= selectedSkill.levelReq;
+                const canLearn = !learned && prereqMet && levelOk && skillPoints >= selectedSkill.cost;
+                if (learned) return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Learned</Badge>;
+                if (!levelOk) return <p className="text-[11px] text-red-400">Requires Lv.{selectedSkill.levelReq}</p>;
+                if (!prereqMet) return <p className="text-[11px] text-red-400">Prerequisite not met</p>;
+                if (skillPoints < selectedSkill.cost) return <p className="text-[11px] text-red-400">Need {selectedSkill.cost - skillPoints} more SP</p>;
+                if (canLearn) return (
+                  <Button size="sm" className="w-full h-8 text-xs gap-1 bg-violet-600 hover:bg-violet-500 text-white font-bold"
+                    onClick={() => learnMutation.mutate(selectedSkill)} disabled={learnMutation.isPending}
+                  ><Zap className="w-3.5 h-3.5" /> Learn — {selectedSkill.cost} SP</Button>
+                );
+                return null;
+              })()}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
+
+      {/* MOBILE: Synergies collapsible */}
+      <div className="lg:hidden">
+        {allSynergies.length > 0 && (
+          <div className="border border-amber-500/30 bg-amber-500/5 rounded-xl p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-orbitron font-bold text-amber-400 flex items-center gap-1"><Sparkles className="w-3.5 h-3.5" /> Synergies</span>
+              <span className="text-[10px] text-amber-300/60">{activeSynergies.length}/{allSynergies.length}</span>
+            </div>
+            <div className="space-y-1.5">
               {allSynergies.map(syn => {
                 const isActive = activeSynergies.some(a => a.id === syn.id);
                 const learnedSet = new Set(learnedSkills);
                 const progress = syn.requires.filter(id => learnedSet.has(id)).length;
                 return (
                   <div key={syn.id} className={`flex items-center gap-2 p-2 rounded-lg border ${isActive ? "border-amber-500/40 bg-amber-500/10" : "border-gray-700/30 opacity-40"}`}>
-                    <span className="text-lg shrink-0">{syn.icon}</span>
+                    <span className="text-base shrink-0">{syn.icon}</span>
                     <div className="flex-1 min-w-0">
-                      <span className={`text-[11px] font-bold ${isActive ? "text-amber-300" : "text-gray-500"}`}>{syn.name}</span>
-                      <p className={`text-[9px] ${isActive ? "text-amber-200/70" : "text-gray-600"}`}>{syn.description}</p>
+                      <span className={`text-[10px] font-bold ${isActive ? "text-amber-300" : "text-gray-500"}`}>{syn.name}</span>
+                      <p className={`text-[8px] ${isActive ? "text-amber-200/70" : "text-gray-600"}`}>{syn.description}</p>
                     </div>
-                    {isActive ? <CheckCircle2 className="w-4 h-4 text-amber-400 shrink-0" /> : <span className="text-[9px] text-gray-600 shrink-0">{progress}/{syn.requires.length}</span>}
+                    {isActive ? <CheckCircle2 className="w-3.5 h-3.5 text-amber-400 shrink-0" /> : <span className="text-[8px] text-gray-600 shrink-0">{progress}/{syn.requires.length}</span>}
                   </div>
                 );
               })}
             </div>
-          </motion.div>
+          </div>
         )}
-      </AnimatePresence>
-
-      {/* Tier Accordions with branching node trees */}
-      <div className="space-y-1.5">
-        {[1, 2, 3, 4, 5, 6].map(tier => {
-          const meta = SKILL_TIERS[tier];
-          const tierUnlocked = charLevel >= meta.levelReq;
-          const isExpanded = expandedTier === tier;
-          const allTierSkills = tierGroups[tier] || [];
-          const filtered = getFilteredSkills(allTierSkills);
-          const { learned: tierLearned, total: tierTotal } = getTierProgress(tier);
-          const { positions, width: treeWidth, height: treeHeight } = calculateNodePositions(filtered);
-
-          return (
-            <div key={tier} className="border border-border rounded-xl overflow-hidden bg-black/20">
-              {/* Tier Header */}
-              <button
-                onClick={() => setExpandedTier(isExpanded ? null : tier)}
-                className={`w-full flex items-center gap-3 px-4 py-3 transition-all ${
-                  tierUnlocked ? "hover:bg-white/5" : "opacity-35"
-                } ${isExpanded ? "bg-white/5" : ""}`}
-              >
-                <span className={`text-xs font-orbitron font-bold px-2 py-0.5 rounded ${meta.color}`}>T{tier}</span>
-                <span className={`text-sm font-bold flex-1 text-left ${tierUnlocked ? "text-gray-200" : "text-gray-600"}`}>{meta.label}</span>
-                {!tierUnlocked && <span className="text-[10px] text-gray-500 flex items-center gap-1"><Lock className="w-3 h-3" /> Lv.{meta.levelReq}</span>}
-                <span className={`text-[11px] font-bold ${tierLearned === tierTotal && tierTotal > 0 ? "text-emerald-400" : "text-gray-500"}`}>{tierLearned}/{tierTotal}</span>
-                {isExpanded ? <ChevronUp className="w-4 h-4 text-gray-500" /> : <ChevronDown className="w-4 h-4 text-gray-500" />}
-              </button>
-
-              {/* Expanded: Branching Node Tree */}
-              <AnimatePresence>
-                {isExpanded && (
-                  <motion.div
-                    initial={{ height: 0 }}
-                    animate={{ height: "auto" }}
-                    exit={{ height: 0 }}
-                    className="overflow-hidden"
-                  >
-                    <div className="px-3 pb-4 pt-2">
-                      {filtered.length === 0 ? (
-                        <p className="text-xs text-gray-600 text-center py-4">No skills for this element at this tier.</p>
-                      ) : (
-                        <div className="relative overflow-x-auto scrollbar-hide">
-                          <div className="relative mx-auto" style={{ width: treeWidth, minHeight: treeHeight }}>
-                            {/* SVG connection lines */}
-                            <svg
-                              className="absolute inset-0 pointer-events-none"
-                              width={treeWidth}
-                              height={treeHeight}
-                              style={{ overflow: "visible" }}
-                            >
-                              <TierConnections
-                                tierSkills={filtered}
-                                positions={positions}
-                                learnedSkills={learnedSkills}
-                                allSkills={skills}
-                              />
-                            </svg>
-
-                            {/* Skill Nodes */}
-                            {filtered.map(skill => {
-                              const pos = positions[skill.id];
-                              if (!pos) return null;
-                              const learned = learnedSkills.includes(skill.id);
-                              const prereqMet = !skill.requires || learnedSkills.includes(skill.requires);
-                              const levelOk = charLevel >= skill.levelReq;
-                              const canLearn = !learned && prereqMet && levelOk && skillPoints >= skill.cost;
-                              const locked = !prereqMet || !levelOk;
-                              const isEquipped = equippedSkills.includes(skill.id);
-                              const isSelected = selectedSkill?.id === skill.id;
-
-                              return (
-                                <div
-                                  key={skill.id}
-                                  className="absolute"
-                                  style={{
-                                    left: pos.x - 40,
-                                    top: pos.y - 45,
-                                  }}
-                                >
-                                  <SkillNode
-                                    skill={skill}
-                                    learned={learned}
-                                    canLearn={canLearn}
-                                    locked={locked}
-                                    isSelected={isSelected}
-                                    isEquipped={isEquipped}
-                                    onClick={() => setSelectedSkill(isSelected ? null : skill)}
-                                  />
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          );
-        })}
       </div>
 
-      {/* Selected Skill Detail Panel */}
-      <AnimatePresence>
-        {selectedSkill && (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 8 }}
-            className="border rounded-xl bg-card p-4 space-y-2.5"
-            style={{ borderColor: `${ELEM_BORDER[selectedSkill.element] || "#555"}55` }}
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-full flex items-center justify-center shrink-0"
-                  style={{
-                    border: `3px solid ${GOLD_RING}`,
-                    background: `radial-gradient(circle, ${ELEM_BORDER[selectedSkill.element] || "#666"}33, #1a1020 70%)`,
-                    boxShadow: GOLD_GLOW,
-                  }}
-                >
-                  <span className="text-2xl">{(selectedSkill.element && ELEMENT_CONFIG[selectedSkill.element]?.icon) || "🛡️"}</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-base">{selectedSkill.name}</h3>
-                  <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-                    <span className={SKILL_TIERS[selectedSkill.tier]?.color}>T{selectedSkill.tier} {SKILL_TIERS[selectedSkill.tier]?.label}</span>
-                    <span>· Lv.{selectedSkill.levelReq}</span>
-                    {selectedSkill.element && <span>· {ELEMENT_CONFIG[selectedSkill.element]?.label}</span>}
-                  </div>
-                </div>
-              </div>
-              <button onClick={() => setSelectedSkill(null)} className="p-1 hover:bg-white/5 rounded"><X className="w-4 h-4 text-muted-foreground" /></button>
-            </div>
-
-            <div className="flex items-center gap-3 text-xs flex-wrap">
-              {selectedSkill.damage > 0 ? (
-                <span className="text-orange-400"><Swords className="w-3 h-3 inline mr-1" />{Math.round(selectedSkill.damage * 100)}%</span>
-              ) : (
-                <span className="text-blue-300"><Shield className="w-3 h-3 inline mr-1" />Utility</span>
-              )}
-              <span className="text-blue-400">{selectedSkill.mp} MP</span>
-              <span className="text-gray-400">{selectedSkill.cooldown}T CD</span>
-              <span className="text-amber-300">{selectedSkill.cost} SP</span>
-            </div>
-
-            {selectedSkill.effect && (
-              <div className="text-[11px] px-3 py-2 rounded-lg bg-white/5 border border-white/10 text-gray-300">
-                {selectedSkill.effect.type === "shield" && `🛡️ Shield — Absorbs ${selectedSkill.effect.value}% of max HP for ${selectedSkill.effect.duration} turns`}
-                {selectedSkill.effect.type === "dot" && `🔥 DoT — ${selectedSkill.effect.value}% base damage/turn for ${selectedSkill.effect.duration} turns`}
-                {selectedSkill.effect.type === "stun" && `⚡ Stun — Enemy skips ${selectedSkill.effect.duration} turn${selectedSkill.effect.duration > 1 ? "s" : ""}`}
-                {selectedSkill.effect.type === "slow" && `🌀 Slow — +50% damage taken for ${selectedSkill.effect.duration} turn${selectedSkill.effect.duration > 1 ? "s" : ""}`}
-                {selectedSkill.effect.type === "buff" && `✨ Buff — +${selectedSkill.effect.value}% ${selectedSkill.effect.stat?.toUpperCase()} for ${selectedSkill.effect.duration} turns`}
-              </div>
-            )}
-
-            <p className="text-xs text-muted-foreground">{selectedSkill.description}</p>
-
-            {selectedSkill.synergy && <p className="text-xs text-amber-400/70 italic">💡 {selectedSkill.synergy}</p>}
-
-            {selectedSkill.requires && (() => {
-              const prereq = skills.find(s => s.id === selectedSkill.requires);
-              const met = learnedSkills.includes(selectedSkill.requires);
-              return <p className="text-xs">Requires: <span className={met ? "text-emerald-400" : "text-red-400"}>{prereq?.name || selectedSkill.requires}</span></p>;
-            })()}
-
-            {selectedSkill.element && ELEMENT_CONFIG[selectedSkill.element]?.stat && (() => {
-              const bonus = elemStats[ELEMENT_CONFIG[selectedSkill.element].stat] || 0;
-              return bonus > 0 ? <p className={`text-xs font-bold ${ELEMENT_CONFIG[selectedSkill.element].color}`}>Your {ELEMENT_CONFIG[selectedSkill.element].label} bonus: +{bonus}%</p> : null;
-            })()}
-
-            {(() => {
-              const learned = learnedSkills.includes(selectedSkill.id);
-              const prereqMet = !selectedSkill.requires || learnedSkills.includes(selectedSkill.requires);
-              const levelOk = charLevel >= selectedSkill.levelReq;
-              const canLearn = !learned && prereqMet && levelOk && skillPoints >= selectedSkill.cost;
-              if (learned) return <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 text-xs">Learned</Badge>;
-              if (!levelOk) return <p className="text-xs text-red-400">Requires Level {selectedSkill.levelReq}</p>;
-              if (!prereqMet) return <p className="text-xs text-red-400">Prerequisite not met</p>;
-              if (skillPoints < selectedSkill.cost) return <p className="text-xs text-red-400">Need {selectedSkill.cost - skillPoints} more SP</p>;
-              if (canLearn) return (
-                <Button size="sm" className="w-full h-9 text-sm gap-1.5 bg-violet-600 hover:bg-violet-500 text-white font-bold"
-                  onClick={(e) => { e.stopPropagation(); learnMutation.mutate(selectedSkill); }} disabled={learnMutation.isPending}
-                ><Zap className="w-4 h-4" /> Learn — {selectedSkill.cost} SP</Button>
-              );
-              return null;
-            })()}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Element Stack Bonuses */}
+      {/* BOTTOM: Element Stack Bonuses */}
       {(() => {
         const { activeStacks } = getElementStackBonuses(charClass, equippedSkills);
         const ELEM_EMOJIS = { fire: "🔥", ice: "❄️", lightning: "⚡", poison: "☠️", blood: "🩸", sand: "🌪️" };
