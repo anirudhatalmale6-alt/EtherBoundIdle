@@ -135,11 +135,11 @@ function ConnectionLines({ skills, learnedSkills, nodeRefs, containerRef, active
       // Skip if either node has zero size (hidden)
       if (fromRect.width === 0 || toRect.width === 0) continue;
 
-      // Node = 72px icon + gap + name text. Connect from bottom of FULL node to top of child node.
+      // Straight line from center of parent node to center of child node (like JavaFX approach)
       const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
-      const y1 = fromRect.top + fromRect.height - containerRect.top; // bottom of full node (below name text)
+      const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
       const x2 = toRect.left + toRect.width / 2 - containerRect.left;
-      const y2 = toRect.top - 2 - containerRect.top; // just above child icon top
+      const y2 = toRect.top + toRect.height / 2 - containerRect.top;
 
       const parentLearned = learnedSkills.includes(skill.requires);
       const childLearned = learnedSkills.includes(skill.id);
@@ -165,24 +165,21 @@ function ConnectionLines({ skills, learnedSkills, nodeRefs, containerRef, active
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
       {lines.map(line => {
-        const color = line.bothLearned ? line.elemColor : line.parentLearned ? `${line.elemColor}88` : "#2a2a33";
-        const width = line.bothLearned ? 5 : 4;
+        const color = line.bothLearned ? line.elemColor : line.parentLearned ? `${line.elemColor}88` : "#333";
+        const width = line.bothLearned ? 4 : 3;
         const glow = line.bothLearned ? line.elemColor : "none";
-
-        // Route: midpoint of the gap between parent bottom and child top
-        const bendY = (line.y1 + line.y2) / 2;
-        const path = Math.abs(line.x1 - line.x2) < 2
-          ? `M${line.x1},${line.y1} L${line.x2},${line.y2}`
-          : `M${line.x1},${line.y1} L${line.x1},${bendY} L${line.x2},${bendY} L${line.x2},${line.y2}`;
 
         return (
           <g key={line.id}>
+            {/* Glow behind learned paths */}
             {line.bothLearned && (
-              <path d={path} fill="none" stroke={glow} strokeWidth={10} strokeOpacity={0.2} strokeLinecap="square" strokeLinejoin="miter" />
+              <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+                stroke={glow} strokeWidth={10} strokeOpacity={0.2} />
             )}
-            <path d={path} fill="none" stroke={color} strokeWidth={width} strokeLinecap="square" strokeLinejoin="miter"
-              strokeDasharray={line.parentLearned ? "none" : "6 4"}
-              style={{ imageRendering: "pixelated" }} />
+            {/* Main straight line */}
+            <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
+              stroke={color} strokeWidth={width}
+              strokeDasharray={line.parentLearned ? "none" : "6 4"} />
           </g>
         );
       })}
