@@ -170,8 +170,12 @@ function ConnectionLines({ skills, learnedSkills, nodeRefs, containerRef, active
         const width = 4;
         const glow = line.bothLearned ? line.elemColor : "none";
 
-        // Horizontal-first L-shape: horizontal at parent Y, then vertical down to child
-        const path = `M${line.x1},${line.y1} L${line.x2},${line.y1} L${line.x2},${line.y2}`;
+        // 3-segment path (matches prototype drawLines):
+        // 1. Vertical down from parent center to midY
+        // 2. Horizontal across at midY
+        // 3. Vertical down from midY to child center
+        const midY = line.y1 + (line.y2 - line.y1) / 2;
+        const path = `M${line.x1},${line.y1} L${line.x1},${midY} L${line.x2},${midY} L${line.x2},${line.y2}`;
 
         return (
           <g key={line.id}>
