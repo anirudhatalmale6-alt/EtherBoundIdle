@@ -133,17 +133,17 @@ export default function SkillHotbar({ character, onCharacterUpdate }) {
       )}
 
       {!isEditing && hotbarSkillData.length > 0 && (
-        <div className="grid grid-cols-1 gap-1">
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-1">
           {hotbarSkillData.map((skill, i) => {
             const elem = skill.element ? ELEMENT_CONFIG[skill.element] : null;
             return (
-              <div key={skill.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="w-5 h-5 rounded-md bg-muted flex items-center justify-center text-[10px] font-bold text-primary">{i + 1}</span>
-                <span className="font-medium text-foreground">{skill.name}</span>
-                <span className="text-blue-400">{skill.mp}MP</span>
-                <span>{skill.cooldown}T CD</span>
-                {skill.damage > 0 && <span className="text-orange-400">{Math.round(skill.damage * 100)}%</span>}
-                {elem && <span className={elem.color}>{elem.icon} {elem.label}</span>}
+              <div key={skill.id} className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span className="w-4 h-4 rounded bg-muted flex items-center justify-center text-[9px] font-bold text-primary flex-shrink-0">{i + 1}</span>
+                <span className="font-medium text-foreground truncate">{skill.name}</span>
+                <span className="text-blue-400 flex-shrink-0">{skill.mp}MP</span>
+                <span className="flex-shrink-0">{skill.cooldown}T CD</span>
+                {skill.damage > 0 && <span className="text-orange-400 flex-shrink-0">{Math.round(skill.damage * 100)}%</span>}
+                {elem && <span className={`flex-shrink-0 ${elem.color}`}>{elem.icon} {elem.label}</span>}
               </div>
             );
           })}
