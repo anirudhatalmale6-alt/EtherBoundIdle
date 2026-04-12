@@ -45,15 +45,14 @@ const VERBOSE = getArg("verbose", false);
 const CLASSES = ["warrior", "mage", "ranger", "rogue"];
 const REGIONS = [
   "verdant_forest", "scorched_desert", "frozen_peaks",
-  "shadow_caverns", "crystal_mines", "abyssal_depths",
+  "shadow_realm", "celestial_spire",
 ];
 const ENEMIES_BY_REGION = {
-  verdant_forest: ["forest_wolf", "goblin_scout", "giant_spider", "wild_boar"],
-  scorched_desert: ["sand_scorpion", "desert_viper", "sand_golem", "dust_devil"],
-  frozen_peaks: ["frost_wolf", "ice_elemental", "yeti", "snow_spider"],
-  shadow_caverns: ["shadow_bat", "cave_troll", "crystal_golem", "dark_spider"],
-  crystal_mines: ["gem_golem", "crystal_spider", "mine_rat", "ore_elemental"],
-  abyssal_depths: ["deep_angler", "void_jellyfish", "abyssal_crab", "dark_eel"],
+  verdant_forest: ["forest_wolf", "goblin_scout", "giant_spider", "wild_boar", "moss_golem", "vine_serpent", "forest_bandit", "poison_frog"],
+  scorched_desert: ["sand_scorpion", "desert_bandit", "sand_golem", "fire_lizard", "cactus_wraith", "dune_raider", "tomb_scarab", "desert_cobra"],
+  frozen_peaks: ["frost_wolf", "ice_elemental", "yeti", "glacial_golem", "snow_harpy", "frozen_knight", "ice_witch", "frost_troll"],
+  shadow_realm: ["shadow_wraith", "demon_knight", "void_walker", "soul_harvester", "nightmare_hound", "cursed_revenant", "dark_sorcerer", "abyssal_fiend"],
+  celestial_spire: ["celestial_guardian", "seraph_warrior", "titan", "star_phantom", "nova_knight", "divine_construct", "astral_wyrm", "cosmic_sentinel"],
 };
 
 // ─── Metrics ─────────────────────────────────────────────────────────────────

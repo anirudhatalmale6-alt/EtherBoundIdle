@@ -61,7 +61,7 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           if (sockets.size === 0) {
             characterSockets.delete(oldCharId);
             // Broadcast offline status when last socket disconnects
-            io!.emit("presence:update", { characterId: oldCharId, status: "offline" });
+            io!.emit("presence:update", { characterId: oldCharId, status: "offline", onlineCount: characterSockets.size });
           }
         }
       }
@@ -81,8 +81,11 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
 
       // Broadcast online status when first socket connects for this character
       if (!wasOnline) {
-        io!.emit("presence:update", { characterId, status: "online" });
+        io!.emit("presence:update", { characterId, status: "online", onlineCount: characterSockets.size });
       }
+
+      // Send current online count to the newly connected socket
+      socket.emit("presence:online_count", { onlineCount: characterSockets.size });
 
       logger.info({ socketId: socket.id, characterId }, "Character selected on socket");
     });
@@ -107,7 +110,7 @@ export function initSocketIO(httpServer: HttpServer): SocketIOServer {
           if (sockets.size === 0) {
             characterSockets.delete(charId);
             // Broadcast offline when last socket for this character disconnects
-            io!.emit("presence:update", { characterId: charId, status: "offline" });
+            io!.emit("presence:update", { characterId: charId, status: "offline", onlineCount: characterSockets.size });
           }
         }
         socketCharacter.delete(socket.id);

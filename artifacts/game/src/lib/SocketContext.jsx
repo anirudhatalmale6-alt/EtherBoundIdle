@@ -10,6 +10,7 @@ export function SocketProvider({ children, character, onCharacterUpdate }) {
   const queryClient = useQueryClient();
   const socketRef = useRef(null);
   const [connected, setConnected] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0);
 
   // Connect when authenticated
   useEffect(() => {
@@ -125,6 +126,12 @@ export function SocketProvider({ children, character, onCharacterUpdate }) {
     // Presence updates (online/offline status of other players)
     socket.on("presence:update", (data) => {
       window.dispatchEvent(new CustomEvent("presence-update", { detail: data }));
+      if (data.onlineCount != null) setOnlineCount(data.onlineCount);
+    });
+
+    // Initial online count when connecting
+    socket.on("presence:online_count", (data) => {
+      if (data.onlineCount != null) setOnlineCount(data.onlineCount);
     });
 
     socketRef.current = socket;
@@ -170,6 +177,7 @@ export function SocketProvider({ children, character, onCharacterUpdate }) {
   const value = {
     socket: socketRef.current,
     connected,
+    onlineCount,
     joinGuild,
     leaveGuild,
   };
