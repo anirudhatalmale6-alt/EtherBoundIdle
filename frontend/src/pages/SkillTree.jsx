@@ -28,7 +28,7 @@ const NODE_SIZE = 72;
 const HALF = NODE_SIZE / 2;
 const LINE_WIDTH = 4;
 const CUT = 10; // how far lines stop from node center
-const H_GAP = 16;
+const H_GAP = 36;
 const V_GAP = 120;
 const PADDING = 24;
 
@@ -55,7 +55,7 @@ function computeLayout(filteredSkills) {
 
   const tierNums = Object.keys(tiers).map(Number).sort();
   const maxPerRow = Math.max(...tierNums.map(t => tiers[t].length), 1);
-  const containerW = Math.max(maxPerRow * (NODE_SIZE + H_GAP) + PADDING * 2, 400) + 200;
+  const containerW = Math.max(maxPerRow * (NODE_SIZE + H_GAP) + PADDING * 2, 400);
 
   const positions = {};
   tierNums.forEach((tier, tierIdx) => {
