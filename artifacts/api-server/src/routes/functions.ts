@@ -2095,6 +2095,15 @@ const SKILL_DATA: Record<string, { damage: number; mp: number; element?: string 
   w_tremor: { damage: 2.8, mp: 100, element: "physical" }, w_inferno_blade: { damage: 4.5, mp: 145, element: "fire" },
   w_godslayer: { damage: 8.0, mp: 200, element: "physical" }, w_warlord_aura: { damage: 0, mp: 180 },
   w_ragnarok: { damage: 10.0, mp: 250, element: "fire" },
+  // New warrior elemental
+  w_frost_cleave: { damage: 1.4, mp: 40, element: "ice" }, w_glacial_shield: { damage: 0, mp: 55 },
+  w_frozen_wrath: { damage: 2.2, mp: 82, element: "ice" }, w_avalanche_strike: { damage: 3.2, mp: 125, element: "ice" },
+  w_venomous_edge: { damage: 1.2, mp: 38, element: "poison" }, w_toxic_slam: { damage: 1.6, mp: 52, element: "poison" },
+  w_plague_strike: { damage: 2.2, mp: 78, element: "poison" }, w_pandemic_cleave: { damage: 3.0, mp: 118, element: "poison" },
+  w_runic_blade: { damage: 1.8, mp: 55, element: "arcane" }, w_arcane_shatter: { damage: 2.5, mp: 85, element: "arcane" },
+  w_void_cleave: { damage: 3.5, mp: 130, element: "arcane" }, w_dimension_breaker: { damage: 5.5, mp: 185, element: "arcane" },
+  w_static_charge: { damage: 1.3, mp: 38, element: "lightning" }, w_storm_shield: { damage: 0, mp: 50 },
+  w_mjolnir_strike: { damage: 3.2, mp: 120, element: "lightning" }, w_tempest_fury: { damage: 5.5, mp: 180, element: "lightning" },
   // ── Mage ──
   m_magic_bolt: { damage: 1.4, mp: 22, element: "arcane" }, m_frost_armor: { damage: 0, mp: 28 },
   m_fireball: { damage: 1.9, mp: 38, element: "fire" }, m_poison_bolt: { damage: 1.2, mp: 30, element: "poison" },
@@ -2112,6 +2121,13 @@ const SKILL_DATA: Record<string, { damage: number; mp: number; element?: string 
   m_mana_burn: { damage: 1.6, mp: 65, element: "arcane" }, m_infernal_pact: { damage: 2.5, mp: 90, element: "fire" },
   m_sandstorm: { damage: 2.0, mp: 80, element: "sand" }, m_arcane_god: { damage: 5.0, mp: 160, element: "arcane" },
   m_supernova: { damage: 7.0, mp: 200, element: "fire" }, m_absolute_zero: { damage: 5.5, mp: 170, element: "ice" },
+  // New mage elemental
+  m_blood_bolt: { damage: 1.3, mp: 35, element: "blood" }, m_hemomancy: { damage: 2.5, mp: 90, element: "blood" },
+  m_crimson_storm: { damage: 5.0, mp: 175, element: "blood" }, m_sanguine_ritual: { damage: 0, mp: 120 },
+  m_sand_barrier: { damage: 0, mp: 50 }, m_dust_devil: { damage: 2.0, mp: 78, element: "sand" },
+  m_desert_wrath: { damage: 5.0, mp: 180, element: "sand" }, m_thunderstorm: { damage: 3.5, mp: 125, element: "lightning" },
+  m_ball_lightning: { damage: 4.5, mp: 170, element: "lightning" }, m_plague: { damage: 3.0, mp: 120, element: "poison" },
+  m_miasma: { damage: 4.5, mp: 172, element: "poison" },
   // ── Ranger ──
   r_quick_shot: { damage: 1.2, mp: 15, element: "physical" }, r_dodge_roll: { damage: 0, mp: 20 },
   r_poison_shot: { damage: 1.0, mp: 22, element: "poison" }, r_fire_arrow: { damage: 1.4, mp: 28, element: "fire" },
@@ -2126,6 +2142,18 @@ const SKILL_DATA: Record<string, { damage: number; mp: number; element?: string 
   r_nature_bond: { damage: 0, mp: 55 }, r_explosive_arrow: { damage: 1.6, mp: 35, element: "fire" },
   r_wind_walk: { damage: 0, mp: 30 }, r_venom_rain: { damage: 2.2, mp: 75, element: "poison" },
   r_snipe: { damage: 2.5, mp: 65, element: "physical" }, r_elemental_quiver: { damage: 0, mp: 80 },
+  r_piercing_shot: { damage: 3.5, mp: 100, element: "physical" },
+  r_spirit_of_the_wild: { damage: 0, mp: 200 }, r_celestial_barrage: { damage: 9.0, mp: 260, element: "lightning" },
+  r_natures_wrath: { damage: 7.5, mp: 220, element: "poison" },
+  // New ranger elemental
+  r_arcane_arrow: { damage: 1.3, mp: 35, element: "arcane" }, r_mystic_shot: { damage: 1.8, mp: 52, element: "arcane" },
+  r_ethereal_volley: { damage: 2.5, mp: 82, element: "arcane" }, r_astral_barrage: { damage: 3.5, mp: 125, element: "arcane" },
+  r_frozen_shot: { damage: 2.0, mp: 72, element: "ice" }, r_glacial_rain: { damage: 3.0, mp: 115, element: "ice" },
+  r_absolute_winter: { damage: 5.0, mp: 170, element: "ice" }, r_crimson_arrow: { damage: 1.5, mp: 48, element: "blood" },
+  r_hemorrhage_shot: { damage: 2.2, mp: 75, element: "blood" }, r_sanguine_barrage: { damage: 5.5, mp: 175, element: "blood" },
+  r_dust_devil_arrow: { damage: 1.4, mp: 45, element: "sand" }, r_sandstorm_volley: { damage: 2.8, mp: 108, element: "sand" },
+  r_desert_judgment: { damage: 5.0, mp: 175, element: "sand" }, r_inferno_rain: { damage: 2.5, mp: 80, element: "fire" },
+  r_phoenix_arrow: { damage: 5.0, mp: 168, element: "fire" }, r_thunderbolt_arrow: { damage: 3.2, mp: 118, element: "lightning" },
   // ── Rogue ──
   ro_quick_slash: { damage: 1.3, mp: 16, element: "physical" }, ro_smoke_bomb: { damage: 0, mp: 22 },
   ro_poison_blade: { damage: 1.1, mp: 20, element: "poison" }, ro_backstab: { damage: 2.0, mp: 32, element: "physical" },
@@ -2137,6 +2165,23 @@ const SKILL_DATA: Record<string, { damage: number; mp: number; element?: string 
   ro_assassinate: { damage: 3.5, mp: 110, element: "physical" }, ro_shadow_realm_entry: { damage: 2.0, mp: 90, element: "physical" },
   ro_oblivion: { damage: 4.0, mp: 130, element: "physical" }, ro_phantom: { damage: 3.5, mp: 125, element: "physical" },
   ro_reaper: { damage: 5.5, mp: 170, element: "physical" },
+  ro_dual_strike: { damage: 1.8, mp: 35, element: "physical" }, ro_venomous_fan: { damage: 1.3, mp: 42, element: "poison" },
+  ro_shadowmeld: { damage: 0, mp: 55 }, ro_cheap_shot: { damage: 2.0, mp: 50, element: "physical" },
+  ro_viper_strike: { damage: 2.0, mp: 65, element: "poison" }, ro_mark_of_shadows: { damage: 0, mp: 80 },
+  ro_executioner: { damage: 3.5, mp: 110, element: "physical" },
+  ro_void_dancer: { damage: 0, mp: 200 }, ro_deaths_embrace: { damage: 10.0, mp: 250, element: "blood" },
+  ro_thousand_cuts: { damage: 8.0, mp: 230, element: "physical" },
+  // New rogue elemental
+  ro_flame_dagger: { damage: 1.3, mp: 35, element: "fire" }, ro_ignition_strike: { damage: 1.6, mp: 48, element: "fire" },
+  ro_infernal_dance: { damage: 2.2, mp: 72, element: "fire" }, ro_phoenix_slash: { damage: 3.0, mp: 115, element: "fire" },
+  ro_void_strike: { damage: 1.2, mp: 38, element: "arcane" }, ro_phase_shift: { damage: 1.5, mp: 50, element: "arcane" },
+  ro_dimensional_slash: { damage: 2.5, mp: 78, element: "arcane" }, ro_reality_rend: { damage: 3.5, mp: 125, element: "arcane" },
+  ro_frozen_blade: { damage: 2.0, mp: 68, element: "ice" }, ro_glacial_ambush: { damage: 3.0, mp: 112, element: "ice" },
+  ro_absolute_chill: { damage: 5.0, mp: 170, element: "ice" }, ro_thunder_strike: { damage: 2.2, mp: 72, element: "lightning" },
+  ro_voltaic_rush: { damage: 3.2, mp: 118, element: "lightning" }, ro_storm_blade: { damage: 5.0, mp: 175, element: "lightning" },
+  ro_dust_shroud: { damage: 1.5, mp: 60, element: "sand" }, ro_sandstorm_slash: { damage: 2.8, mp: 105, element: "sand" },
+  ro_desert_phantom: { damage: 4.5, mp: 165, element: "sand" }, ro_neurotoxin: { damage: 2.8, mp: 105, element: "poison" },
+  ro_plague_blade: { damage: 4.5, mp: 168, element: "poison" },
 };
 
 // Calculate full member stats including equipment for dungeon sessions
