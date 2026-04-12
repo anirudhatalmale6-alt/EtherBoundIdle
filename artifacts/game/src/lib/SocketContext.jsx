@@ -139,6 +139,21 @@ export function SocketProvider({ children, character, onCharacterUpdate }) {
       window.dispatchEvent(new CustomEvent("portal-combat-update", { detail: data }));
     });
 
+    // Dungeon combat real-time updates
+    socket.on("dungeon:combat_update", (data) => {
+      window.dispatchEvent(new CustomEvent("dungeon-combat-update", { detail: data }));
+    });
+
+    // Field combat real-time updates
+    socket.on("field:combat_update", (data) => {
+      window.dispatchEvent(new CustomEvent("field-combat-update", { detail: data }));
+    });
+
+    // World boss real-time updates
+    socket.on("worldboss:combat_update", (data) => {
+      window.dispatchEvent(new CustomEvent("worldboss-combat-update", { detail: data }));
+    });
+
     socketRef.current = socket;
 
     return () => {

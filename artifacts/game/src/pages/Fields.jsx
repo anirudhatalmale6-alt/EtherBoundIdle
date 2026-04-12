@@ -405,7 +405,18 @@ function FieldCombat({ session: initialSession, character, onLeave }) {
     return () => clearInterval(iv);
   }, [autoFight, session?.status, session?.enemies, selectedTarget, doAction]);
 
-  // Polling
+  // Real-time field combat updates via Socket.IO
+  useEffect(() => {
+    if (!session?.id) return;
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.id === session.id) setSession(prev => ({ ...prev, ...data }));
+    };
+    window.addEventListener("field-combat-update", handler);
+    return () => window.removeEventListener("field-combat-update", handler);
+  }, [session?.id]);
+
+  // Fallback polling (reduced frequency, socket is primary)
   useEffect(() => {
     if (!session?.id) return;
     const iv = setInterval(async () => {
@@ -415,9 +426,9 @@ function FieldCombat({ session: initialSession, character, onLeave }) {
         });
         if (res?.session) setSession(res.session);
       } catch {}
-    }, combatPollInterval || 5000);
+    }, 5000);
     return () => clearInterval(iv);
-  }, [session?.id, character?.id, combatPollInterval]);
+  }, [session?.id, character?.id]);
 
   const me = (session?.members || []).find(m => m.characterId === character.id || m.character_id === character.id);
   const enemies = session?.enemies || [];

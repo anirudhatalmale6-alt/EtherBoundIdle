@@ -76,7 +76,30 @@ function WorldBossCombat({ boss, character, onLeave }) {
     })();
   }, [boss.zone, character.id]);
 
-  // Poll every 5s
+  // Real-time world boss updates via Socket.IO
+  useEffect(() => {
+    if (!boss.zone) return;
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.zone === boss.zone) {
+        setSession(prev => ({ ...prev, ...data }));
+        // Update myEntry from participants
+        const participants = data.participants || [];
+        const me = participants.find(p => p.characterId === character.id);
+        if (me) setMyEntry(me);
+        // Update top damagers
+        const top = [...participants]
+          .sort((a, b) => (b.totalDamage || 0) - (a.totalDamage || 0))
+          .slice(0, 10)
+          .map(p => ({ name: p.name, class: p.class, level: p.level, totalDamage: p.totalDamage || 0 }));
+        setTopDamagers(top);
+      }
+    };
+    window.addEventListener("worldboss-combat-update", handler);
+    return () => window.removeEventListener("worldboss-combat-update", handler);
+  }, [boss.zone, character.id]);
+
+  // Fallback poll every 5s
   useEffect(() => {
     if (!boss.zone) return;
     const iv = setInterval(async () => {

@@ -79,7 +79,18 @@ export default function DungeonCombat({ session: initialSession, character, onLe
   });
   const equippedPetDC = (petDataDC?.pets || []).find(p => p.equipped);
 
-  // Poll dungeon session for updates via dungeonAction (consistent data shape)
+  // Real-time dungeon combat updates via Socket.IO
+  useEffect(() => {
+    if (!session?.id) return;
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.id === session.id) setSession(prev => ({ ...prev, ...data }));
+    };
+    window.addEventListener("dungeon-combat-update", handler);
+    return () => window.removeEventListener("dungeon-combat-update", handler);
+  }, [session?.id]);
+
+  // Fallback poll for dungeon session updates (reduced frequency, socket is primary)
   useEffect(() => {
     if (!session.id) return;
     const poll = async () => {
@@ -92,9 +103,9 @@ export default function DungeonCombat({ session: initialSession, character, onLe
         if (res?.success && res.session) setSession(res.session);
       } catch {}
     };
-    const interval = setInterval(poll, combatPollInterval || 5000);
+    const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
-  }, [session.id, character.id, combatPollInterval]);
+  }, [session.id, character.id]);
 
   // Scroll log to bottom
   useEffect(() => {
