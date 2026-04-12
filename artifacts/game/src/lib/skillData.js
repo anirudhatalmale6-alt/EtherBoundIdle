@@ -36,6 +36,13 @@ export const SKILL_ANIMATIONS = {
   w_earthquake: "slam",        w_battle_shout: "roar",      w_blood_sacrifice: "bleed",
   w_tremor: "slam",            w_inferno_blade: "fireball",  w_godslayer: "divine",
   w_warlord_aura: "berserker", w_ragnarok: "explosion",
+  // New warrior elemental
+  w_frost_cleave: "icicle",    w_glacial_shield: "frostshield", w_frozen_wrath: "blizzard",
+  w_avalanche_strike: "blizzard", w_venomous_edge: "poison", w_toxic_slam: "slam",
+  w_plague_strike: "poison",   w_pandemic_cleave: "heavyslash", w_runic_blade: "nova",
+  w_arcane_shatter: "nova",    w_void_cleave: "blackhole",  w_dimension_breaker: "blackhole",
+  w_static_charge: "lightning", w_storm_shield: "shield",   w_mjolnir_strike: "lightning",
+  w_tempest_fury: "lightning",
   // Mage
   m_magic_bolt: "projectile",   m_frost_armor: "frostshield", m_fireball: "fireball",
   m_ice_lance: "icicle",        m_mana_shield: "shield",      m_poison_bolt: "poison",
@@ -48,6 +55,11 @@ export const SKILL_ANIMATIONS = {
   m_frost_nova: "blizzard",    m_mana_burn: "nova",           m_infernal_pact: "fireball",
   m_sandstorm: "smoke",        m_arcane_god: "divine",        m_supernova: "explosion",
   m_absolute_zero: "blizzard",
+  // New mage elemental
+  m_blood_bolt: "bleed",       m_hemomancy: "bleed",          m_crimson_storm: "bleed",
+  m_sanguine_ritual: "bleed",  m_sand_barrier: "smoke",       m_dust_devil: "smoke",
+  m_desert_wrath: "smoke",     m_thunderstorm: "lightning",   m_ball_lightning: "lightning",
+  m_plague: "poison",          m_miasma: "poison",
   // Ranger
   r_quick_shot: "arrow",        r_dodge_roll: "dodge",        r_poison_shot: "poison",
   r_fire_arrow: "firearrow",    r_triple_shot: "multishot",   r_frost_arrow: "icicle",
@@ -60,6 +72,13 @@ export const SKILL_ANIMATIONS = {
   r_venom_rain: "arrowrain",   r_snipe: "arrow",              r_elemental_quiver: "eagleeye",
   r_piercing_shot: "arrow",    r_spirit_of_the_wild: "divine", r_celestial_barrage: "arrowrain",
   r_natures_wrath: "poison",
+  // New ranger elemental
+  r_arcane_arrow: "arrow",     r_mystic_shot: "arrow",        r_ethereal_volley: "arrowrain",
+  r_astral_barrage: "arrowrain", r_frozen_shot: "icicle",     r_glacial_rain: "arrowrain",
+  r_absolute_winter: "blizzard", r_crimson_arrow: "bleed",    r_hemorrhage_shot: "bleed",
+  r_sanguine_barrage: "arrowrain", r_dust_devil_arrow: "arrow", r_sandstorm_volley: "arrowrain",
+  r_desert_judgment: "smoke",  r_inferno_rain: "arrowrain",   r_phoenix_arrow: "firearrow",
+  r_thunderbolt_arrow: "lightning",
   // Rogue
   ro_quick_slash: "slash",      ro_smoke_bomb: "smoke",       ro_backstab: "backstab",
   ro_poison_blade: "poison",    ro_open_wounds: "bleed",      ro_frost_strike: "icicle",
@@ -72,6 +91,14 @@ export const SKILL_ANIMATIONS = {
   ro_cheap_shot: "backstab",   ro_viper_strike: "poison",     ro_mark_of_shadows: "mark",
   ro_executioner: "backstab",  ro_void_dancer: "smoke",       ro_deaths_embrace: "bleed",
   ro_thousand_cuts: "bleedance",
+  // New rogue elemental
+  ro_flame_dagger: "fireball", ro_ignition_strike: "fireball", ro_infernal_dance: "fireball",
+  ro_phoenix_slash: "fireball", ro_void_strike: "blackhole",  ro_phase_shift: "smoke",
+  ro_dimensional_slash: "blackhole", ro_reality_rend: "blackhole", ro_frozen_blade: "icicle",
+  ro_glacial_ambush: "icicle", ro_absolute_chill: "blizzard", ro_thunder_strike: "lightning",
+  ro_voltaic_rush: "lightning", ro_storm_blade: "lightning",  ro_dust_shroud: "smoke",
+  ro_sandstorm_slash: "smoke", ro_desert_phantom: "smoke",   ro_neurotoxin: "poison",
+  ro_plague_blade: "poison",
 };
 
 export const CLASS_SKILLS = {
@@ -289,6 +316,120 @@ export const CLASS_SKILLS = {
       description: "Call down Ragnarok: 1000% fire+physical damage. Legendary devastation.",
       requires: "w_eternal_guard",
       synergy: "fire_dmg % fully stacks. The highest single-target warrior skill.",
+    },
+
+    // ── New Ice skills ──
+    {
+      id: "w_frost_cleave", name: "Frost Cleave", tier: 1, levelReq: 6, cost: 2,
+      mp: 40, cooldown: 3, damage: 1.4, element: "ice",
+      description: "Ice-coated swing: 140% damage + slow enemy 1 turn. ice_dmg applies.",
+      requires: null,
+      synergy: "ice_dmg % adds to each swing. Opens ice warrior path.",
+    },
+    {
+      id: "w_glacial_shield", name: "Glacial Shield", tier: 2, levelReq: 13, cost: 2,
+      mp: 55, cooldown: 4, damage: 0, element: "ice", buff: "defense",
+      description: "Ice barrier: +35% defense + reflect 10% damage as ice for 2 turns.",
+      requires: "w_frost_cleave",
+    },
+    {
+      id: "w_frozen_wrath", name: "Frozen Wrath", tier: 3, levelReq: 31, cost: 4,
+      mp: 82, cooldown: 5, damage: 2.2, element: "ice",
+      description: "Freeze and shatter: 220% ice damage + freeze 1 turn. ice_dmg fully applied.",
+      requires: "w_glacial_shield",
+      synergy: "ice_dmg % makes this both damage and CC. Pairs with Avalanche Strike.",
+    },
+    {
+      id: "w_avalanche_strike", name: "Avalanche Strike", tier: 4, levelReq: 52, cost: 5,
+      mp: 125, cooldown: 5, damage: 3.2, element: "ice",
+      description: "Bring down the mountain: 320% ice damage + freeze 2 turns.",
+      requires: "w_frozen_wrath",
+      synergy: "ice_dmg stacking makes this the premier ice warrior nuke.",
+    },
+
+    // ── New Poison skills ──
+    {
+      id: "w_venomous_edge", name: "Venomous Edge", tier: 1, levelReq: 5, cost: 2,
+      mp: 38, cooldown: 3, damage: 1.2, element: "poison",
+      description: "Poisoned blade: 120% damage + poison DoT 3 turns. poison_dmg applies.",
+      requires: null,
+      synergy: "poison_dmg % amplifies each DoT tick.",
+    },
+    {
+      id: "w_toxic_slam", name: "Toxic Slam", tier: 2, levelReq: 14, cost: 3,
+      mp: 52, cooldown: 4, damage: 1.6, element: "poison",
+      description: "Poison-infused ground slam: 160% damage + AoE poison cloud 2 turns.",
+      requires: "w_venomous_edge",
+      synergy: "poison_dmg % boosts both hit and cloud. Pairs with Plague Strike.",
+    },
+    {
+      id: "w_plague_strike", name: "Plague Strike", tier: 3, levelReq: 30, cost: 4,
+      mp: 78, cooldown: 5, damage: 2.2, element: "poison",
+      description: "Spreading plague: 220% poison damage + poison DoT 4 turns, stacks.",
+      requires: "w_toxic_slam",
+      synergy: "poison_dmg makes DoT devastating. Stack with Venomous Edge for max poison.",
+    },
+    {
+      id: "w_pandemic_cleave", name: "Pandemic Cleave", tier: 4, levelReq: 53, cost: 5,
+      mp: 118, cooldown: 5, damage: 3.0, element: "poison",
+      description: "Lethal toxin sweep: 300% poison damage + -30% enemy healing for 3 turns.",
+      requires: "w_plague_strike",
+    },
+
+    // ── New Arcane skills ──
+    {
+      id: "w_runic_blade", name: "Runic Blade", tier: 2, levelReq: 15, cost: 3,
+      mp: 55, cooldown: 4, damage: 1.8, element: "arcane",
+      description: "Rune-empowered strike: 180% arcane damage. Ignores 20% magic defense.",
+      requires: null,
+    },
+    {
+      id: "w_arcane_shatter", name: "Arcane Shatter", tier: 3, levelReq: 33, cost: 4,
+      mp: 85, cooldown: 5, damage: 2.5, element: "arcane",
+      description: "Shatter reality with your blade: 250% arcane damage + dispel enemy buffs.",
+      requires: "w_runic_blade",
+    },
+    {
+      id: "w_void_cleave", name: "Void Cleave", tier: 4, levelReq: 54, cost: 5,
+      mp: 130, cooldown: 5, damage: 3.5, element: "arcane",
+      description: "Slice through dimensions: 350% arcane damage, ignores all defenses.",
+      requires: "w_arcane_shatter",
+    },
+    {
+      id: "w_dimension_breaker", name: "Dimension Breaker", tier: 5, levelReq: 76, cost: 6,
+      mp: 185, cooldown: 6, damage: 5.5, element: "arcane",
+      description: "Break the fabric of space: 550% arcane damage + stun 2 turns.",
+      requires: "w_void_cleave",
+      synergy: "The arcane warrior's ultimate. Pairs with Void Cleave for burst combos.",
+    },
+
+    // ── New Lightning fills ──
+    {
+      id: "w_static_charge", name: "Static Charge", tier: 1, levelReq: 8, cost: 2,
+      mp: 38, cooldown: 3, damage: 1.3, element: "lightning",
+      description: "Electrified weapon: 130% lightning damage + 10% chance to stun.",
+      requires: null,
+      synergy: "lightning_dmg % adds to each hit. Opens lightning warrior path.",
+    },
+    {
+      id: "w_storm_shield", name: "Storm Shield", tier: 2, levelReq: 12, cost: 2,
+      mp: 50, cooldown: 4, damage: 0, element: "lightning", buff: "defense",
+      description: "Lightning barrier: +30% defense + zap attackers for 15% ATK lightning damage.",
+      requires: "w_static_charge",
+    },
+    {
+      id: "w_mjolnir_strike", name: "Mjolnir Strike", tier: 4, levelReq: 50, cost: 5,
+      mp: 120, cooldown: 5, damage: 3.2, element: "lightning",
+      description: "Channel the thunder god: 320% lightning damage + stun 2 turns.",
+      requires: "w_thunder_strike",
+      synergy: "lightning_dmg fully stacks. The lightning warrior's core nuke.",
+    },
+    {
+      id: "w_tempest_fury", name: "Tempest Fury", tier: 5, levelReq: 74, cost: 6,
+      mp: 180, cooldown: 6, damage: 5.5, element: "lightning",
+      description: "Become the storm: 550% lightning damage + chain to all enemies.",
+      requires: "w_mjolnir_strike",
+      synergy: "lightning_dmg build's endgame skill. Devastating AoE.",
     },
   ],
 
@@ -508,6 +649,88 @@ export const CLASS_SKILLS = {
       requires: "m_ice_prison",
       synergy: "ice_dmg build's ultimate payoff. Complete lockdown + massive damage.",
     },
+
+    // ── New Blood skills ──
+    {
+      id: "m_blood_bolt", name: "Blood Bolt", tier: 1, levelReq: 7, cost: 2,
+      mp: 35, cooldown: 3, damage: 1.3, element: "blood",
+      description: "Crimson projectile: 130% blood damage + drain 5% HP. blood_dmg applies.",
+      requires: null,
+      synergy: "blood_dmg % amplifies both the hit and the drain.",
+    },
+    {
+      id: "m_hemomancy", name: "Hemomancy", tier: 3, levelReq: 32, cost: 4,
+      mp: 90, cooldown: 5, damage: 2.5, element: "blood",
+      description: "Blood magic: 250% blood damage + heal 15% of damage dealt.",
+      requires: "m_blood_pact",
+      synergy: "blood_dmg makes this self-sustaining. Core blood mage skill.",
+    },
+    {
+      id: "m_crimson_storm", name: "Crimson Storm", tier: 5, levelReq: 73, cost: 6,
+      mp: 175, cooldown: 6, damage: 5.0, element: "blood",
+      description: "Rain of blood: 500% blood damage + heal 20% of damage. blood_dmg FULLY stacks.",
+      requires: "m_hemomancy",
+      synergy: "blood_dmg build's ultimate payoff. Massive damage + massive healing.",
+    },
+    {
+      id: "m_sanguine_ritual", name: "Sanguine Ritual", tier: 4, levelReq: 55, cost: 4,
+      mp: 120, cooldown: 5, damage: 0, element: "blood", buff: "attack",
+      description: "Blood ritual: sacrifice 10% HP to gain +50% all damage for 4 turns.",
+      requires: "m_blood_pact",
+    },
+
+    // ── New Sand skills ──
+    {
+      id: "m_sand_barrier", name: "Sand Barrier", tier: 2, levelReq: 14, cost: 2,
+      mp: 50, cooldown: 4, damage: 0, element: "sand", buff: "defense",
+      description: "Whirling sand shield: +25% defense + blind attackers for 2 turns.",
+      requires: null,
+    },
+    {
+      id: "m_dust_devil", name: "Dust Devil", tier: 3, levelReq: 29, cost: 3,
+      mp: 78, cooldown: 5, damage: 2.0, element: "sand",
+      description: "Summon a dust devil: 200% sand damage + -25% enemy accuracy 2 turns.",
+      requires: "m_sand_barrier",
+      synergy: "sand_dmg % adds to damage. Pairs with Sandstorm for sand mage build.",
+    },
+    {
+      id: "m_desert_wrath", name: "Desert Wrath", tier: 5, levelReq: 77, cost: 6,
+      mp: 180, cooldown: 6, damage: 5.0, element: "sand",
+      description: "Unleash the desert: 500% sand damage + blind 3 turns. sand_dmg FULLY applied.",
+      requires: "m_sandstorm",
+      synergy: "sand_dmg build mage's endgame. Total enemy shutdown + damage.",
+    },
+
+    // ── New Lightning fills ──
+    {
+      id: "m_thunderstorm", name: "Thunderstorm", tier: 4, levelReq: 51, cost: 5,
+      mp: 125, cooldown: 5, damage: 3.5, element: "lightning",
+      description: "Call a thunderstorm: 350% lightning damage + stun 1 turn. lightning_dmg stacks.",
+      requires: "m_chain_lightning",
+      synergy: "lightning_dmg % makes storms devastating. Pairs with Chain Lightning.",
+    },
+    {
+      id: "m_ball_lightning", name: "Ball Lightning", tier: 5, levelReq: 75, cost: 6,
+      mp: 170, cooldown: 6, damage: 4.5, element: "lightning",
+      description: "Conjure ball lightning: 450% damage + chains 3 times. lightning_dmg fully applied.",
+      requires: "m_thunderstorm",
+    },
+
+    // ── New Poison fills ──
+    {
+      id: "m_plague", name: "Plague", tier: 4, levelReq: 54, cost: 5,
+      mp: 120, cooldown: 5, damage: 3.0, element: "poison",
+      description: "Unleash plague: 300% poison damage + DoT 5 turns (3% max HP/turn).",
+      requires: "m_poison_cloud",
+      synergy: "poison_dmg % amplifies every tick. Devastating over long fights.",
+    },
+    {
+      id: "m_miasma", name: "Miasma", tier: 5, levelReq: 74, cost: 6,
+      mp: 172, cooldown: 6, damage: 4.5, element: "poison",
+      description: "Toxic miasma: 450% poison damage + -50% enemy healing for 4 turns.",
+      requires: "m_plague",
+      synergy: "poison_dmg build mage's endgame. Shuts down enemy regen completely.",
+    },
   ],
 
   ranger: [
@@ -714,6 +937,123 @@ export const CLASS_SKILLS = {
       description: "Unleash nature's fury: 750% poison damage + 10% max HP DoT for 5 turns.",
       requires: "r_death_arrow",
       synergy: "poison_dmg build ranger's endgame. Devastating sustained damage.",
+    },
+
+    // ── New Arcane skills ──
+    {
+      id: "r_arcane_arrow", name: "Arcane Arrow", tier: 1, levelReq: 7, cost: 2,
+      mp: 35, cooldown: 3, damage: 1.3, element: "arcane",
+      description: "Magic-infused arrow: 130% arcane damage, ignores 15% magic defense.",
+      requires: null,
+      synergy: "Opens the mystic archer path. Pairs with Ethereal Volley.",
+    },
+    {
+      id: "r_mystic_shot", name: "Mystic Shot", tier: 2, levelReq: 14, cost: 3,
+      mp: 52, cooldown: 4, damage: 1.8, element: "arcane",
+      description: "Phase-shifting arrow: 180% arcane damage + passes through shields.",
+      requires: "r_arcane_arrow",
+    },
+    {
+      id: "r_ethereal_volley", name: "Ethereal Volley", tier: 3, levelReq: 31, cost: 4,
+      mp: 82, cooldown: 5, damage: 2.5, element: "arcane",
+      description: "Volley of spectral arrows: 250% arcane damage + dispel enemy buffs.",
+      requires: "r_mystic_shot",
+      synergy: "Core arcane ranger skill. Pairs with Astral Barrage for full arcane build.",
+    },
+    {
+      id: "r_astral_barrage", name: "Astral Barrage", tier: 4, levelReq: 53, cost: 5,
+      mp: 125, cooldown: 5, damage: 3.5, element: "arcane",
+      description: "Rain of starlight arrows: 350% arcane damage, ignores all defenses.",
+      requires: "r_ethereal_volley",
+    },
+
+    // ── New Ice skills ──
+    {
+      id: "r_frozen_shot", name: "Frozen Shot", tier: 3, levelReq: 28, cost: 3,
+      mp: 72, cooldown: 5, damage: 2.0, element: "ice",
+      description: "Deep freeze arrow: 200% ice damage + freeze 1 turn. ice_dmg applies.",
+      requires: "r_frost_arrow",
+      synergy: "ice_dmg % adds. Pairs with Frost Arrow for ice kite build.",
+    },
+    {
+      id: "r_glacial_rain", name: "Glacial Rain", tier: 4, levelReq: 51, cost: 5,
+      mp: 115, cooldown: 5, damage: 3.0, element: "ice",
+      description: "Rain of ice shards: 300% ice damage + freeze all enemies 1 turn.",
+      requires: "r_frozen_shot",
+    },
+    {
+      id: "r_absolute_winter", name: "Absolute Winter", tier: 5, levelReq: 74, cost: 6,
+      mp: 170, cooldown: 6, damage: 5.0, element: "ice",
+      description: "Eternal winter: 500% ice damage + freeze 3 turns. ice_dmg FULLY stacks.",
+      requires: "r_glacial_rain",
+      synergy: "ice_dmg build ranger's endgame. Complete freeze + massive damage.",
+    },
+
+    // ── New Blood skills ──
+    {
+      id: "r_crimson_arrow", name: "Crimson Arrow", tier: 2, levelReq: 13, cost: 2,
+      mp: 48, cooldown: 4, damage: 1.5, element: "blood",
+      description: "Blood-tipped arrow: 150% damage + bleed DoT 3 turns. blood_dmg applies.",
+      requires: null,
+      synergy: "blood_dmg % amplifies DoT. Opens blood ranger path.",
+    },
+    {
+      id: "r_hemorrhage_shot", name: "Hemorrhage Shot", tier: 3, levelReq: 29, cost: 3,
+      mp: 75, cooldown: 5, damage: 2.2, element: "blood",
+      description: "Hemorrhaging arrow: 220% blood damage + heal 10% of damage dealt.",
+      requires: "r_crimson_arrow",
+    },
+    {
+      id: "r_sanguine_barrage", name: "Sanguine Barrage", tier: 5, levelReq: 73, cost: 6,
+      mp: 175, cooldown: 6, damage: 5.5, element: "blood",
+      description: "Blood-soaked volley: 550% blood damage + heal 15% of damage. blood_dmg fully applied.",
+      requires: "r_blood_arrow",
+      synergy: "blood_dmg build ranger's ultimate. Sustain + burst in one skill.",
+    },
+
+    // ── New Sand skills ──
+    {
+      id: "r_dust_devil_arrow", name: "Dust Devil Arrow", tier: 2, levelReq: 12, cost: 2,
+      mp: 45, cooldown: 4, damage: 1.4, element: "sand",
+      description: "Whirlwind arrow: 140% sand damage + -20% enemy accuracy. sand_dmg applies.",
+      requires: null,
+    },
+    {
+      id: "r_sandstorm_volley", name: "Sandstorm Volley", tier: 4, levelReq: 49, cost: 4,
+      mp: 108, cooldown: 5, damage: 2.8, element: "sand",
+      description: "Volley through sandstorm: 280% sand damage + blind 2 turns.",
+      requires: "r_sand_trap",
+      synergy: "sand_dmg % stacks. Pairs with Sand Trap for full sand build.",
+    },
+    {
+      id: "r_desert_judgment", name: "Desert Judgment", tier: 5, levelReq: 76, cost: 6,
+      mp: 175, cooldown: 6, damage: 5.0, element: "sand",
+      description: "Judgment of the sands: 500% sand damage + blind 3 turns. sand_dmg FULLY stacks.",
+      requires: "r_sandstorm_volley",
+    },
+
+    // ── New Fire fills ──
+    {
+      id: "r_inferno_rain", name: "Inferno Rain", tier: 3, levelReq: 30, cost: 4,
+      mp: 80, cooldown: 5, damage: 2.5, element: "fire",
+      description: "Rain of burning arrows: 250% fire damage + burn DoT 3 turns.",
+      requires: "r_explosive_arrow",
+      synergy: "fire_dmg % amplifies both hit and burn. Core fire ranger skill.",
+    },
+    {
+      id: "r_phoenix_arrow", name: "Phoenix Arrow", tier: 5, levelReq: 72, cost: 6,
+      mp: 168, cooldown: 6, damage: 5.0, element: "fire",
+      description: "Arrow of rebirth: 500% fire damage. If you die within 3 turns, revive at 30% HP.",
+      requires: "r_inferno_rain",
+    },
+
+    // ── New Lightning fills ──
+    {
+      id: "r_thunderbolt_arrow", name: "Thunderbolt Arrow", tier: 4, levelReq: 52, cost: 5,
+      mp: 118, cooldown: 5, damage: 3.2, element: "lightning",
+      description: "Lightning bolt arrow: 320% damage + chain to 3 targets. lightning_dmg stacks.",
+      requires: "r_lightning_arrow",
+      synergy: "lightning_dmg % makes chains devastating. Pairs with Storm Bow.",
     },
   ],
 
@@ -922,6 +1262,146 @@ export const CLASS_SKILLS = {
       description: "Invisible blade storm: 800% damage, 10 hits each can crit. DEX scaling maximized.",
       requires: "ro_oblivion",
     },
+
+    // ── New Fire skills ──
+    {
+      id: "ro_flame_dagger", name: "Flame Dagger", tier: 1, levelReq: 6, cost: 2,
+      mp: 35, cooldown: 3, damage: 1.3, element: "fire",
+      description: "Blazing dagger throw: 130% fire damage + burn 2 turns. fire_dmg applies.",
+      requires: null,
+      synergy: "fire_dmg % adds to each throw. Opens fire rogue path.",
+    },
+    {
+      id: "ro_ignition_strike", name: "Ignition Strike", tier: 2, levelReq: 13, cost: 3,
+      mp: 48, cooldown: 4, damage: 1.6, element: "fire",
+      description: "Explosive blade: 160% fire damage + AoE burn 2 turns.",
+      requires: "ro_flame_dagger",
+      synergy: "fire_dmg % boosts both hit and burn. Pairs with Infernal Dance.",
+    },
+    {
+      id: "ro_infernal_dance", name: "Infernal Dance", tier: 3, levelReq: 29, cost: 4,
+      mp: 72, cooldown: 5, damage: 2.2, element: "fire",
+      description: "Dance of flames: 220% fire damage + 20% ATK speed for 2 turns.",
+      requires: "ro_ignition_strike",
+      synergy: "fire_dmg stacks. Speed buff enables devastating follow-ups.",
+    },
+    {
+      id: "ro_phoenix_slash", name: "Phoenix Slash", tier: 4, levelReq: 51, cost: 5,
+      mp: 115, cooldown: 5, damage: 3.0, element: "fire",
+      description: "Phoenix-empowered slash: 300% fire damage + heal 10% HP.",
+      requires: "ro_infernal_dance",
+      synergy: "fire_dmg build rogue's core nuke. Fire + sustain combo.",
+    },
+
+    // ── New Arcane skills ──
+    {
+      id: "ro_void_strike", name: "Void Strike", tier: 1, levelReq: 7, cost: 2,
+      mp: 38, cooldown: 3, damage: 1.2, element: "arcane",
+      description: "Strike from the void: 120% arcane damage, ignores 20% defense.",
+      requires: null,
+    },
+    {
+      id: "ro_phase_shift", name: "Phase Shift", tier: 2, levelReq: 15, cost: 3,
+      mp: 50, cooldown: 4, damage: 1.5, element: "arcane",
+      description: "Phase through reality: 150% arcane damage + 30% evasion for 1 turn.",
+      requires: "ro_void_strike",
+      synergy: "Opens the void rogue path. Pairs with Dimensional Slash.",
+    },
+    {
+      id: "ro_dimensional_slash", name: "Dimensional Slash", tier: 3, levelReq: 31, cost: 4,
+      mp: 78, cooldown: 5, damage: 2.5, element: "arcane",
+      description: "Cut through dimensions: 250% arcane damage + dispel enemy buffs.",
+      requires: "ro_phase_shift",
+    },
+    {
+      id: "ro_reality_rend", name: "Reality Rend", tier: 4, levelReq: 53, cost: 5,
+      mp: 125, cooldown: 5, damage: 3.5, element: "arcane",
+      description: "Tear reality apart: 350% arcane damage + stun 2 turns.",
+      requires: "ro_dimensional_slash",
+      synergy: "The arcane rogue's ultimate burst. Ignores all defenses.",
+    },
+
+    // ── New Ice fills ──
+    {
+      id: "ro_frozen_blade", name: "Frozen Blade", tier: 3, levelReq: 28, cost: 3,
+      mp: 68, cooldown: 5, damage: 2.0, element: "ice",
+      description: "Ice-encased blade: 200% ice damage + freeze 1 turn. ice_dmg applies.",
+      requires: "ro_frost_strike",
+      synergy: "ice_dmg % adds. Pairs with Frost Strike for ice assassination build.",
+    },
+    {
+      id: "ro_glacial_ambush", name: "Glacial Ambush", tier: 4, levelReq: 50, cost: 5,
+      mp: 112, cooldown: 5, damage: 3.0, element: "ice",
+      description: "Ambush from ice: 300% ice damage + freeze 2 turns + guaranteed crit.",
+      requires: "ro_frozen_blade",
+    },
+    {
+      id: "ro_absolute_chill", name: "Absolute Chill", tier: 5, levelReq: 73, cost: 6,
+      mp: 170, cooldown: 6, damage: 5.0, element: "ice",
+      description: "Absolute zero strike: 500% ice damage + freeze 3 turns. ice_dmg FULLY stacks.",
+      requires: "ro_glacial_ambush",
+      synergy: "ice_dmg build rogue's endgame. Total lockdown + assassination damage.",
+    },
+
+    // ── New Lightning fills ──
+    {
+      id: "ro_thunder_strike", name: "Thunder Strike", tier: 3, levelReq: 30, cost: 4,
+      mp: 72, cooldown: 4, damage: 2.2, element: "lightning",
+      description: "Lightning-fast combo: 220% lightning damage + 15% ATK speed for 2 turns.",
+      requires: "ro_lightning_step",
+      synergy: "lightning_dmg % stacks. Speed buff enables rapid combos.",
+    },
+    {
+      id: "ro_voltaic_rush", name: "Voltaic Rush", tier: 4, levelReq: 52, cost: 5,
+      mp: 118, cooldown: 5, damage: 3.2, element: "lightning",
+      description: "Electrical blade storm: 320% lightning damage + chain to 2 targets.",
+      requires: "ro_thunder_strike",
+    },
+    {
+      id: "ro_storm_blade", name: "Storm Blade", tier: 5, levelReq: 74, cost: 6,
+      mp: 175, cooldown: 6, damage: 5.0, element: "lightning",
+      description: "Channel the storm into your blade: 500% lightning damage + stun 2 turns.",
+      requires: "ro_voltaic_rush",
+      synergy: "lightning_dmg build rogue's ultimate. Stun-lock + burst damage.",
+    },
+
+    // ── New Sand fills ──
+    {
+      id: "ro_dust_shroud", name: "Dust Shroud", tier: 3, levelReq: 26, cost: 3,
+      mp: 60, cooldown: 5, damage: 1.5, element: "sand",
+      description: "Cloak in sand: 150% sand damage + 40% evasion for 2 turns.",
+      requires: "ro_sand_blind",
+      synergy: "sand_dmg % adds. Pairs with Sand Blind for desert assassin build.",
+    },
+    {
+      id: "ro_sandstorm_slash", name: "Sandstorm Slash", tier: 4, levelReq: 48, cost: 4,
+      mp: 105, cooldown: 5, damage: 2.8, element: "sand",
+      description: "Slash through sandstorm: 280% sand damage + blind 2 turns.",
+      requires: "ro_dust_shroud",
+    },
+    {
+      id: "ro_desert_phantom", name: "Desert Phantom", tier: 5, levelReq: 75, cost: 6,
+      mp: 165, cooldown: 6, damage: 4.5, element: "sand",
+      description: "Become one with the desert: 450% sand damage + 100% evasion for 2 turns.",
+      requires: "ro_sandstorm_slash",
+      synergy: "sand_dmg build rogue's endgame. Near-untouchable + strong damage.",
+    },
+
+    // ── New Poison fills ──
+    {
+      id: "ro_neurotoxin", name: "Neurotoxin", tier: 4, levelReq: 49, cost: 4,
+      mp: 105, cooldown: 5, damage: 2.8, element: "poison",
+      description: "Nerve poison: 280% poison damage + slow enemy 50% for 3 turns.",
+      requires: "ro_viper_strike",
+      synergy: "poison_dmg % stacks with speed reduction. Devastating control.",
+    },
+    {
+      id: "ro_plague_blade", name: "Plague Blade", tier: 5, levelReq: 72, cost: 6,
+      mp: 168, cooldown: 6, damage: 4.5, element: "poison",
+      description: "Plague-infused blade: 450% poison damage + DoT 5 turns (4% max HP/turn).",
+      requires: "ro_neurotoxin",
+      synergy: "poison_dmg build rogue's endgame. Highest sustained DoT in the game.",
+    },
   ],
 };
 
@@ -945,6 +1425,14 @@ export const SKILL_SYNERGIES = {
       requires: ["w_juggernaut", "w_avatar", "w_titan_form"], bonuses: { boss_dmg_pct: 20, crit_dmg_pct: 10, hp_flat: 300 }, icon: "💪👑", buildType: "Juggernaut" },
     { id: "syn_w_ragnarok_path", name: "Path of Ragnarok", description: "+25% Fire, +15% Boss DMG, +12% Crit DMG",
       requires: ["w_armageddon", "w_inferno_blade", "w_ragnarok"], bonuses: { fire_dmg: 25, boss_dmg_pct: 15, crit_dmg_pct: 12 }, icon: "🔥💀", buildType: "Fire Warrior" },
+    { id: "syn_w_frost_warrior", name: "Frost Warrior", description: "+15% Ice DMG, +10% DEF, +8% Evasion",
+      requires: ["w_frost_cleave", "w_frozen_wrath"], bonuses: { ice_dmg: 15, defense_pct: 10, evasion: 8 }, icon: "❄️⚔️", buildType: "Ice Warrior" },
+    { id: "syn_w_plague_lord", name: "Plague Lord", description: "+15% Poison DMG, +8% Lifesteal, +200 HP",
+      requires: ["w_venomous_edge", "w_plague_strike"], bonuses: { poison_dmg: 15, lifesteal: 8, hp_flat: 200 }, icon: "☠️⚔️", buildType: "Poison Warrior" },
+    { id: "syn_w_arcane_knight", name: "Arcane Knight", description: "+15% ATK, +100 MP, +10% Boss DMG",
+      requires: ["w_runic_blade", "w_void_cleave"], bonuses: { attack_pct: 15, mp_flat: 100, boss_dmg_pct: 10 }, icon: "✨⚔️", buildType: "Arcane Warrior" },
+    { id: "syn_w_thunder_god", name: "Thunder God", description: "+20% Lightning, +12% Crit, +10% Speed",
+      requires: ["w_thunder_strike", "w_mjolnir_strike", "w_tempest_fury"], bonuses: { lightning_dmg: 20, crit_chance: 12, attack_speed: 10 }, icon: "⚡👑", buildType: "Lightning Warrior" },
   ],
   mage: [
     { id: "syn_m_pyromancer", name: "Pyromancer", description: "+15% Fire, +8% Crit, +5% Boss DMG",
@@ -959,6 +1447,14 @@ export const SKILL_SYNERGIES = {
       requires: ["m_blood_pact", "m_poison_cloud"], bonuses: { blood_dmg: 12, lifesteal: 8, hp_flat: 200 }, icon: "🩸☠️", buildType: "Blood Mage" },
     { id: "syn_m_apocalypse_path", name: "Apocalypse Bringer", description: "+30% Fire, +20% Boss DMG, +15% Crit DMG",
       requires: ["m_meteor", "m_apocalypse", "m_supernova"], bonuses: { fire_dmg: 30, boss_dmg_pct: 20, crit_dmg_pct: 15 }, icon: "🔥💥", buildType: "Destruction Mage" },
+    { id: "syn_m_hemomancer", name: "Hemomancer", description: "+20% Blood DMG, +12% Lifesteal, +300 HP",
+      requires: ["m_blood_bolt", "m_hemomancy", "m_crimson_storm"], bonuses: { blood_dmg: 20, lifesteal: 12, hp_flat: 300 }, icon: "🩸🧙", buildType: "Blood Mage" },
+    { id: "syn_m_sand_sorcerer", name: "Sand Sorcerer", description: "+15% Sand DMG, +10% Evasion, +8% Speed",
+      requires: ["m_sandstorm", "m_desert_wrath"], bonuses: { sand_dmg: 15, evasion: 10, attack_speed: 8 }, icon: "🌪️🧙", buildType: "Sand Mage" },
+    { id: "syn_m_storm_mage", name: "Storm Mage", description: "+20% Lightning, +10% Crit DMG, +8% Speed",
+      requires: ["m_chain_lightning", "m_thunderstorm", "m_ball_lightning"], bonuses: { lightning_dmg: 20, crit_dmg_pct: 10, attack_speed: 8 }, icon: "⚡🧙", buildType: "Lightning Mage" },
+    { id: "syn_m_plague_mage", name: "Plague Mage", description: "+20% Poison, +10% Lifesteal, +5% Drop",
+      requires: ["m_poison_cloud", "m_plague", "m_miasma"], bonuses: { poison_dmg: 20, lifesteal: 10, drop_chance: 5 }, icon: "☠️🧙", buildType: "Plague Mage" },
   ],
   ranger: [
     { id: "syn_r_sharpshooter", name: "Sharpshooter", description: "+15% Crit, +12% Crit DMG, +8% Speed",
@@ -971,6 +1467,14 @@ export const SKILL_SYNERGIES = {
       requires: ["r_dodge_roll", "r_wind_walk", "r_shadow_step"], bonuses: { evasion: 20, attack_speed: 15, exp_pct: 10 }, icon: "💨🏃", buildType: "Wind Runner" },
     { id: "syn_r_storm_archer", name: "Storm Archer", description: "+25% Lightning, +15% Boss, +10% Crit DMG",
       requires: ["r_lightning_arrow", "r_storm_bow", "r_celestial_barrage"], bonuses: { lightning_dmg: 25, boss_dmg_pct: 15, crit_dmg_pct: 10 }, icon: "⚡🌩️", buildType: "Storm Ranger" },
+    { id: "syn_r_mystic_archer", name: "Mystic Archer", description: "+15% ATK, +100 MP, +10% Boss DMG",
+      requires: ["r_arcane_arrow", "r_ethereal_volley", "r_astral_barrage"], bonuses: { attack_pct: 15, mp_flat: 100, boss_dmg_pct: 10 }, icon: "✨🏹", buildType: "Arcane Ranger" },
+    { id: "syn_r_frost_hunter", name: "Frost Hunter", description: "+20% Ice, +10% DEF, +10% Evasion",
+      requires: ["r_frost_arrow", "r_frozen_shot", "r_absolute_winter"], bonuses: { ice_dmg: 20, defense_pct: 10, evasion: 10 }, icon: "❄️🏹", buildType: "Ice Ranger" },
+    { id: "syn_r_blood_hunter", name: "Blood Hunter", description: "+15% Blood, +12% Lifesteal, +200 HP",
+      requires: ["r_crimson_arrow", "r_blood_arrow", "r_sanguine_barrage"], bonuses: { blood_dmg: 15, lifesteal: 12, hp_flat: 200 }, icon: "🩸🏹", buildType: "Blood Ranger" },
+    { id: "syn_r_desert_ranger", name: "Desert Ranger", description: "+15% Sand, +12% Evasion, +8% Speed",
+      requires: ["r_sand_trap", "r_sandstorm_volley", "r_desert_judgment"], bonuses: { sand_dmg: 15, evasion: 12, attack_speed: 8 }, icon: "🌪️🏹", buildType: "Sand Ranger" },
   ],
   rogue: [
     { id: "syn_ro_shadow_assassin", name: "Shadow Assassin", description: "+20% Crit DMG, +15% Boss, +10% Speed",
@@ -985,6 +1489,16 @@ export const SKILL_SYNERGIES = {
       requires: ["ro_blood_frenzy", "ro_reaper", "ro_deaths_embrace"], bonuses: { blood_dmg: 25, boss_dmg_pct: 20, lifesteal: 15 }, icon: "💀👑", buildType: "Death Lord" },
     { id: "syn_ro_blade_master", name: "Blade Master", description: "+15% ATK, +20% Crit, +12% Speed",
       requires: ["ro_blade_dance", "ro_dual_strike", "ro_assassinate"], bonuses: { attack_pct: 15, crit_chance: 20, attack_speed: 12 }, icon: "⚔️🌀", buildType: "Blade Master" },
+    { id: "syn_ro_fire_dancer", name: "Fire Dancer", description: "+15% Fire, +10% Speed, +8% Crit",
+      requires: ["ro_flame_dagger", "ro_infernal_dance", "ro_phoenix_slash"], bonuses: { fire_dmg: 15, attack_speed: 10, crit_chance: 8 }, icon: "🔥🗡️", buildType: "Fire Rogue" },
+    { id: "syn_ro_void_assassin", name: "Void Assassin", description: "+15% ATK, +15% Boss DMG, +100 MP",
+      requires: ["ro_void_strike", "ro_dimensional_slash", "ro_reality_rend"], bonuses: { attack_pct: 15, boss_dmg_pct: 15, mp_flat: 100 }, icon: "✨🗡️", buildType: "Arcane Rogue" },
+    { id: "syn_ro_frost_assassin", name: "Frost Assassin", description: "+20% Ice, +10% Evasion, +10% Crit DMG",
+      requires: ["ro_frost_strike", "ro_frozen_blade", "ro_absolute_chill"], bonuses: { ice_dmg: 20, evasion: 10, crit_dmg_pct: 10 }, icon: "❄️🗡️", buildType: "Ice Rogue" },
+    { id: "syn_ro_storm_rogue", name: "Storm Rogue", description: "+20% Lightning, +12% Speed, +8% Crit",
+      requires: ["ro_lightning_step", "ro_thunder_strike", "ro_storm_blade"], bonuses: { lightning_dmg: 20, attack_speed: 12, crit_chance: 8 }, icon: "⚡🗡️", buildType: "Lightning Rogue" },
+    { id: "syn_ro_desert_assassin", name: "Desert Assassin", description: "+15% Sand, +15% Evasion, +8% Speed",
+      requires: ["ro_sand_blind", "ro_dust_shroud", "ro_desert_phantom"], bonuses: { sand_dmg: 15, evasion: 15, attack_speed: 8 }, icon: "🌪️🗡️", buildType: "Sand Rogue" },
   ],
 };
 
