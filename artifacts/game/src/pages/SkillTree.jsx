@@ -125,21 +125,18 @@ function ConnectionLines({ skills, learnedSkills, nodeRefs, containerRef, active
       const fromEl = nodeRefs.current[skill.requires];
       const toEl = nodeRefs.current[skill.id];
       if (!fromEl || !toEl) continue;
-
-      // Check both nodes are actually in the DOM (not stale refs from previous filter)
       if (!fromEl.isConnected || !toEl.isConnected) continue;
 
       const fromRect = fromEl.getBoundingClientRect();
       const toRect = toEl.getBoundingClientRect();
-
-      // Skip if either node has zero size (hidden)
       if (fromRect.width === 0 || toRect.width === 0) continue;
 
-      // Straight line from center of parent node to center of child node (like JavaFX approach)
+      // Center of the 72px icon square (icon is at top of 88px container)
+      const iconSize = 72;
       const x1 = fromRect.left + fromRect.width / 2 - containerRect.left;
-      const y1 = fromRect.top + fromRect.height / 2 - containerRect.top;
+      const y1 = fromRect.top + iconSize / 2 - containerRect.top;
       const x2 = toRect.left + toRect.width / 2 - containerRect.left;
-      const y2 = toRect.top + toRect.height / 2 - containerRect.top;
+      const y2 = toRect.top + iconSize / 2 - containerRect.top;
 
       const parentLearned = learnedSkills.includes(skill.requires);
       const childLearned = learnedSkills.includes(skill.id);
@@ -165,20 +162,20 @@ function ConnectionLines({ skills, learnedSkills, nodeRefs, containerRef, active
   return (
     <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 0 }}>
       {lines.map(line => {
-        const color = line.bothLearned ? line.elemColor : line.parentLearned ? `${line.elemColor}88` : "#333";
-        const width = line.bothLearned ? 4 : 3;
+        const color = line.bothLearned ? line.elemColor : line.parentLearned ? `${line.elemColor}88` : "#64748b";
+        const width = 4;
         const glow = line.bothLearned ? line.elemColor : "none";
+
+        // Horizontal-first L-shape: go horizontal at parent Y, then drop vertical to child
+        // Exactly like the HTML prototype: h-line at y1 from x1→x2, v-line at x2 from y1→y2
+        const path = `M${line.x1},${line.y1} L${line.x2},${line.y1} L${line.x2},${line.y2}`;
 
         return (
           <g key={line.id}>
-            {/* Glow behind learned paths */}
             {line.bothLearned && (
-              <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-                stroke={glow} strokeWidth={10} strokeOpacity={0.2} />
+              <path d={path} fill="none" stroke={glow} strokeWidth={10} strokeOpacity={0.2} />
             )}
-            {/* Main straight line */}
-            <line x1={line.x1} y1={line.y1} x2={line.x2} y2={line.y2}
-              stroke={color} strokeWidth={width}
+            <path d={path} fill="none" stroke={color} strokeWidth={width}
               strokeDasharray={line.parentLearned ? "none" : "6 4"} />
           </g>
         );
