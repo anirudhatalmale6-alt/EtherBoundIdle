@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useRef, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,7 +13,7 @@ const ELEMENT_ORDER = ["physical", "fire", "ice", "lightning", "poison", "blood"
 
 const ELEM_BORDER = {
   fire: "#fb923c", ice: "#22d3ee", lightning: "#fde047", poison: "#4ade80",
-  blood: "#ef4444", sand: "#fbbf24", arcane: "#c084fc", physical: "#9ca3af", none: "#6b7280",
+  blood: "#ef4444", sand: "#fbbf24", arcane: "#c084fc", physical: "#9ca3af", none: "#a78bfa",
 };
 
 const EFFECT_LABELS = {
@@ -366,6 +366,39 @@ export default function SkillTree({ character, onCharacterUpdate }) {
   const [showPreviewMobile, setShowPreviewMobile] = useState(false);
   const [showSynergyMobile, setShowSynergyMobile] = useState(false);
 
+  // Drag-to-pan state
+  const treeContainerRef = useRef(null);
+  const isDragging = useRef(false);
+  const dragStart = useRef({ x: 0, y: 0, scrollLeft: 0, scrollTop: 0 });
+
+  const onDragStart = useCallback((e) => {
+    if (!treeContainerRef.current) return;
+    isDragging.current = true;
+    dragStart.current = {
+      x: e.clientX || e.touches?.[0]?.clientX || 0,
+      y: e.clientY || e.touches?.[0]?.clientY || 0,
+      scrollLeft: treeContainerRef.current.scrollLeft,
+      scrollTop: treeContainerRef.current.scrollTop,
+    };
+    treeContainerRef.current.style.cursor = "grabbing";
+  }, []);
+
+  const onDragMove = useCallback((e) => {
+    if (!isDragging.current || !treeContainerRef.current) return;
+    e.preventDefault();
+    const x = e.clientX || e.touches?.[0]?.clientX || 0;
+    const y = e.clientY || e.touches?.[0]?.clientY || 0;
+    const dx = x - dragStart.current.x;
+    const dy = y - dragStart.current.y;
+    treeContainerRef.current.scrollLeft = dragStart.current.scrollLeft - dx;
+    treeContainerRef.current.scrollTop = dragStart.current.scrollTop - dy;
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    isDragging.current = false;
+    if (treeContainerRef.current) treeContainerRef.current.style.cursor = "grab";
+  }, []);
+
   const charClass = character?.class || "warrior";
   const allSkills = CLASS_SKILLS[charClass] || [];
   const learnedSkills = character?.skills || [];
@@ -526,7 +559,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
               All
             </button>
             {availableElements.map(elem => {
-              const cfg = ELEMENT_CONFIG[elem] || { icon: "⚔️", label: elem };
+              const cfg = elem === "none" ? { icon: "✨", label: "Buffs" } : (ELEMENT_CONFIG[elem] || { icon: "⚔️", label: elem });
               const c = elemCounts[elem] || { total: 0, learned: 0 };
               const isActive = activeElement === elem;
               const color = ELEM_BORDER[elem] || "#666";
@@ -562,7 +595,17 @@ export default function SkillTree({ character, onCharacterUpdate }) {
           </div>
 
           {/* ═══ SKILL TREE (prototype layout) ═══ */}
-          <div className="border border-border rounded-xl bg-[#0d0d14] overflow-auto">
+          <div
+            ref={treeContainerRef}
+            className="border border-border rounded-xl bg-[#0d0d14] overflow-auto"
+            style={{ cursor: "grab" }}
+            onMouseDown={onDragStart}
+            onMouseMove={onDragMove}
+            onMouseUp={onDragEnd}
+            onMouseLeave={onDragEnd}
+            onTouchStart={onDragStart}
+            onTouchMove={onDragMove}
+            onTouchEnd={onDragEnd}>
             <div style={{
               position: "relative",
               width: containerW * zoom,
