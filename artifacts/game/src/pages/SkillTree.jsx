@@ -28,7 +28,7 @@ const NODE_SIZE = 72;
 const HALF = NODE_SIZE / 2;
 const LINE_WIDTH = 4;
 const CUT = 10; // how far lines stop from node center
-const H_GAP = 36;
+const H_GAP = 16;
 const V_GAP = 120;
 const PADDING = 24;
 
@@ -401,7 +401,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
   }
 
   return (
-    <div className="p-2 md:p-3 max-w-[1400px] mx-auto space-y-2">
+    <div className="p-2 md:p-3 max-w-[1800px] mx-auto space-y-2">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -448,7 +448,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
       </AnimatePresence>
 
       {/* ═══ 3-COLUMN GRID (matching screenshot layout) ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[340px_1fr_340px] gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-2">
 
         {/* LEFT: Skill Preview + Element Stacks */}
         <div className="hidden lg:block">
