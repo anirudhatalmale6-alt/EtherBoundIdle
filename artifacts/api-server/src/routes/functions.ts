@@ -2418,7 +2418,11 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       d.combat_log = d.combat_log || [];
       d.combat_log.push({ type: "system", text: `${char.name} joined the party.` });
       await db.update(dungeonSessionsTable).set({ data: d }).where(eq(dungeonSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: buildSessionResponse({ ...session, data: d }) });
+      const joinResp = buildSessionResponse({ ...session, data: d });
+      for (const m of members) {
+        if (m.character_id !== characterId) emitToCharacter(String(m.character_id), "dungeon:combat_update", joinResp);
+      }
+      sendSuccess(res, { success: true, session: joinResp });
       return;
     }
 
@@ -2435,7 +2439,11 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       d.turn_deadline = new Date(Date.now() + 8000).toISOString();
       d.combat_log.push({ type: "system", text: `Battle begins! ${d.boss_name} appears!` });
       await db.update(dungeonSessionsTable).set({ status: "active", data: d }).where(eq(dungeonSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: buildSessionResponse({ ...session, data: d }) });
+      const startResp = buildSessionResponse({ ...session, data: d });
+      for (const m of members) {
+        if (m.character_id !== characterId) emitToCharacter(String(m.character_id), "dungeon:combat_update", startResp);
+      }
+      sendSuccess(res, { success: true, session: startResp });
       return;
     }
 
@@ -2584,7 +2592,11 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
           }
         } catch {}
 
-        sendSuccess(res, { success: true, session: buildSessionResponse({ ...session, data: d }) });
+        const victoryResp = buildSessionResponse({ ...session, data: d });
+        for (const m of members) {
+          if (m.character_id !== characterId) emitToCharacter(String(m.character_id), "dungeon:combat_update", victoryResp);
+        }
+        sendSuccess(res, { success: true, session: victoryResp });
         return;
       }
 
@@ -2638,7 +2650,11 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
         d.status = "defeat";
         d.combat_log.push({ type: "defeat", text: `All party members have fallen. Defeat.` });
         await db.update(dungeonSessionsTable).set({ status: "completed", data: d }).where(eq(dungeonSessionsTable.id, session.id));
-        sendSuccess(res, { success: true, session: buildSessionResponse({ ...session, data: d }) });
+        const defeatResp = buildSessionResponse({ ...session, data: d });
+        for (const m of members) {
+          if (m.character_id !== characterId) emitToCharacter(String(m.character_id), "dungeon:combat_update", defeatResp);
+        }
+        sendSuccess(res, { success: true, session: defeatResp });
         return;
       }
 
@@ -2654,7 +2670,11 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       d.members = members;
 
       await db.update(dungeonSessionsTable).set({ data: d }).where(eq(dungeonSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: buildSessionResponse({ ...session, data: d }) });
+      const turnResp = buildSessionResponse({ ...session, data: d });
+      for (const m of members) {
+        if (m.character_id !== characterId) emitToCharacter(String(m.character_id), "dungeon:combat_update", turnResp);
+      }
+      sendSuccess(res, { success: true, session: turnResp });
       return;
     }
 
@@ -7331,23 +7351,25 @@ router.post("/functions/worldBossAction", async (req: Request, res: Response) =>
         d.boss_hp = 0;
         d.combat_log.push({ type: "victory", text: `${d.boss_name || boss.name} has been defeated! All participants can claim rewards!` });
         await db.update(worldBossSessionsTable).set({ status: "defeated", data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
-        emitToAll("worldboss:update", { zone, status: "defeated" });
+        const defeatState = { id: session.id, zone, status: "defeated", ...d, participants };
+        emitToAll("worldboss:combat_update", defeatState);
         sendSuccess(res, {
           success: true,
-          session: { id: session.id, zone, status: "defeated", ...d, participants },
+          session: defeatState,
           myEntry: me,
           bossDefeated: true,
         });
         return;
       }
 
-      // Push real-time world boss update to all connected players
-      emitToAll("worldboss:update", { zone, bossHp: d.boss_hp, bossMaxHp: boss.hp });
-
       await db.update(worldBossSessionsTable).set({ data: d, participants }).where(eq(worldBossSessionsTable.id, session.id));
+      const combatState = { id: session.id, zone, status: "active", ...d, participants };
+      // Push real-time world boss update to all connected players
+      emitToAll("worldboss:combat_update", combatState);
+
       sendSuccess(res, {
         success: true,
-        session: { id: session.id, zone, status: "active", ...d, participants },
+        session: combatState,
         myEntry: me,
       });
       return;
@@ -8130,7 +8152,12 @@ router.post("/functions/fieldAction", async (req: Request, res: Response) => {
       combatLog.push({ type: "system", text: `${char.name} has joined The Fields!`, ts: Date.now() });
 
       await db.update(fieldSessionsTable).set({ members, combatLog }).where(eq(fieldSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      const joinResp = { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data };
+      for (const m of members) {
+        const mid = m.characterId || m.character_id;
+        if (mid && mid !== characterId) emitToCharacter(String(mid), "field:combat_update", joinResp);
+      }
+      sendSuccess(res, { success: true, session: joinResp });
       return;
     }
 
@@ -8146,7 +8173,12 @@ router.post("/functions/fieldAction", async (req: Request, res: Response) => {
       combatLog.push({ type: "system", text: `The battle begins! Field 1 — ${members.length} players enter the fray!`, ts: Date.now() });
 
       await db.update(fieldSessionsTable).set({ status: "combat", combatLog }).where(eq(fieldSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: { id: session.id, status: "combat", fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data } });
+      const startResp = { id: session.id, status: "combat", fieldNumber: session.fieldNumber, element: session.element, members, enemies: session.enemies, modifiers: session.modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data: session.data };
+      for (const m of members) {
+        const mid = m.characterId || m.character_id;
+        if (mid && mid !== characterId) emitToCharacter(String(mid), "field:combat_update", startResp);
+      }
+      sendSuccess(res, { success: true, session: startResp });
       return;
     }
 
@@ -8503,7 +8535,12 @@ router.post("/functions/fieldAction", async (req: Request, res: Response) => {
           data: pathData,
         }).where(eq(fieldSessionsTable.id, session.id));
 
-        sendSuccess(res, { success: true, session: { id: session.id, status: "field_clear", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: pathData } });
+        const clearResp = { id: session.id, status: "field_clear", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: pathData };
+        for (const m of members) {
+          const mid = m.characterId || m.character_id;
+          if (mid && mid !== characterId) emitToCharacter(String(mid), "field:combat_update", clearResp);
+        }
+        sendSuccess(res, { success: true, session: clearResp });
         return;
       }
 
@@ -8518,12 +8555,22 @@ router.post("/functions/fieldAction", async (req: Request, res: Response) => {
           data: { ...data, finalField: session.fieldNumber },
         }).where(eq(fieldSessionsTable.id, session.id));
 
-        sendSuccess(res, { success: true, session: { id: session.id, status: "defeated", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: { ...data, finalField: session.fieldNumber } } });
+        const defeatResp = { id: session.id, status: "defeated", fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: totalRewards, combatLog: combatLog.slice(-30), data: { ...data, finalField: session.fieldNumber } };
+        for (const m of members) {
+          const mid = m.characterId || m.character_id;
+          if (mid && mid !== characterId) emitToCharacter(String(mid), "field:combat_update", defeatResp);
+        }
+        sendSuccess(res, { success: true, session: defeatResp });
         return;
       }
 
       await db.update(fieldSessionsTable).set({ enemies, members, combatLog }).where(eq(fieldSessionsTable.id, session.id));
-      sendSuccess(res, { success: true, session: { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data } });
+      const turnResp = { id: session.id, status: session.status, fieldNumber: session.fieldNumber, element: session.element, members, enemies, modifiers, rewards: session.rewards, combatLog: combatLog.slice(-30), data };
+      for (const m of members) {
+        const mid = m.characterId || m.character_id;
+        if (mid && mid !== characterId) emitToCharacter(String(mid), "field:combat_update", turnResp);
+      }
+      sendSuccess(res, { success: true, session: turnResp });
       return;
     }
 
