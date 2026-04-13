@@ -286,7 +286,7 @@ function SkillPreview({ skill, skills, learnedSkills, skillPoints, charLevel, on
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground leading-relaxed line-clamp-3">{skill.description}</p>
+      <p className="text-xs text-white leading-relaxed line-clamp-3">{skill.description}</p>
 
       {skill.requires && (() => {
         const prereq = skills.find(s => s.id === skill.requires);
