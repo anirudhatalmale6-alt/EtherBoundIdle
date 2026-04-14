@@ -129,7 +129,7 @@ function SkillNode({ skill, learned, canLearn, locked, isSelected, isEquipped, i
       <div style={{
         position: "absolute",
         inset: -10,
-        borderImage: `url('${frameImg}') 10 / 10px`,
+        borderImage: `url('${frameImg}') 16 fill / 16px`,
         borderStyle: "solid",
         imageRendering: "pixelated",
         pointerEvents: "none",
@@ -256,7 +256,7 @@ function SkillPreview({ skill, skills, learnedSkills, skillPoints, charLevel, on
           style={{ position: "relative", background: learned ? "#1e293b" : "#080b11", overflow: "visible" }}>
           <div style={{
             position: "absolute", inset: -10,
-            borderImage: `url('/sprites/ui/${learned ? "skill_frame_learned" : "skill_frame_unlearned"}.png') 10 / 10px`,
+            borderImage: `url('/sprites/ui/${learned ? "skill_frame_learned" : "skill_frame_unlearned"}.png') 16 fill / 16px`,
             borderStyle: "solid", imageRendering: "pixelated", pointerEvents: "none", zIndex: 1,
           }} />
           {skill.id.startsWith("m_") ? (
