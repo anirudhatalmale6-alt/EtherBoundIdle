@@ -252,7 +252,7 @@ function SkillPreview({ skill, skills, learnedSkills, skillPoints, charLevel, on
   const canLearn = !learned && prereqMet && levelOk && skillPoints >= skill.cost;
 
   return (
-    <div className="border rounded-xl bg-black/30 p-4 space-y-2.5" style={{ borderColor: `${elemColor}55` }}>
+    <div className="border rounded-xl bg-black/30 p-4 space-y-2.5 max-h-[60vh] overflow-y-auto scrollbar-hide" style={{ borderColor: `${elemColor}55` }}>
       <div className="flex flex-col items-center text-center gap-2">
         <div className="w-[72px] h-[72px] flex items-center justify-center"
           style={{ position: "relative", background: learned ? "#1e293b" : "#080b11", overflow: "visible" }}>
@@ -317,7 +317,7 @@ function SkillPreview({ skill, skills, learnedSkills, skillPoints, charLevel, on
         </div>
       )}
 
-      <p className="text-xs text-white leading-relaxed line-clamp-3">{skill.description}</p>
+      <p className="text-xs text-white leading-relaxed">{skill.description}</p>
 
       {skill.requires && (() => {
         const prereq = skills.find(s => s.id === skill.requires);
@@ -357,7 +357,7 @@ function SynergyPanel({ charClass, skills, learnedSkills, equippedSkills }) {
         <Sparkles className="w-4 h-4" /> Synergies
         <span className="text-xs text-amber-500/60 ml-auto">{activeSynergies.length}/{allSynergies.length}</span>
       </h3>
-      <div className="grid grid-cols-2 gap-1.5 max-h-[70vh] overflow-y-auto scrollbar-hide">
+      <div className="grid grid-cols-1 gap-1.5 max-h-[70vh] overflow-y-auto scrollbar-hide">
         {allSynergies.map(syn => {
           const isActive = activeSynergies.some(a => a.id === syn.id);
           const progress = syn.requires.filter(id => learnedSet.has(id)).length;
@@ -538,7 +538,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
       </AnimatePresence>
 
       {/* ═══ 3-COLUMN GRID (matching screenshot layout) ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr_280px] gap-2">
+      <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr_320px] gap-2">
 
         {/* LEFT: Skill Preview + Element Stacks */}
         <div className="hidden lg:block">
@@ -556,7 +556,7 @@ export default function SkillTree({ character, onCharacterUpdate }) {
                   <h3 className="font-orbitron font-bold text-base text-violet-400 flex items-center gap-2">
                     <Flame className="w-4 h-4" /> Element Stacks
                   </h3>
-                  <div className="grid grid-cols-2 gap-1.5">
+                  <div className="grid grid-cols-3 gap-1.5">
                     {allElements.map(element => {
                       const tiers = ELEMENT_STACK_BONUSES[element];
                       const activeStack = activeStacks.find(s => s.element === element);
