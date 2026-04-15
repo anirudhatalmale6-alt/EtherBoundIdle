@@ -7,6 +7,15 @@ import { Badge } from "@/components/ui/badge";
 import { Swords, Zap, LogOut, Crown, Skull, Clock, User } from "lucide-react";
 import { SKILLS, CLASSES } from "@/lib/gameData";
 import { CLASS_SKILLS, ELEMENT_CONFIG } from "@/lib/skillData";
+
+function getSkillSpriteFolder(skillId) {
+  if (!skillId) return null;
+  if (skillId.startsWith("m_")) return "mage";
+  if (skillId.startsWith("w_")) return "warrior";
+  if (skillId.startsWith("ro_")) return "rogue";
+  if (skillId.startsWith("r_")) return "ranger";
+  return null;
+}
 import PlayerProfileModal from "@/components/game/PlayerProfileModal";
 import { useSmartPolling, POLL_INTERVALS } from "@/hooks/useSmartPolling";
 
@@ -346,7 +355,12 @@ export default function DungeonCombat({ session: initialSession, character, onLe
                     disabled={!isMyTurn || loading}
                     onClick={() => doAction('skill', skill.id)}
                   >
-                    <span className="text-sm">{elem?.icon || <Zap className="w-3.5 h-3.5" />}</span>
+                    {(() => {
+                      const folder = getSkillSpriteFolder(skill.id);
+                      return folder
+                        ? <img src={`/sprites/skills/${folder}/${skill.id}.png`} alt={skill.name} style={{ width: 24, height: 24, imageRendering: "pixelated" }} onError={e => { e.target.style.display = "none"; }} />
+                        : <span className="text-sm">{elem?.icon || <Zap className="w-3.5 h-3.5" />}</span>;
+                    })()}
                     {skill.name}
                     <span className="text-xs opacity-60 ml-auto">({skill.mp}MP)</span>
                   </Button>

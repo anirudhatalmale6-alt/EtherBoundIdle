@@ -1,11 +1,23 @@
 import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import { base44 } from "@/api/base44Client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Swords, Zap, LogOut, Crown, Skull, Clock, User } from "lucide-react";
 import { SKILLS, CLASSES } from "@/lib/gameData";
+import { CLASS_SKILLS, ELEMENT_CONFIG } from "@/lib/skillData";
+
+function getSkillSpriteFolder(skillId) {
+  if (!skillId) return null;
+  if (skillId.startsWith("m_")) return "mage";
+  if (skillId.startsWith("w_")) return "warrior";
+  if (skillId.startsWith("ro_")) return "rogue";
+  if (skillId.startsWith("r_")) return "ranger";
+  return null;
+}
 import PlayerProfileModal from "@/components/game/PlayerProfileModal";
+import { useSmartPolling, POLL_INTERVALS } from "@/hooks/useSmartPolling";
 
 const CLASS_COLORS = {
   warrior: "text-red-400", mage: "text-blue-400",
@@ -62,16 +74,47 @@ export default function DungeonCombat({ session: initialSession, character, onLe
   const [loading, setLoading] = useState(false);
   const [profileTarget, setProfileTarget] = useState(null);
   const logRef = useRef(null);
+  const combatPollInterval = useSmartPolling(POLL_INTERVALS.COMBAT);
 
-  // Real-time subscription
+  const PET_SPECIES_ICONS_DC = { Wolf:"🐺", Phoenix:"🔥", Dragon:"🐉", Turtle:"🐢", Cat:"🐱", Owl:"🦉", Slime:"🫧", Fairy:"🧚", Serpent:"🐍", Golem:"🪨" };
+  const PET_EVO_SUFFIX_DC = ["", "⭐", "👑"];
+  const RARITY_PET_COLORS_DC = { common:"text-gray-400", uncommon:"text-green-400", rare:"text-blue-400", epic:"text-purple-400", legendary:"text-amber-400", mythic:"text-red-400" };
+
+  const { data: petDataDC } = useQuery({
+    queryKey: ["pets", character?.id],
+    queryFn: () => base44.functions.invoke("petAction", { characterId: character.id, action: "list" }),
+    enabled: !!character?.id,
+    staleTime: 60000,
+  });
+  const equippedPetDC = (petDataDC?.pets || []).find(p => p.equipped);
+
+  // Real-time dungeon combat updates via Socket.IO
   useEffect(() => {
-    const unsub = base44.entities.DungeonSession.subscribe((event) => {
-      if (event.id === session.id || event.data?.id === session.id) {
-        if (event.data) setSession(event.data);
-      }
-    });
-    return unsub;
-  }, [session.id]);
+    if (!session?.id) return;
+    const handler = (e) => {
+      const data = e.detail;
+      if (data && data.id === session.id) setSession(prev => ({ ...prev, ...data }));
+    };
+    window.addEventListener("dungeon-combat-update", handler);
+    return () => window.removeEventListener("dungeon-combat-update", handler);
+  }, [session?.id]);
+
+  // Fallback poll for dungeon session updates (reduced frequency, socket is primary)
+  useEffect(() => {
+    if (!session.id) return;
+    const poll = async () => {
+      try {
+        const res = await base44.functions.invoke('dungeonAction', {
+          action: 'get_session',
+          characterId: character.id,
+          sessionId: session.id,
+        });
+        if (res?.success && res.session) setSession(res.session);
+      } catch {}
+    };
+    const interval = setInterval(poll, 5000);
+    return () => clearInterval(interval);
+  }, [session.id, character.id]);
 
   // Scroll log to bottom
   useEffect(() => {
@@ -94,7 +137,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
         sessionId: session.id,
         skillId,
       });
-      if (res.data?.session) setSession(res.data.session);
+      if (res?.session) setSession(res.session);
     } finally {
       setLoading(false);
     }
@@ -108,7 +151,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
         characterId: character.id,
         sessionId: session.id,
       });
-      if (res.data?.session) setSession(res.data.session);
+      if (res?.session) setSession(res.session);
     } finally {
       setLoading(false);
     }
@@ -128,9 +171,15 @@ export default function DungeonCombat({ session: initialSession, character, onLe
     if (isMyTurn && !loading) doAction('attack');
   };
 
-  const classData = CLASSES[character.class];
-  const charSkillIds = classData?.skills?.slice(0, 2) || [];
-  const charSkills = charSkillIds.map(id => ({ id, ...SKILLS[id] })).filter(s => s.name);
+  // Use learned skills from CLASS_SKILLS (same as Battle.jsx)
+  const allClassSkills = CLASS_SKILLS[character?.class || "warrior"] || [];
+  const hotbarIds = character?.hotbar_skills?.length > 0
+    ? character.hotbar_skills
+    : (character?.skills || []);
+  const charSkills = hotbarIds
+    .map(sid => allClassSkills.find(s => s.id === sid))
+    .filter(Boolean)
+    .slice(0, 6);
   const bossHpPct = session.boss_max_hp > 0 ? (session.boss_hp / session.boss_max_hp) * 100 : 0;
 
   return (
@@ -174,6 +223,13 @@ export default function DungeonCombat({ session: initialSession, character, onLe
               <div className="flex-1">
                 <p className="font-orbitron font-bold text-destructive text-lg">{session.boss_name}</p>
                 <p className="text-xs text-muted-foreground">{Math.max(0, session.boss_hp).toLocaleString()} / {session.boss_max_hp.toLocaleString()} HP</p>
+                {(session.boss_element || session.boss_weakness || session.boss_resistance) && (
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {session.boss_element && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-orange-500/50 text-orange-400">⚡ {session.boss_element}</Badge>}
+                    {session.boss_weakness && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-green-500/50 text-green-400">▼ Weak: {session.boss_weakness}</Badge>}
+                    {session.boss_resistance && <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-red-500/50 text-red-400">▲ Resist: {session.boss_resistance}</Badge>}
+                  </div>
+                )}
               </div>
               {session.status === 'active' && session.turn_deadline && (
                 <TurnTimer deadline={session.turn_deadline} onExpire={handleTurnExpire} />
@@ -212,7 +268,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold flex-shrink-0 ${
                       m.hp <= 0 ? "bg-muted/30 text-muted-foreground" : "bg-primary/20 text-primary"
                     }`}>
-                      {m.name[0].toUpperCase()}
+                      <img src={`/sprites/class_${m.class || "warrior"}.png`} alt={m.class} className="w-6 h-6" style={{ imageRendering: "pixelated", opacity: m.hp <= 0 ? 0.4 : 1 }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
@@ -227,6 +283,25 @@ export default function DungeonCombat({ session: initialSession, character, onLe
                         max={m.max_hp}
                         color={hpPct > 0.5 ? "bg-green-500" : hpPct > 0.25 ? "bg-yellow-500" : "bg-red-500"}
                       />
+                      {m.character_id === character.id && equippedPetDC && (() => {
+                        const icon = PET_SPECIES_ICONS_DC[equippedPetDC.species] || "🐾";
+                        const evoSuffix = PET_EVO_SUFFIX_DC[equippedPetDC.evolution || 0] || "";
+                        const rarityColor = RARITY_PET_COLORS_DC[equippedPetDC.rarity] || "text-gray-400";
+                        const xpPct = Math.min(100, ((equippedPetDC.xp || 0) / 500) * 100);
+                        return (
+                          <div className="mt-1 flex items-center gap-1.5 bg-muted/20 border border-border/50 rounded-lg px-2 py-1">
+                            <span className="text-sm leading-none">{icon}{evoSuffix}</span>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-[9px] font-semibold leading-none truncate ${rarityColor}`}>
+                                {equippedPetDC.name || equippedPetDC.species} Lv.{equippedPetDC.level}
+                              </p>
+                              <div className="h-0.5 bg-gray-700 rounded-full mt-0.5 overflow-hidden">
+                                <div className="h-full bg-cyan-500/60 rounded-full" style={{ width: `${xpPct}%` }} />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <User className="w-3 h-3 text-muted-foreground flex-shrink-0" />
                   </div>
@@ -268,20 +343,29 @@ export default function DungeonCombat({ session: initialSession, character, onLe
               >
                 <Swords className="w-3.5 h-3.5" /> Basic Attack
               </Button>
-              {charSkills.map(skill => (
-                <Button
-                  key={skill.id}
-                  size="sm"
-                  variant="outline"
-                  className="w-full gap-1.5 border-secondary/40 text-secondary hover:bg-secondary/10"
-                  disabled={!isMyTurn || loading}
-                  onClick={() => doAction('skill', skill.id)}
-                >
-                  <Zap className="w-3.5 h-3.5" />
-                  {skill.name}
-                  <span className="text-xs opacity-60 ml-auto">({skill.mp}MP)</span>
-                </Button>
-              ))}
+              {charSkills.map(skill => {
+                const elem = skill.element ? ELEMENT_CONFIG[skill.element] : null;
+                const skillColor = elem ? `border-current/30 ${elem.color}` : "border-secondary/40 text-secondary";
+                return (
+                  <Button
+                    key={skill.id}
+                    size="sm"
+                    variant="outline"
+                    className={`w-full gap-1.5 hover:bg-muted/30 ${skillColor}`}
+                    disabled={!isMyTurn || loading}
+                    onClick={() => doAction('skill', skill.id)}
+                  >
+                    {(() => {
+                      const folder = getSkillSpriteFolder(skill.id);
+                      return folder
+                        ? <img src={`/sprites/skills/${folder}/${skill.id}.png`} alt={skill.name} style={{ width: 24, height: 24, imageRendering: "pixelated" }} onError={e => { e.target.style.display = "none"; }} />
+                        : <span className="text-sm">{elem?.icon || <Zap className="w-3.5 h-3.5" />}</span>;
+                    })()}
+                    {skill.name}
+                    <span className="text-xs opacity-60 ml-auto">({skill.mp}MP)</span>
+                  </Button>
+                );
+              })}
               {isMyTurn && (
                 <p className="text-xs text-center text-muted-foreground">Auto-attack in 5s if idle</p>
               )}
@@ -290,15 +374,26 @@ export default function DungeonCombat({ session: initialSession, character, onLe
 
           {/* Result panel */}
           {(session.status === 'victory' || session.status === 'defeat') && (
-            <div className={`bg-card border-2 rounded-xl p-4 text-center space-y-2 ${
+            <div className={`bg-card border-2 rounded-xl p-4 text-center space-y-3 ${
               session.status === 'victory' ? "border-yellow-500/50" : "border-destructive/50"
             }`}>
               <p className={`font-orbitron text-xl font-bold ${session.status === 'victory' ? "text-yellow-400" : "text-destructive"}`}>
                 {session.status === 'victory' ? '🏆 VICTORY!' : '💀 DEFEAT'}
               </p>
-              {session.status === 'victory' && (
-                <p className="text-xs text-muted-foreground">Rewards sent to your character!</p>
-              )}
+              {session.status === 'victory' && (() => {
+                const rewardLogs = (session.combat_log || []).filter(e =>
+                  e.type === "system" && (e.text?.includes("gold") || e.text?.includes("exp") || e.text?.includes("found") || e.text?.includes("Egg"))
+                );
+                return (
+                  <div className="space-y-1.5">
+                    <p className="text-xs font-semibold text-yellow-400">Rewards</p>
+                    {rewardLogs.map((r, i) => (
+                      <p key={i} className="text-xs text-muted-foreground">{r.text}</p>
+                    ))}
+                    {rewardLogs.length === 0 && <p className="text-xs text-muted-foreground">Rewards sent to your character!</p>}
+                  </div>
+                );
+              })()}
               <Button size="sm" variant="outline" className="w-full" onClick={doLeave}>
                 Return to Dungeons
               </Button>
@@ -309,17 +404,22 @@ export default function DungeonCombat({ session: initialSession, character, onLe
           <div className="bg-card border border-border rounded-xl p-3 flex-1 min-h-0">
             <p className="text-xs font-semibold text-muted-foreground mb-2">COMBAT LOG</p>
             <div ref={logRef} className="space-y-0.5 max-h-64 md:max-h-full overflow-y-auto">
-              {(session.combat_log || []).slice().reverse().map((entry, i) => (
-                <p key={i} className={`text-xs ${
-                  entry.type === 'victory' ? "text-yellow-400 font-semibold" :
-                  entry.type === 'defeat' ? "text-destructive font-semibold" :
-                  entry.type === 'player_attack' ? "text-foreground" :
-                  entry.type === 'boss_attack' ? "text-orange-400" :
-                  "text-muted-foreground"
-                }`}>
-                  {entry.text}
-                </p>
-              ))}
+              {(session.combat_log || []).slice().reverse().map((entry, i) => {
+                const isMyBossHit = entry.type === 'boss_attack' && entry.target === character?.name;
+                return (
+                  <p key={i} className={`text-xs ${
+                    entry.type === 'victory' ? "text-yellow-400 font-semibold" :
+                    entry.type === 'defeat' ? "text-destructive font-semibold" :
+                    entry.type === 'player_attack' ? "text-foreground" :
+                    isMyBossHit ? "text-red-400 font-semibold" :
+                    entry.type === 'boss_attack' ? "text-orange-400" :
+                    entry.type === 'heal' ? "text-green-400" :
+                    "text-muted-foreground"
+                  }`}>
+                    {entry.text}
+                  </p>
+                );
+              })}
             </div>
           </div>
         </div>
