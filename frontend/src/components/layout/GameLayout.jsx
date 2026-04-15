@@ -100,9 +100,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
       <aside
         className="hidden md:flex flex-col w-64"
         style={{
-          borderImage: "url('/sprites/ui/buttons/btn_gold.png') 5 / 5px",
-          borderStyle: "solid",
-          imageRendering: "pixelated",
+          border: "2px solid #b8872a",
           background: "#0f0e24",
           position: "relative",
           zIndex: 10,
