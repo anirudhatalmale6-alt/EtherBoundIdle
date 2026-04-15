@@ -68,7 +68,7 @@ function TurnTimer({ deadline, onExpire }) {
   );
 }
 
-/* ── Player Card (RPG-style, matching ZIP2 reference) ────────────────────── */
+/* ── Player Card ────────────────────────────────────────────────────────── */
 function PlayerCard({ member, character, session, charSkills, isMyTurn, loading, doAction, onProfileClick, equippedPet }) {
   const isMe = member.character_id === character.id;
   const isActive = session.status === 'active' && session.current_turn_index === session.members?.indexOf(member);
@@ -94,22 +94,22 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
     >
       {/* Player Name & Role */}
       <div className="flex justify-between items-center gap-1">
-        <div className="flex items-center gap-1 min-w-0">
+        <div className="flex items-center gap-1.5 min-w-0">
           <img
             src={`/sprites/class_${member.class || "warrior"}.png`}
             alt={member.class}
-            className="w-6 h-6 shrink-0"
+            className="w-8 h-8 shrink-0"
             style={{ imageRendering: "pixelated", opacity: isDead ? 0.4 : 1 }}
           />
           <div className="min-w-0">
             <div className="flex items-center gap-1">
               {member.character_id === session.leader_id && <Crown className="w-2.5 h-2.5 text-yellow-400 shrink-0" />}
-              <span className={`text-[7px] font-medium truncate ${CLASS_COLORS[member.class] || "text-foreground"}`}
+              <span className={`text-[8px] font-medium truncate ${CLASS_COLORS[member.class] || "text-foreground"}`}
                 style={{ fontFamily: "'Press Start 2P', monospace" }}>
                 {member.name}
               </span>
             </div>
-            <span className="text-[6px] text-muted-foreground" style={{ fontFamily: "'Press Start 2P', monospace" }}>
+            <span className="text-[7px] text-muted-foreground" style={{ fontFamily: "'Press Start 2P', monospace" }}>
               Lv.{member.level} {member.class}
             </span>
           </div>
@@ -124,11 +124,11 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
 
       {/* HP Bar */}
       <div>
-        <div className="flex justify-between mb-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6, color: "#f0e6d3" }}>
+        <div className="flex justify-between mb-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#f0e6d3" }}>
           <span>HP</span>
           <span>{Math.max(0, Math.ceil(member.hp))}/{member.max_hp}</span>
         </div>
-        <div className="h-2" style={{ ...pixelInset, background: "#2d5a27" }}>
+        <div className="h-2.5" style={{ ...pixelInset, background: "#2d5a27" }}>
           <div
             className="h-full transition-all duration-400"
             style={{
@@ -142,11 +142,11 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
 
       {/* MP Bar */}
       <div>
-        <div className="flex justify-between mb-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6, color: "#f0e6d3" }}>
+        <div className="flex justify-between mb-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#f0e6d3" }}>
           <span>MP</span>
           <span>{Math.max(0, Math.ceil(member.mp || 0))}/{member.max_mp || 0}</span>
         </div>
-        <div className="h-2" style={{ ...pixelInset, background: "#1e3a5f" }}>
+        <div className="h-2.5" style={{ ...pixelInset, background: "#1e3a5f" }}>
           <div
             className="h-full transition-all duration-400"
             style={{
@@ -161,39 +161,51 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
       {/* Status Effects (buff/debuff slots) */}
       <div className="flex gap-0.5">
         {(member.buffs || []).slice(0, 3).map((buff, bi) => (
-          <div key={bi} className="w-4 h-4 flex items-center justify-center rounded-sm"
+          <div key={bi} className="w-5 h-5 flex items-center justify-center rounded-sm"
             style={{ ...pixelInset, background: buff.type === "defense" ? "#1e3a5f" : "#5a3a1e" }}
             title={buff.name || buff.type}>
-            <span className="text-[7px]">{buff.type === "defense" ? "🛡" : "⚔"}</span>
+            <span className="text-[8px]">{buff.type === "defense" ? "🛡" : "⚔"}</span>
           </div>
         ))}
-        {/* Empty slots */}
         {Array.from({ length: Math.max(0, 3 - (member.buffs?.length || 0)) }).map((_, i) => (
-          <div key={`empty-${i}`} className="w-4 h-4" style={{ ...pixelInset, background: "#1b263b" }} />
+          <div key={`empty-${i}`} className="w-5 h-5" style={{ ...pixelInset, background: "#1b263b" }} />
         ))}
       </div>
 
-      {/* Skill Bar (only for current player) */}
+      {/* Skill Bar (only for current player) — readable size with name + MP */}
       {isMe && (
-        <div className="flex gap-0.5 flex-wrap">
-          {charSkills.slice(0, 6).map((skill, si) => {
+        <div className="flex gap-1 flex-wrap mt-1">
+          {charSkills.slice(0, 6).map(skill => {
             const folder = getSkillSpriteFolder(skill.id);
+            const elem = skill.element ? ELEMENT_CONFIG[skill.element] : null;
+            const buffColor = skill.buff === "defense" ? "border-blue-500/40"
+              : skill.buff === "attack" ? "border-orange-500/40"
+              : elem ? "border-violet-500/30"
+              : "border-gray-600/40";
             return (
               <button
                 key={skill.id}
                 onClick={(e) => { e.stopPropagation(); if (isMyTurn && !loading) doAction('skill', skill.id); }}
                 disabled={!isMyTurn || loading}
-                className="disabled:opacity-30 disabled:cursor-not-allowed hover:scale-110 transition-transform"
-                title={`${skill.name}\n${skill.mp}MP\n${skill.description || ""}`}
-                style={{ ...pixelInset, background: "#1b263b", width: 22, height: 22, display: "flex", alignItems: "center", justifyContent: "center" }}
+                className={`disabled:opacity-30 disabled:cursor-not-allowed hover:scale-105 transition-all flex items-center gap-1.5 px-2 py-1 border ${buffColor}`}
+                title={skill.description || skill.name}
+                style={{ ...pixelInset, background: "#1b263b", minWidth: 56 }}
               >
                 {folder ? (
                   <img src={`/sprites/skills/${folder}/${skill.id}.png`} alt={skill.name}
-                    style={{ width: 16, height: 16, imageRendering: "pixelated" }}
+                    style={{ width: 20, height: 20, imageRendering: "pixelated" }}
                     onError={e => { e.target.style.display = "none"; }} />
                 ) : (
-                  <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6, color: "#8b7355" }}>{si + 1}</span>
+                  <span className="text-sm leading-none">{elem?.icon || <Zap className="w-3.5 h-3.5 inline text-violet-400" />}</span>
                 )}
+                <div className="flex flex-col items-start min-w-0">
+                  <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#f0e6d3" }} className="truncate max-w-[50px]">
+                    {skill.name}
+                  </span>
+                  <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6, color: "#60a5fa" }}>
+                    {skill.mp}MP
+                  </span>
+                </div>
               </button>
             );
           })}
@@ -202,7 +214,7 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
 
       {/* Pet */}
       {isMe && equippedPet && (
-        <div className="flex items-center gap-1 mt-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6 }}>
+        <div className="flex items-center gap-1 mt-0.5" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
           <span className="text-xs leading-none">{PET_ICONS[equippedPet.species] || "🐾"}{PET_EVO[equippedPet.evolution || 0]}</span>
           <span className={`${RARITY_COLORS[equippedPet.rarity] || "text-gray-400"} truncate`}>
             {equippedPet.name || equippedPet.species} Lv.{equippedPet.level}
@@ -218,7 +230,6 @@ export default function DungeonCombat({ session: initialSession, character, onLe
   const [session, setSession] = useState(initialSession);
   const [loading, setLoading] = useState(false);
   const [profileTarget, setProfileTarget] = useState(null);
-  const [showLog, setShowLog] = useState(false);
   const logRef = useRef(null);
   const combatPollInterval = useSmartPolling(POLL_INTERVALS.COMBAT);
 
@@ -342,187 +353,238 @@ export default function DungeonCombat({ session: initialSession, character, onLe
             <TurnTimer deadline={session.turn_deadline} onExpire={handleTurnExpire} />
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowLog(!showLog)}
-            className="flex items-center gap-1 px-2 py-1 rounded border border-gray-600 hover:border-yellow-500/50 transition-colors"
-            style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}
-          >
-            <ScrollText className="w-3 h-3" /> LOG
-          </button>
-          <PixelButton variant="cancel" label="LEAVE" onClick={doLeave} />
-        </div>
+        <PixelButton variant="cancel" label="LEAVE" onClick={doLeave} />
       </div>
 
-      {/* ── Main Content ─────────────────────────────────────────────────── */}
-      <div className="flex-1 flex flex-col overflow-hidden p-4 gap-4">
+      {/* ── Main Content: Left (boss+party) + Right (actions+log) ────────── */}
+      <div className="flex-1 overflow-hidden flex flex-col md:flex-row gap-4 p-4">
 
-        {/* ── Boss Section (top, centered) ──────────────────────────────── */}
-        <div className="flex flex-col items-center gap-3">
-          {/* Boss Name */}
-          <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 12, color: "#d4af37", letterSpacing: "0.1em" }}>
-            {session.boss_name}
-          </div>
+        {/* ── Left Column: Boss + Party ─────────────────────────────────── */}
+        <div className="flex-1 space-y-4 overflow-y-auto">
 
-          {/* Boss Sprite Container */}
-          <div className="flex items-center justify-center" style={{
-            ...pixelBorder,
-            background: "#0d1b2a",
-            width: 288,
-            height: 208,
-            borderRadius: 0,
-          }}>
-            {/* Boss sprite placeholder - replace with actual boss sprite when available */}
-            <div className="flex flex-col items-center gap-2">
-              <Skull className="w-16 h-16 text-red-400" style={{ opacity: 0.6 }} />
-              <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#8b7355" }}>
-                Boss Sprite
-              </span>
+          {/* ── Boss Section ────────────────────────────────────────────── */}
+          <div className="flex flex-col items-center gap-3">
+            {/* Boss Name */}
+            <div style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 12, color: "#d4af37", letterSpacing: "0.1em" }}>
+              {session.boss_name}
             </div>
+
+            {/* Boss Sprite Container */}
+            <div className="flex items-center justify-center" style={{
+              ...pixelBorder,
+              background: "#0d1b2a",
+              width: 288,
+              height: 208,
+              borderRadius: 0,
+            }}>
+              {/* Use boss sprite if available, fallback to dungeon-themed skull */}
+              {session.boss_sprite ? (
+                <img
+                  src={session.boss_sprite}
+                  alt={session.boss_name}
+                  style={{ maxWidth: 200, maxHeight: 180, imageRendering: "pixelated" }}
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2">
+                  <Skull className="w-20 h-20 text-red-500" style={{ filter: "drop-shadow(0 0 8px rgba(220,38,38,0.4))" }} />
+                  <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 9, color: "#d4af37" }}>
+                    {session.boss_name}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Boss elemental info */}
+            {(session.boss_element || session.boss_weakness || session.boss_resistance) && (
+              <div className="flex gap-2 flex-wrap justify-center">
+                {session.boss_element && (
+                  <span className="px-2 py-0.5 rounded border border-orange-500/50 text-orange-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
+                    ⚡ {session.boss_element}
+                  </span>
+                )}
+                {session.boss_weakness && (
+                  <span className="px-2 py-0.5 rounded border border-green-500/50 text-green-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
+                    ▼ Weak: {session.boss_weakness}
+                  </span>
+                )}
+                {session.boss_resistance && (
+                  <span className="px-2 py-0.5 rounded border border-red-500/50 text-red-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
+                    ▲ Resist: {session.boss_resistance}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {/* Boss HP Bar */}
+            <div className="w-full max-w-xl p-3" style={{ ...pixelBorderThin, background: "#0d1b2a" }}>
+              <div className="flex justify-between mb-1" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>
+                <span>BOSS HP</span>
+                <span>{Math.max(0, session.boss_hp).toLocaleString()} / {session.boss_max_hp.toLocaleString()}</span>
+              </div>
+              <div className="h-6" style={{ ...pixelInset, background: "#5a1a1a" }}>
+                <div
+                  className="h-full transition-all duration-500"
+                  style={{
+                    width: `${bossHpPct}%`,
+                    background: bossHpPct > 50 ? "#dc2626" : bossHpPct > 25 ? "#f97316" : "#7f1d1d",
+                    boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)",
+                  }}
+                />
+              </div>
+              {/* HP phase markers */}
+              <div className="flex gap-1 mt-1.5">
+                {[75, 50, 25].map(pct => (
+                  <div key={pct} className="flex-1 h-0.5" style={{ background: bossHpPct < pct ? "#f97316" : "#2a2a3a" }} />
+                ))}
+              </div>
+            </div>
+
+            {/* Attack button */}
+            {session.status === 'active' && isMyTurn && myMember?.hp > 0 && (
+              <PixelButton variant="ok" label="BASIC ATTACK" onClick={() => doAction('attack')} disabled={loading} size="lg" />
+            )}
           </div>
 
-          {/* Boss elemental info */}
-          {(session.boss_element || session.boss_weakness || session.boss_resistance) && (
-            <div className="flex gap-2 flex-wrap justify-center">
-              {session.boss_element && (
-                <span className="px-2 py-0.5 rounded border border-orange-500/50 text-orange-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
-                  ⚡ {session.boss_element}
-                </span>
-              )}
-              {session.boss_weakness && (
-                <span className="px-2 py-0.5 rounded border border-green-500/50 text-green-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
-                  ▼ Weak: {session.boss_weakness}
-                </span>
-              )}
-              {session.boss_resistance && (
-                <span className="px-2 py-0.5 rounded border border-red-500/50 text-red-400" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }}>
-                  ▲ Resist: {session.boss_resistance}
-                </span>
+          {/* ── Waiting / Result States ──────────────────────────────────── */}
+          {session.status === 'waiting' && (
+            <div className="text-center space-y-3 p-4" style={{ ...pixelBorderThin, background: "#0d1b2a" }}>
+              <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#8b7355" }}>
+                Share Session ID with party:
+              </p>
+              <code className="text-xs bg-black/50 px-3 py-1.5 rounded block break-all select-all border border-yellow-500/30" style={{ color: "#d4af37" }}>
+                {session.id}
+              </code>
+              {isLeader ? (
+                <PixelButton variant="ok" label="START BATTLE" onClick={doStart} disabled={loading} size="lg" />
+              ) : (
+                <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>
+                  Waiting for leader...
+                </p>
               )}
             </div>
           )}
 
-          {/* Boss HP Bar */}
-          <div className="w-full max-w-xl p-3" style={{ ...pixelBorderThin, background: "#0d1b2a" }}>
-            <div className="flex justify-between mb-1" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>
-              <span>BOSS HP</span>
-              <span>{Math.max(0, session.boss_hp).toLocaleString()} / {session.boss_max_hp.toLocaleString()}</span>
+          {(session.status === 'victory' || session.status === 'defeat') && (
+            <div className="text-center space-y-3 p-4" style={{
+              ...pixelBorder,
+              background: "#0d1b2a",
+              borderColor: session.status === 'victory' ? "#d4af37" : "#dc2626",
+            }}>
+              <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 14, color: session.status === 'victory' ? "#d4af37" : "#dc2626" }}>
+                {session.status === 'victory' ? 'VICTORY!' : 'DEFEAT'}
+              </p>
+              {session.status === 'victory' && (() => {
+                const rewardLogs = (session.combat_log || []).filter(e =>
+                  e.type === "system" && (e.text?.includes("gold") || e.text?.includes("exp") || e.text?.includes("found") || e.text?.includes("Egg"))
+                );
+                return (
+                  <div className="space-y-1">
+                    <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>REWARDS</p>
+                    {rewardLogs.map((r, i) => (
+                      <p key={i} style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>{r.text}</p>
+                    ))}
+                    {rewardLogs.length === 0 && (
+                      <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>Rewards sent to your character!</p>
+                    )}
+                  </div>
+                );
+              })()}
+              <PixelButton variant="cancel" label="RETURN TO DUNGEONS" onClick={doLeave} />
             </div>
-            <div className="h-6" style={{ ...pixelInset, background: "#5a1a1a" }}>
-              <div
-                className="h-full transition-all duration-500"
-                style={{
-                  width: `${bossHpPct}%`,
-                  background: bossHpPct > 50 ? "#dc2626" : bossHpPct > 25 ? "#f97316" : "#7f1d1d",
-                  boxShadow: "inset 0 -2px 0 rgba(0,0,0,0.3), inset 0 2px 0 rgba(255,255,255,0.2)",
-                }}
-              />
+          )}
+
+          {/* ── Party Members Grid ───────────────────────────────────────── */}
+          <div className="p-3" style={{ ...pixelBorder, background: "#0d1b2a" }}>
+            <div className="text-center mb-3" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37", letterSpacing: "0.1em" }}>
+              PARTY MEMBERS ({session.members?.length || 0}/6)
             </div>
-            {/* HP phase markers */}
-            <div className="flex gap-1 mt-1.5">
-              {[75, 50, 25].map(pct => (
-                <div key={pct} className="flex-1 h-0.5" style={{ background: bossHpPct < pct ? "#f97316" : "#2a2a3a" }} />
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+              {(session.members || []).map((m) => (
+                <PlayerCard
+                  key={m.character_id}
+                  member={m}
+                  character={character}
+                  session={session}
+                  charSkills={charSkills}
+                  isMyTurn={isMyTurn}
+                  loading={loading}
+                  doAction={doAction}
+                  onProfileClick={setProfileTarget}
+                  equippedPet={m.character_id === character.id ? equippedPetDC : null}
+                />
               ))}
             </div>
           </div>
-
-          {/* Attack button (centered, for quick access) */}
-          {session.status === 'active' && isMyTurn && myMember?.hp > 0 && (
-            <PixelButton variant="ok" label="BASIC ATTACK" onClick={() => doAction('attack')} disabled={loading} size="lg" />
-          )}
         </div>
 
-        {/* ── Waiting / Result States ────────────────────────────────────── */}
-        {session.status === 'waiting' && (
-          <div className="text-center space-y-3 p-4" style={{ ...pixelBorderThin, background: "#0d1b2a" }}>
-            <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#8b7355" }}>
-              Share Session ID with party:
-            </p>
-            <code className="text-xs bg-black/50 px-3 py-1.5 rounded block break-all select-all border border-yellow-500/30" style={{ color: "#d4af37" }}>
-              {session.id}
-            </code>
-            {isLeader ? (
-              <PixelButton variant="ok" label="START BATTLE" onClick={doStart} disabled={loading} size="lg" />
-            ) : (
-              <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>
-                Waiting for leader...
+        {/* ── Right Column: Actions + Combat Log (always visible) ────────── */}
+        <div className="w-full md:w-80 flex flex-col gap-3">
+
+          {/* My turn skill actions */}
+          {session.status === 'active' && myMember && myMember.hp > 0 && (
+            <div className="p-3 space-y-2" style={{ ...pixelBorderThin, background: "#0d1b2a" }}>
+              <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: isMyTurn ? "#d4af37" : "#8b7355" }}>
+                {isMyTurn ? "YOUR TURN" : `${currentTurnMember?.name}'s turn...`}
               </p>
-            )}
-          </div>
-        )}
-
-        {(session.status === 'victory' || session.status === 'defeat') && (
-          <div className="text-center space-y-3 p-4" style={{
-            ...pixelBorder,
-            background: "#0d1b2a",
-            borderColor: session.status === 'victory' ? "#d4af37" : "#dc2626",
-          }}>
-            <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 14, color: session.status === 'victory' ? "#d4af37" : "#dc2626" }}>
-              {session.status === 'victory' ? 'VICTORY!' : 'DEFEAT'}
-            </p>
-            {session.status === 'victory' && (() => {
-              const rewardLogs = (session.combat_log || []).filter(e =>
-                e.type === "system" && (e.text?.includes("gold") || e.text?.includes("exp") || e.text?.includes("found") || e.text?.includes("Egg"))
-              );
-              return (
-                <div className="space-y-1">
-                  <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>REWARDS</p>
-                  {rewardLogs.map((r, i) => (
-                    <p key={i} style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>{r.text}</p>
-                  ))}
-                  {rewardLogs.length === 0 && (
-                    <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>Rewards sent to your character!</p>
-                  )}
-                </div>
-              );
-            })()}
-            <PixelButton variant="cancel" label="RETURN TO DUNGEONS" onClick={doLeave} />
-          </div>
-        )}
-
-        {/* ── Party Members Grid (bottom) ─────────────────────────────── */}
-        <div className="p-3" style={{ ...pixelBorder, background: "#0d1b2a" }}>
-          <div className="text-center mb-3" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37", letterSpacing: "0.1em" }}>
-            PARTY MEMBERS ({session.members?.length || 0}/6)
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-            {(session.members || []).map((m) => (
-              <PlayerCard
-                key={m.character_id}
-                member={m}
-                character={character}
-                session={session}
-                charSkills={charSkills}
-                isMyTurn={isMyTurn}
-                loading={loading}
-                doAction={doAction}
-                onProfileClick={setProfileTarget}
-                equippedPet={m.character_id === character.id ? equippedPetDC : null}
-              />
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* ── Combat Log Overlay ───────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showLog && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className="absolute bottom-4 right-4 w-80 max-h-64 overflow-hidden flex flex-col"
-            style={{ ...pixelBorder, background: "#0d1b2a", zIndex: 50 }}
-          >
-            <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: "2px solid #d4af37" }}>
-              <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>COMBAT LOG</span>
-              <button onClick={() => setShowLog(false)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
+              <div className="space-y-1.5">
+                {charSkills.map(skill => {
+                  const folder = getSkillSpriteFolder(skill.id);
+                  const elem = skill.element ? ELEMENT_CONFIG[skill.element] : null;
+                  const buffStyle = skill.buff === "defense"
+                    ? { borderColor: "rgba(59,130,246,0.5)" }
+                    : skill.buff === "attack"
+                    ? { borderColor: "rgba(249,115,22,0.5)" }
+                    : elem
+                    ? { borderColor: "rgba(139,92,246,0.4)" }
+                    : {};
+                  return (
+                    <button
+                      key={skill.id}
+                      onClick={() => doAction('skill', skill.id)}
+                      disabled={!isMyTurn || loading}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded border border-gray-600 hover:border-yellow-500/60 hover:bg-yellow-500/5 disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                      style={{ ...buffStyle, background: "#131a2b" }}
+                    >
+                      <div className="w-8 h-8 shrink-0 flex items-center justify-center rounded" style={{ ...pixelInset, background: "#1b263b" }}>
+                        {folder ? (
+                          <img src={`/sprites/skills/${folder}/${skill.id}.png`} alt={skill.name}
+                            style={{ width: 24, height: 24, imageRendering: "pixelated" }}
+                            onError={e => { e.target.style.display = "none"; }} />
+                        ) : (
+                          <span className="text-base leading-none">{elem?.icon || "⚡"}</span>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0 text-left">
+                        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#f0e6d3" }} className="truncate">
+                          {skill.name}
+                        </p>
+                        <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }} className="text-muted-foreground truncate">
+                          {skill.mp}MP {skill.description ? `- ${skill.description}` : ""}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {isMyTurn && (
+                <p className="text-center" style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6, color: "#8b7355" }}>
+                  Auto-attack in 5s if idle
+                </p>
+              )}
             </div>
-            <div ref={logRef} className="flex-1 overflow-y-auto p-2 space-y-0.5">
+          )}
+
+          {/* Combat Log (always visible) */}
+          <div className="flex-1 min-h-0 flex flex-col p-3" style={{ ...pixelBorder, background: "#0d1b2a" }}>
+            <div className="flex items-center gap-2 mb-2 pb-2" style={{ borderBottom: "2px solid #d4af37" }}>
+              <ScrollText className="w-3.5 h-3.5 text-yellow-400" />
+              <span style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 8, color: "#d4af37" }}>COMBAT LOG</span>
+            </div>
+            <div ref={logRef} className="flex-1 overflow-y-auto space-y-0.5 min-h-[120px]">
               {(session.combat_log || []).slice().reverse().map((entry, i) => {
                 const isMyBossHit = entry.type === 'boss_attack' && entry.target === character?.name;
                 return (
-                  <p key={i} style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 6 }} className={
+                  <p key={i} style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7 }} className={
                     entry.type === 'victory' ? "text-yellow-400" :
                     entry.type === 'defeat' ? "text-red-400" :
                     entry.type === 'player_attack' ? "text-foreground" :
@@ -535,10 +597,15 @@ export default function DungeonCombat({ session: initialSession, character, onLe
                   </p>
                 );
               })}
+              {(!session.combat_log || session.combat_log.length === 0) && (
+                <p style={{ fontFamily: "'Press Start 2P', monospace", fontSize: 7, color: "#8b7355" }}>
+                  Waiting for combat to begin...
+                </p>
+              )}
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </div>
+      </div>
 
       {/* Player Profile Modal */}
       {profileTarget && (
