@@ -1337,7 +1337,7 @@ export default function Battle({ character, onCharacterUpdate }) {
         backgroundSize: "cover",
         backgroundPosition: "center",
         backgroundRepeat: "no-repeat",
-        opacity: 0.12,
+        opacity: 0.4,
         imageRendering: "pixelated",
       }}
     />
