@@ -512,7 +512,13 @@ export default function Inventory({ character, onCharacterUpdate }) {
       queryClient.setQueryData(["items", character?.id], updatedItems);
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["equippedItems"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
       setSelectedItem({ ...item, equipped: true });
+    },
+    onError: (err) => {
+      toast({ title: "Equip failed", description: err?.message || "Could not equip item — try again.", variant: "destructive", duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
     },
   });
 
@@ -527,7 +533,13 @@ export default function Inventory({ character, onCharacterUpdate }) {
       queryClient.setQueryData(["items", character?.id], updatedItems);
       queryClient.invalidateQueries({ queryKey: ["items"] });
       queryClient.invalidateQueries({ queryKey: ["equippedItems"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
       setSelectedItem({ ...item, equipped: false });
+    },
+    onError: (err) => {
+      toast({ title: "Unequip failed", description: err?.message || "Could not unequip item — try again.", variant: "destructive", duration: 3000 });
+      queryClient.invalidateQueries({ queryKey: ["items"] });
+      queryClient.invalidateQueries({ queryKey: ["characters"] });
     },
   });
 
