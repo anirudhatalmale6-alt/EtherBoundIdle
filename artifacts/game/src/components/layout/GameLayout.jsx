@@ -16,6 +16,24 @@ import ActiveBuffsBar from "@/components/game/ActiveBuffsBar";
 import { useSocket } from "@/lib/SocketContext";
 import PixelButton from "@/components/game/PixelButton";
 
+// Renders a pixel sprite for the floating quick-access menu; falls back to the
+// lucide icon if the sprite PNG is missing. Drop sprites at the given paths in
+// /public/sprites/ui/menu/ to auto-pick them up.
+function MenuSprite({ src, Fallback, className }) {
+  const [errored, setErrored] = React.useState(false);
+  if (errored || !src) return <Fallback className={className} />;
+  return (
+    <img
+      src={src}
+      alt=""
+      draggable={false}
+      onError={() => setErrored(true)}
+      className={className}
+      style={{ imageRendering: "pixelated", objectFit: "contain" }}
+    />
+  );
+}
+
 const NAV_ITEMS = [
   { path: "/", icon: Swords, label: "Battle" },
   { path: "/inventory", icon: Backpack, label: "Inventory" },
@@ -298,7 +316,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-amber-500/30 to-orange-600/20 border-2 border-amber-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-amber-400 hover:from-amber-500/40 hover:to-orange-500/30 transition-all shadow-lg shadow-amber-500/20 group"
               title="Tower of Trials"
             >
-              <ArrowUp className="w-6 h-6 text-amber-400 group-hover:text-amber-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/tower.png" Fallback={ArrowUp} className="w-6 h-6 text-amber-400 group-hover:text-amber-300 transition-colors" />
               <span className="text-[8px] font-bold text-amber-400/80 group-hover:text-amber-300 mt-0.5 tracking-wide">TOWER</span>
             </div>
             <div
@@ -306,7 +324,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500/30 to-pink-600/20 border-2 border-purple-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-purple-400 hover:from-purple-500/40 hover:to-pink-500/30 transition-all shadow-lg shadow-purple-500/20 group"
               title="Battle Pass"
             >
-              <Star className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/pass.png" Fallback={Star} className="w-6 h-6 text-purple-400 group-hover:text-purple-300 transition-colors" />
               <span className="text-[8px] font-bold text-purple-400/80 group-hover:text-purple-300 mt-0.5 tracking-wide">PASS</span>
             </div>
             <div
@@ -314,7 +332,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-teal-600/20 border-2 border-cyan-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-cyan-400 hover:from-cyan-500/40 hover:to-teal-500/30 transition-all shadow-lg shadow-cyan-500/20 group"
               title="Pet Companions"
             >
-              <PawPrint className="w-6 h-6 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/pets.png" Fallback={PawPrint} className="w-6 h-6 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
               <span className="text-[8px] font-bold text-cyan-400/80 group-hover:text-cyan-300 mt-0.5 tracking-wide">PETS</span>
             </div>
             <div
@@ -322,7 +340,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-violet-500/30 to-indigo-600/20 border-2 border-violet-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-violet-400 hover:from-violet-500/40 hover:to-indigo-500/30 transition-all shadow-lg shadow-violet-500/20 group"
               title="Infinite Portal"
             >
-              <Sparkles className="w-6 h-6 text-violet-400 group-hover:text-violet-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/portal.png" Fallback={Sparkles} className="w-6 h-6 text-violet-400 group-hover:text-violet-300 transition-colors" />
               <span className="text-[8px] font-bold text-violet-400/80 group-hover:text-violet-300 mt-0.5 tracking-wide">PORTAL</span>
             </div>
             <div
@@ -330,7 +348,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-green-500/30 to-emerald-600/20 border-2 border-green-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-green-400 hover:from-green-500/40 hover:to-emerald-500/30 transition-all shadow-lg shadow-green-500/20 group"
               title="The Fields"
             >
-              <Wheat className="w-6 h-6 text-green-400 group-hover:text-green-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/fields.png" Fallback={Wheat} className="w-6 h-6 text-green-400 group-hover:text-green-300 transition-colors" />
               <span className="text-[8px] font-bold text-green-400/80 group-hover:text-green-300 mt-0.5 tracking-wide">FIELDS</span>
             </div>
             <div
@@ -338,7 +356,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
               className="w-14 h-14 rounded-2xl bg-gradient-to-br from-red-500/30 to-amber-600/20 border-2 border-red-500/50 flex flex-col items-center justify-center cursor-pointer hover:scale-110 hover:border-red-400 hover:from-red-500/40 hover:to-amber-500/30 transition-all shadow-lg shadow-red-500/20 group"
               title="World Boss"
             >
-              <Skull className="w-6 h-6 text-red-400 group-hover:text-red-300 transition-colors" />
+              <MenuSprite src="/sprites/ui/menu/boss.png" Fallback={Skull} className="w-6 h-6 text-red-400 group-hover:text-red-300 transition-colors" />
               <span className="text-[8px] font-bold text-red-400/80 group-hover:text-red-300 mt-0.5 tracking-wide">BOSS</span>
             </div>
             </div>}
