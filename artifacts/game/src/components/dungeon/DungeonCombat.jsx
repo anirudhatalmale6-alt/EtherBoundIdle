@@ -26,7 +26,7 @@ const CLASS_COLORS = {
 };
 
 function TurnTimer({ deadline, onExpire }) {
-  const [remaining, setRemaining] = useState(8);
+  const [remaining, setRemaining] = useState(15);
   const firedRef = useRef(false);
 
   useEffect(() => {
@@ -136,46 +136,39 @@ function PlayerCard({ member, character, session, charSkills, isMyTurn, loading,
         </div>
       )}
 
-      {/* Skill hotbar — only on current player's card, at the bottom */}
+      {/* Skill hotbar — same style as Battle.jsx, only on current player's card */}
       {isMe && charSkills.length > 0 && (
-        <div className="flex gap-1 flex-wrap mt-1">
-          {charSkills.slice(0, 6).map(skill => {
+        <div className="flex flex-wrap gap-1.5 mt-1" onClick={(e) => e.stopPropagation()}>
+          {charSkills.map(skill => {
             const folder = getSkillSpriteFolder(skill.id);
             const elem = skill.element ? ELEMENT_CONFIG[skill.element] : null;
-            const buffColor = skill.buff === "defense"
-              ? "border-blue-500/40 hover:border-blue-500/70 hover:bg-blue-500/10"
-              : skill.buff === "attack"
-              ? "border-orange-500/40 hover:border-orange-500/70 hover:bg-orange-500/10"
-              : elem
-              ? "border-violet-500/40 hover:border-violet-500/70 hover:bg-violet-500/10"
-              : "border-border hover:border-primary/60 hover:bg-primary/10";
+            const noMp = (member.mp || 0) < skill.mp;
+            const disabled = !isMyTurn || loading || noMp || isDead;
+            const buffColor = skill.buff === "defense" ? "border-blue-500/50 text-blue-400"
+              : skill.buff === "attack" ? "border-orange-500/50 text-orange-400"
+              : skill.special === "pickpocket" ? "border-yellow-500/50 text-yellow-400"
+              : elem ? `border-current/30 ${elem.color}`
+              : "border-secondary/40 text-secondary";
             return (
               <button
                 key={skill.id}
-                onClick={(e) => { e.stopPropagation(); if (isMyTurn && !loading) doAction('skill', skill.id); }}
-                disabled={!isMyTurn || loading}
-                className={`flex items-center gap-1.5 px-2 py-1 rounded-md border bg-background/40 disabled:opacity-30 disabled:cursor-not-allowed hover:scale-[1.03] transition-all ${buffColor}`}
-                title={skill.description || skill.name}
-                style={{ minWidth: 60 }}
+                disabled={disabled}
+                onClick={(e) => { e.stopPropagation(); doAction('skill', skill.id); }}
+                title={`${skill.description || skill.name}\n${skill.mp}MP`}
+                className={`relative flex flex-col items-center gap-0.5 px-2 py-1.5 rounded-lg border bg-muted/20 hover:bg-muted/50 hover:scale-110 hover:shadow-[0_0_12px_rgba(139,92,246,0.4)] hover:border-primary/60 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200 min-w-[52px] ${buffColor}`}
               >
                 {folder ? (
                   <img
                     src={`/sprites/skills/${folder}/${skill.id}.png`}
                     alt={skill.name}
-                    style={{ width: 20, height: 20, imageRendering: "pixelated" }}
+                    style={{ width: 24, height: 24, imageRendering: "pixelated" }}
                     onError={e => { e.target.style.display = "none"; }}
                   />
                 ) : (
-                  <span className="text-sm leading-none">{elem?.icon || <Zap className="w-3.5 h-3.5 inline text-violet-400" />}</span>
+                  <span className="text-sm leading-none">{elem?.icon || <Zap className="w-3 h-3 inline" />}</span>
                 )}
-                <div className="flex flex-col items-start min-w-0">
-                  <span className="text-[10px] font-bold truncate max-w-[60px]">
-                    {skill.name}
-                  </span>
-                  <span className="text-[9px] text-blue-400 font-semibold">
-                    {skill.mp}MP
-                  </span>
-                </div>
+                <span className="text-[9px] font-medium leading-none text-center max-w-[60px] truncate">{skill.name}</span>
+                <span className="text-[8px] text-muted-foreground">{skill.mp}MP</span>
               </button>
             );
           })}
@@ -517,7 +510,7 @@ export default function DungeonCombat({ session: initialSession, character, onLe
               </div>
               {isMyTurn && (
                 <p className="text-center text-[10px] text-muted-foreground">
-                  Auto-attack in 5s if idle
+                  Auto-attack in 15s if idle
                 </p>
               )}
             </div>

@@ -2741,7 +2741,7 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
       if (d.status !== "waiting") { sendSuccess(res, { success: false, error: "Session already started" }); return; }
       d.status = "active";
       d.current_turn_index = 0;
-      d.turn_deadline = new Date(Date.now() + 8000).toISOString();
+      d.turn_deadline = new Date(Date.now() + 15000).toISOString();
       d.combat_log.push({ type: "system", text: `Battle begins! ${d.boss_name} appears!` });
       await db.update(dungeonSessionsTable).set({ status: "active", data: d }).where(eq(dungeonSessionsTable.id, session.id));
       const startResp = buildSessionResponse({ ...session, data: d });
@@ -3032,7 +3032,7 @@ router.post("/functions/dungeonAction", async (req: Request, res: Response) => {
         attempts++;
       }
       d.current_turn_index = nextIdx;
-      d.turn_deadline = new Date(Date.now() + 8000).toISOString();
+      d.turn_deadline = new Date(Date.now() + 15000).toISOString();
       d.members = members;
 
       await db.update(dungeonSessionsTable).set({ data: d }).where(eq(dungeonSessionsTable.id, session.id));
