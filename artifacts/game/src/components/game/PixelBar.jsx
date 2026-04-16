@@ -11,7 +11,7 @@ const BAR_FILLS = {
  * Frame: 73×14 sprite with ~3px decorative border.
  * Fill: 56×7 sprites positioned inside with 1px padding to the frame.
  */
-export default function PixelBar({ current, max, type = "hp", label, showText = true }) {
+export default function PixelBar({ current, max, type = "hp", label, showText = true, width, height }) {
   const safeMax = Number.isFinite(max) && max > 0 ? max : 1;
   const safeCurrent = Number.isFinite(current) ? current : 0;
   const pct = Math.max(0, Math.min(100, (safeCurrent / safeMax) * 100));
@@ -20,8 +20,8 @@ export default function PixelBar({ current, max, type = "hp", label, showText = 
 
   // Frame aspect ratio: 73:14 ≈ 5.21:1
   // At width 180, height ≈ 35 (scaled 2.5x from native 73×14)
-  const barWidth = 180;
-  const barHeight = 34;
+  const barWidth = Number.isFinite(width) ? width : 180;
+  const barHeight = Number.isFinite(height) ? height : 34;
 
   // Border is ~3px at native scale → ~7px at 2.5x
   // Plus 1px padding → 8px inset from each edge (top/bottom: ~7px border + 1px ≈ 10px at 2.5x, but fill is 7/14 = 50% height)

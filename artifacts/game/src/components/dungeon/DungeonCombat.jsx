@@ -365,10 +365,17 @@ export default function DungeonCombat({ session: initialSession, character, onLe
             )}
 
             {/* Boss HP Bar — using game's PixelBar component */}
-            <div className="w-full max-w-xl">
-              <PixelBar current={Math.max(0, session.boss_hp)} max={session.boss_max_hp} type="hp" label="BOSS HP" />
-              {/* HP phase markers */}
-              <div className="flex gap-1 mt-1.5">
+            <div className="w-full max-w-xl flex flex-col items-center">
+              <PixelBar
+                current={Math.max(0, session.boss_hp)}
+                max={session.boss_max_hp}
+                type="hp"
+                label="BOSS HP"
+                width={480}
+                height={42}
+              />
+              {/* HP phase markers — matched to bar width */}
+              <div className="flex gap-1 mt-1.5" style={{ width: 480 }}>
                 {[75, 50, 25].map(pct => (
                   <div
                     key={pct}
