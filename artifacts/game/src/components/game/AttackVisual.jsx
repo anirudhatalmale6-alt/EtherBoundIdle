@@ -54,26 +54,6 @@ function AttackSprite({ animKey, emoji }) {
     </>
   );
 }
-  return (
-    <>
-      {!loaded && <span className="text-5xl">{emoji}</span>}
-      <img
-        src={`/sprites/effects/attacks/${animKey}.png`}
-        alt=""
-        draggable={false}
-        onLoad={() => setLoaded(true)}
-        onError={() => setLoaded(false)}
-        style={{
-          width: 64,
-          height: 64,
-          imageRendering: "pixelated",
-          objectFit: "contain",
-          display: loaded ? "inline-block" : "none",
-        }}
-      />
-    </>
-  );
-}
 
 // Per-animation-type config: emoji + motion variants
 const ANIM_CONFIG = {
