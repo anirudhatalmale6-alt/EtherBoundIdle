@@ -564,7 +564,8 @@ router.post("/functions/sellItem", async (req: Request, res: Response) => {
   try {
     const { itemId } = req.body;
     const [item] = await db.select().from(itemsTable).where(eq(itemsTable.id, itemId));
-    if (!item) { sendError(res, 404, "Item not found"); return; }
+    // Item may already be gone (auto-pruned or sold in a parallel batch) — treat as success
+    if (!item) { sendSuccess(res, { success: true, gold_earned: 0, newGold: 0, sellPrice: 0 }); return; }
     if (!(await verifyCharacterOwner(req, item.ownerId))) { sendError(res, 403, "Not your item"); return; }
     const cfg = await getGameConfig();
     const sellPrices = cfg.SELL_PRICES || {};
