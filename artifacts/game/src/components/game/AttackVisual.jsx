@@ -15,12 +15,18 @@ function AttackSprite({ animKey, emoji }) {
 
   const sheet = SPRITE_SHEETS[animKey];
 
-  // JS-driven frame cycling — works in all browsers, no CSS steps() needed
+  // JS-driven frame cycling — plays once and holds on the last frame
   useEffect(() => {
     if (!loaded || !sheet) return;
     setFrame(0);
     const interval = setInterval(() => {
-      setFrame(f => (f + 1) % sheet.frames);
+      setFrame(f => {
+        if (f >= sheet.frames - 1) {
+          clearInterval(interval);
+          return sheet.frames - 1;
+        }
+        return f + 1;
+      });
     }, sheet.frameDuration);
     return () => clearInterval(interval);
   }, [loaded, sheet]);
@@ -129,41 +135,98 @@ function getRelativeCenter(elRef, containerRef) {
   };
 }
 
+// ── Hit impact effect — expanding ring + flash at enemy position ──
+const HIT_COLORS = {
+  fireball: "#f97316", arrow: "#4ade80", icicle: "#22d3ee", projectile: "#60a5fa",
+  firearrow: "#f97316", deatharrow: "#9ca3af", multishot: "#4ade80", charge: "#d1d5db",
+  meteor: "#ef4444", poison: "#22c55e", slash: "#ef4444", heavyslash: "#f97316",
+  bash: "#93c5fd", slam: "#ef4444", explosion: "#f97316", backstab: "#c084fc",
+  bleed: "#ef4444", garrote: "#f97316", lightning: "#fde047", reaper: "#dc2626",
+};
+
+function HitImpact({ x, y, animKey, seq }) {
+  const color = HIT_COLORS[animKey] || "#ffffff";
+  return (
+    <>
+      {/* expanding ring */}
+      <motion.div
+        key={`hit-ring-${seq}`}
+        className="absolute pointer-events-none z-40"
+        style={{
+          left: x, top: y, transform: "translate(-50%, -50%)",
+          width: 12, height: 12,
+          borderRadius: "50%",
+          border: `2px solid ${color}`,
+          boxShadow: `0 0 8px ${color}`,
+        }}
+        initial={{ scale: 0.3, opacity: 1 }}
+        animate={{ scale: 4, opacity: 0 }}
+        transition={{ duration: 0.45, ease: "easeOut" }}
+      />
+      {/* bright flash */}
+      <motion.div
+        key={`hit-flash-${seq}`}
+        className="absolute pointer-events-none z-40"
+        style={{
+          left: x, top: y, transform: "translate(-50%, -50%)",
+          width: 24, height: 24,
+          borderRadius: "50%",
+          background: `radial-gradient(circle, ${color} 0%, transparent 70%)`,
+        }}
+        initial={{ scale: 0.5, opacity: 0.9 }}
+        animate={{ scale: 2.5, opacity: 0 }}
+        transition={{ duration: 0.35, ease: "easeOut" }}
+      />
+    </>
+  );
+}
+
 // ── Projectile sub-component: flies from player to enemy ──
 function ProjectileAnim({ config, animKey, positions, seq, damage, isCrit }) {
   const { start, end, dx, dy } = positions;
+  const [showHit, setShowHit] = useState(false);
+
+  useEffect(() => {
+    // Show hit impact after projectile arrives (matches travel duration)
+    const timer = setTimeout(() => setShowHit(true), 1000);
+    return () => clearTimeout(timer);
+  }, [seq]);
+
   return (
-    <motion.div
-      key={`attack-${seq}`}
-      className="absolute pointer-events-none z-30"
-      style={{ left: start.x, top: start.y, transform: "translate(-50%, -50%)" }}
-      initial={{ x: 0, y: 0, opacity: 0, scale: 0.4 }}
-      animate={{
-        x: dx,
-        y: dy,
-        opacity: [0, 1, 1, 0.8],
-        scale: [0.4, config.scale || 1.3, config.scale || 1.3, config.scale || 1.3],
-        rotate: config.rotate || 0,
-      }}
-      exit={{ opacity: 0, transition: { duration: 0.15 } }}
-      transition={{ duration: 1.1, ease: [0.15, 0.0, 0.35, 1] }}
-    >
-      <motion.span className="inline-flex items-center justify-center drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]">
-        <AttackSprite animKey={animKey} emoji={config.emoji} />
-      </motion.span>
-      {damage && (
-        <motion.div
-          className={`absolute -top-6 left-1/2 -translate-x-1/2 font-orbitron font-bold text-lg whitespace-nowrap ${
-            isCrit ? "text-yellow-400 scale-125" : config.color
-          }`}
-          initial={{ y: 0, opacity: 0 }}
-          animate={{ y: -32, opacity: [0, 0, 0, 1, 1, 0] }}
-          transition={{ duration: 1.6, ease: "easeOut", times: [0, 0.55, 0.65, 0.7, 0.85, 1] }}
-        >
-          {isCrit && "CRIT! "}{damage}
-        </motion.div>
-      )}
-    </motion.div>
+    <>
+      <motion.div
+        key={`attack-${seq}`}
+        className="absolute pointer-events-none z-30"
+        style={{ left: start.x, top: start.y, transform: "translate(-50%, -50%)" }}
+        initial={{ x: 0, y: 0, opacity: 0, scale: 0.4 }}
+        animate={{
+          x: dx,
+          y: dy,
+          opacity: [0, 1, 1, 0.8],
+          scale: [0.4, config.scale || 1.3, config.scale || 1.3, config.scale || 1.3],
+          rotate: config.rotate || 0,
+        }}
+        exit={{ opacity: 0, transition: { duration: 0.15 } }}
+        transition={{ duration: 1.1, ease: [0.15, 0.0, 0.35, 1] }}
+      >
+        <motion.span className="inline-flex items-center justify-center drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]">
+          <AttackSprite animKey={animKey} emoji={config.emoji} />
+        </motion.span>
+        {damage && (
+          <motion.div
+            className={`absolute -top-6 left-1/2 -translate-x-1/2 font-orbitron font-bold text-lg whitespace-nowrap ${
+              isCrit ? "text-yellow-400 scale-125" : config.color
+            }`}
+            initial={{ y: 0, opacity: 0 }}
+            animate={{ y: -32, opacity: [0, 0, 0, 1, 1, 0] }}
+            transition={{ duration: 1.6, ease: "easeOut", times: [0, 0.55, 0.65, 0.7, 0.85, 1] }}
+          >
+            {isCrit && "CRIT! "}{damage}
+          </motion.div>
+        )}
+      </motion.div>
+      {showHit && <HitImpact x={end.x} y={end.y} animKey={animKey} seq={seq} />}
+    </>
   );
 }
 
@@ -171,38 +234,41 @@ function ProjectileAnim({ config, animKey, positions, seq, damage, isCrit }) {
 function ImpactAnim({ config, animKey, positions, seq, damage, isCrit }) {
   const { end } = positions;
   return (
-    <motion.div
-      key={`attack-${seq}`}
-      className="absolute pointer-events-none z-30"
-      style={{ left: end.x, top: end.y, transform: "translate(-50%, -50%)" }}
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.15 }}
-    >
-      <motion.span
-        className="inline-flex items-center justify-center drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]"
-        variants={config.variants}
-        initial="initial"
-        animate="animate"
-        exit="exit"
-        transition={{ duration: 0.5, ease: "easeOut" }}
+    <>
+      <motion.div
+        key={`attack-${seq}`}
+        className="absolute pointer-events-none z-30"
+        style={{ left: end.x, top: end.y, transform: "translate(-50%, -50%)" }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
       >
-        <AttackSprite animKey={animKey} emoji={config.emoji} />
-      </motion.span>
-      {damage && (
-        <motion.div
-          className={`absolute -top-6 left-1/2 -translate-x-1/2 font-orbitron font-bold text-lg whitespace-nowrap ${
-            isCrit ? "text-yellow-400 scale-125" : config.color
-          }`}
-          initial={{ y: 0, opacity: 1 }}
-          animate={{ y: -28, opacity: 0 }}
-          transition={{ duration: 0.7, ease: "easeOut" }}
+        <motion.span
+          className="inline-flex items-center justify-center drop-shadow-[0_0_8px_rgba(255,255,255,0.6)]"
+          variants={config.variants}
+          initial="initial"
+          animate="animate"
+          exit="exit"
+          transition={{ duration: 0.5, ease: "easeOut" }}
         >
-          {isCrit && "CRIT! "}{damage}
-        </motion.div>
-      )}
-    </motion.div>
+          <AttackSprite animKey={animKey} emoji={config.emoji} />
+        </motion.span>
+        {damage && (
+          <motion.div
+            className={`absolute -top-6 left-1/2 -translate-x-1/2 font-orbitron font-bold text-lg whitespace-nowrap ${
+              isCrit ? "text-yellow-400 scale-125" : config.color
+            }`}
+            initial={{ y: 0, opacity: 1 }}
+            animate={{ y: -28, opacity: 0 }}
+            transition={{ duration: 0.7, ease: "easeOut" }}
+          >
+            {isCrit && "CRIT! "}{damage}
+          </motion.div>
+        )}
+      </motion.div>
+      <HitImpact x={end.x} y={end.y} animKey={animKey} seq={seq} />
+    </>
   );
 }
 
