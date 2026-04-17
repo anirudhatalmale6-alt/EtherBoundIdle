@@ -122,8 +122,8 @@ function ProjectileAnim({ config, animKey, positions, seq, damage, isCrit }) {
         scale: [0.4, config.scale || 1.3, config.scale || 1.3, config.scale || 1.3],
         rotate: config.rotate || 0,
       }}
-      exit={{ opacity: 0 }}
-      transition={{ duration: 0.65, ease: [0.25, 0.1, 0.25, 1] }}
+      exit={{ opacity: 0, transition: { duration: 0.15 } }}
+      transition={{ duration: 1.1, ease: [0.15, 0.0, 0.35, 1] }}
     >
       <motion.span className="inline-flex items-center justify-center drop-shadow-[0_0_12px_rgba(255,255,255,0.7)]">
         <AttackSprite animKey={animKey} emoji={config.emoji} />
@@ -134,8 +134,8 @@ function ProjectileAnim({ config, animKey, positions, seq, damage, isCrit }) {
             isCrit ? "text-yellow-400 scale-125" : config.color
           }`}
           initial={{ y: 0, opacity: 0 }}
-          animate={{ y: -28, opacity: [0, 0, 0, 1, 0] }}
-          transition={{ duration: 0.9, ease: "easeOut", times: [0, 0.5, 0.65, 0.7, 1] }}
+          animate={{ y: -32, opacity: [0, 0, 0, 1, 1, 0] }}
+          transition={{ duration: 1.6, ease: "easeOut", times: [0, 0.55, 0.65, 0.7, 0.85, 1] }}
         >
           {isCrit && "CRIT! "}{damage}
         </motion.div>
