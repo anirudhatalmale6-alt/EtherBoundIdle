@@ -175,6 +175,12 @@
 }
 .eb-aura-spin { animation: eb-aura-spin-kf 3.5s linear infinite; }
 
+/* ── Burn overlay fire frame animation ────────────────────────────────── */
+@keyframes fire-frame-anim {
+  from { background-position: 0% 0%; }
+  to   { background-position: 100% 0%; }
+}
+
 /* ── Attack sprite-sheet animations (used by AttackVisual.jsx) ───────── */
 /* ── Sprite-sheet animations ──
    Frame cycling is now handled in JS (AttackVisual.jsx → SPRITE_SHEETS).
