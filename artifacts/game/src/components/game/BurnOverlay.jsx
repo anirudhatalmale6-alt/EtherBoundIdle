@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from "react";
 
 /**
  * Animated burning frame overlay for the enemy card.
- * Uses a 9-frame horizontal sprite strip of fire wrapping around a card border.
- * Canvas renders each frame stretched to cover the card with slight overhang.
- * Parent must have position: relative.
+ * Uses CSS border-image with 9-slice rendering so corners stay
+ * at their natural proportions and only edges stretch.
+ * Pre-renders each sprite frame as a data-URL on load, then
+ * cycles through them via setInterval.
  */
 
 const BURN_SPRITE = {
@@ -15,102 +16,75 @@ const BURN_SPRITE = {
   frameDuration: 110,
 };
 
-// Padding around the card — how far the fire extends beyond the card border
-const PAD = 14;
+// border-image-slice: how many pixels from each edge of the source
+// frame constitute the "border" (corners + edges).
+const SLICE = 26;
+
+// Rendered border thickness around the card (px).
+const BORDER_W = 40;
+
+// How far the border extends outside the card (outset).
+const OUTSET = 14;
 
 export default function BurnOverlay({ active }) {
-  const canvasRef = useRef(null);
-  const imgRef = useRef(null);
-  const [loaded, setLoaded] = useState(false);
-  const frameRef = useRef(0);
+  const [frameURLs, setFrameURLs] = useState([]);
+  const [frame, setFrame] = useState(0);
   const intervalRef = useRef(null);
-  const parentSizeRef = useRef({ w: 0, h: 0 });
 
-  // Load sprite sheet once
+  /* Load sprite sheet & pre-render every frame as a data-URL */
   useEffect(() => {
     const img = new Image();
-    img.onload = () => { imgRef.current = img; setLoaded(true); };
-    img.onerror = () => setLoaded(false);
+    img.onload = () => {
+      const urls = [];
+      for (let i = 0; i < BURN_SPRITE.frames; i++) {
+        const c = document.createElement("canvas");
+        c.width = BURN_SPRITE.frameW;
+        c.height = BURN_SPRITE.frameH;
+        const ctx = c.getContext("2d");
+        ctx.drawImage(
+          img,
+          i * BURN_SPRITE.frameW, 0,
+          BURN_SPRITE.frameW, BURN_SPRITE.frameH,
+          0, 0,
+          BURN_SPRITE.frameW, BURN_SPRITE.frameH,
+        );
+        urls.push(c.toDataURL());
+      }
+      setFrameURLs(urls);
+    };
     img.src = BURN_SPRITE.src;
   }, []);
 
-  // Resize canvas to match parent card
+  /* Cycle frames while active */
   useEffect(() => {
-    if (!active || !canvasRef.current) return;
-    const canvas = canvasRef.current;
-    const card = canvas.closest("[class*='rpg-frame']") || canvas.parentElement?.parentElement;
-    if (!card) return;
-
-    const resize = () => {
-      const rect = card.getBoundingClientRect();
-      const w = Math.round(rect.width + PAD * 2);
-      const h = Math.round(rect.height + PAD * 2);
-      if (w !== parentSizeRef.current.w || h !== parentSizeRef.current.h) {
-        canvas.width = w;
-        canvas.height = h;
-        parentSizeRef.current = { w, h };
-      }
-    };
-
-    resize();
-    const observer = new ResizeObserver(resize);
-    observer.observe(card);
-    return () => observer.disconnect();
-  }, [active]);
-
-  // Animate frames
-  useEffect(() => {
-    if (!active || !loaded || !canvasRef.current || !imgRef.current) return;
-
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d");
-    const img = imgRef.current;
-    frameRef.current = 0;
-
-    const draw = () => {
-      const f = frameRef.current;
-      const cw = canvas.width;
-      const ch = canvas.height;
-      ctx.clearRect(0, 0, cw, ch);
-      ctx.globalAlpha = 0.75;
-      ctx.drawImage(
-        img,
-        f * BURN_SPRITE.frameW, 0, BURN_SPRITE.frameW, BURN_SPRITE.frameH,
-        0, 0, cw, ch
-      );
-      ctx.globalAlpha = 1.0;
-    };
-
-    draw();
+    if (!active || frameURLs.length === 0) {
+      clearInterval(intervalRef.current);
+      return;
+    }
+    setFrame(0);
     intervalRef.current = setInterval(() => {
-      frameRef.current = (frameRef.current + 1) % BURN_SPRITE.frames;
-      draw();
+      setFrame(f => (f + 1) % BURN_SPRITE.frames);
     }, BURN_SPRITE.frameDuration);
+    return () => clearInterval(intervalRef.current);
+  }, [active, frameURLs]);
 
-    return () => { if (intervalRef.current) clearInterval(intervalRef.current); };
-  }, [active, loaded]);
-
-  if (!active) return null;
+  if (!active || frameURLs.length === 0) return null;
 
   return (
     <div
-      className="absolute pointer-events-none"
+      className="absolute inset-0 pointer-events-none"
       style={{
-        top: -PAD,
-        left: -PAD,
-        right: -PAD,
-        bottom: -PAD,
         zIndex: 10,
+        borderStyle: "solid",
+        borderWidth: BORDER_W,
+        borderImageSource: `url(${frameURLs[frame]})`,
+        borderImageSlice: SLICE,
+        borderImageWidth: BORDER_W,
+        borderImageOutset: OUTSET,
+        borderImageRepeat: "round",
+        opacity: 0.8,
+        imageRendering: "auto",
       }}
-    >
-      <canvas
-        ref={canvasRef}
-        style={{
-          width: "100%",
-          height: "100%",
-          imageRendering: "auto",
-        }}
-      />
-    </div>
+    />
   );
 }
