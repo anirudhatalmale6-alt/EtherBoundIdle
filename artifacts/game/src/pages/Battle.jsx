@@ -26,6 +26,7 @@ import CombatEffects from "@/components/game/CombatEffects";
 import AttackVisual from "@/components/game/AttackVisual";
 import EffectAura from "@/components/game/EffectAura";
 import BurnOverlay from "@/components/game/BurnOverlay";
+import FrostOverlay from "@/components/game/FrostOverlay";
 import PartyBattlePanel from "@/components/game/PartyBattlePanel";
 import PartyBattleArena from "@/components/game/PartyBattleArena";
 import PartyActivityNotifier from "@/components/game/PartyActivityNotifier";
@@ -491,6 +492,24 @@ export default function Battle({ character, onCharacterUpdate }) {
         });
       }
       addLog(`🔥 Burn! ${burnDmg}/turn for 2 turns`);
+    }
+
+    // Ice skills apply a frost DoT (20% of hit damage per turn for 3 turns)
+    if (attackElement === "ice" && skill && procEngineRef.current) {
+      const frostDmg = Math.max(1, Math.floor(finalDmg * 0.2));
+      const existing = procEngineRef.current.dotEffects.find(d => d.procId === "skill_frost");
+      if (existing) {
+        existing.dmgPerTurn = Math.max(existing.dmgPerTurn, frostDmg);
+        existing.turnsLeft = 3;
+      } else {
+        procEngineRef.current.dotEffects.push({
+          procId: "skill_frost",
+          element: "ice",
+          dmgPerTurn: frostDmg,
+          turnsLeft: 3,
+        });
+      }
+      addLog(`❄️ Frozen! ${frostDmg}/turn for 3 turns`);
     }
 
     // Proc effects
@@ -1603,6 +1622,8 @@ export default function Battle({ character, onCharacterUpdate }) {
         >
           {/* Burn overlay when fire DoT is active */}
           <BurnOverlay active={activeEnemyDots.some(d => d.element === "fire")} />
+          {/* Frost overlay when ice DoT is active */}
+          <FrostOverlay active={activeEnemyDots.some(d => d.element === "ice")} />
           {enemyNumNode}
           {enemy ? (
             <>
