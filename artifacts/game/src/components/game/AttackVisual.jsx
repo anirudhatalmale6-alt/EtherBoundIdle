@@ -5,7 +5,7 @@ import { SKILL_ANIMATIONS } from "@/lib/skillData";
 // Sprite-sheet config: frames, source frame size, display size, ms per frame.
 // Add an entry here for each skill that has a sprite strip PNG.
 const SPRITE_SHEETS = {
-  fireball:       { frames: 18, srcW: 128, srcH: 128, displayW: 96, displayH: 96, frameDuration: 60 },
+  fireball:       { frames: 18, srcW: 128, srcH: 128, displayW: 128, displayH: 128, frameDuration: 60 },
   flamewall:      { frames: 15, srcW: 64, srcH: 64, displayW: 96, displayH: 96, frameDuration: 80 },
   fire_explosion: { frames: 8,  srcW: 64, srcH: 64, displayW: 80, displayH: 80, frameDuration: 60 },
 };
@@ -73,7 +73,7 @@ function AttackSprite({ animKey, emoji }) {
 
 const ANIM_CONFIG = {
   // Projectiles — fly from player to enemy
-  fireball:    { emoji: "🔥",  color: "text-orange-400", category: "projectile", rotate: 0,   scale: 1.4, impactSprite: "fire_explosion" },
+  fireball:    { emoji: "🔥",  color: "text-orange-400", category: "projectile", rotate: 0,   scale: 1.6, impactSprite: "fire_explosion" },
   arrow:       { emoji: "🏹",  color: "text-green-400",  category: "projectile", rotate: 0,   scale: 1.2 },
   icicle:      { emoji: "🧊",  color: "text-cyan-400",   category: "projectile", rotate: 15,  scale: 1.2 },
   projectile:  { emoji: "🔮",  color: "text-blue-400",   category: "projectile", rotate: 0,   scale: 1.2 },
