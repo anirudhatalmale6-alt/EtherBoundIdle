@@ -112,7 +112,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
             className="text-base font-bold tracking-wider"
             style={{ fontFamily: "'Press Start 2P', monospace", color: "#c8973a" }}
           >
-            IDLE REALM
+            EtherBound Idle
           </h1>
           <p className="text-xs text-muted-foreground mt-1 flex items-center gap-2">
             Online MMORPG
@@ -208,7 +208,7 @@ export default function GameLayout({ character, onCharacterUpdate, onBackToSelec
       <div className="flex flex-col flex-1 overflow-hidden">
         <header className="md:hidden flex items-center justify-between p-3 border-b border-border bg-card/50">
           <div className="flex items-center gap-2">
-            <h1 className="font-orbitron text-lg font-bold text-primary">IDLE REALM</h1>
+            <h1 className="font-orbitron text-lg font-bold text-primary">EtherBound Idle</h1>
             {onlineCount > 0 && (
               <span className="flex items-center gap-1 text-[10px] text-green-400">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />

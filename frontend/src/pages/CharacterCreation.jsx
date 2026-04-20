@@ -68,7 +68,7 @@ export default function CharacterCreation({ onCreated }) {
       >
         <div className="text-center mb-10">
           <h1 className="font-orbitron text-4xl md:text-5xl font-bold text-primary tracking-wider mb-3">
-            IDLE REALM
+            EtherBound Idle
           </h1>
           <p className="text-muted-foreground text-lg">Create your hero and begin your adventure</p>
         </div>
